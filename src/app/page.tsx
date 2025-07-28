@@ -1,9 +1,22 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   return (
     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+        <h1 className="text-4xl font-bold text-center mb-8">ChessBall</h1>
+
+        <div className="text-center mb-8">
+          <p className="text-lg mb-4">Welcome to ChessBall - A strategic soccer game!</p>
+          <Link
+            href="/game"
+            className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Start New Game
+          </Link>
+        </div>
+
         <Image
           className="dark:invert"
           src="/next.svg"
