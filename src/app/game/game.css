@@ -24,6 +24,21 @@
     /* yellow-400 with opacity */
 }
 
+.highlighted.move {
+    background-color: rgba(10, 102, 43, 0.6) !important;
+    /* green-400 with opacity */
+}
+
+.highlighted.pass {
+    background-color: rgba(59, 130, 246, 0.6) !important;
+    /* blue-400 with opacity */
+}
+
+.highlighted.tackle {
+    background-color: rgba(219, 137, 31, 0.885) !important;
+    /* red-400 with opacity */
+}
+
 .field-cell {
     border-style: var(--tw-border-style);
     border-width: 1px;
@@ -182,6 +197,14 @@
     justify-content: right;
 }
 
+.player.action-done {
+    opacity: 0.5;
+}
+
+.ball.action-done {
+    opacity: 0.5;
+}
+
 .player.has-ball {
     box-shadow: 0 0 20px rgba(255, 255, 0, 0.8);
     transform: scale(1.1);
@@ -223,10 +246,6 @@
     left: 0;
     right: auto;
     transform: none;
-}
-
-.team2.ball::after {
-    background-image: url('/ball_team2.svg');
 }
 
 /* Game controls styling */
