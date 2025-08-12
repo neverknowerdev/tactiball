@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Game, TeamEnum, TeamPlayer, MoveType } from '@/lib/game/game';
+import { Game, TeamEnum, TeamPlayer, MoveType, isPosEquals, Team } from '@/lib/game/game';
 import './game.css';
 
 // Cell type enum
@@ -30,12 +30,11 @@ const FIELD_HEIGHT = 11;
 export default function GamePage() {
     const [game, setGame] = useState<Game | null>(null);
     const [cellStates, setCellStates] = useState<CellState[][]>([]);
-    const [currentTeam, setCurrentTeam] = useState<TeamEnum | null>(null);
     const [selectedPlayer, setSelectedPlayer] = useState<TeamPlayer | null>(null);
     const [currentMode, setCurrentMode] = useState<MoveType | null>(null);
     const [availableModes, setAvailableModes] = useState<MoveType[]>([]);
     const [modeIndex, setModeIndex] = useState<number>(0);
-    const [oldStates, setOldStates] = useState<Map<string, PlayerState>>(new Map());
+    const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
 
     // useEffect(() => {
     //     if (game == null || game?.team1.players == null || game?.team2.players == null) {
@@ -55,8 +54,6 @@ export default function GamePage() {
         if (game == null || game?.ball == null) {
             return;
         }
-
-        console.log(game.ball);
     }, [game?.ball]);
 
 
@@ -64,7 +61,7 @@ export default function GamePage() {
         // Initialize a new game
         const newGame = new Game(1);
         newGame.newGame(1, TeamEnum.TEAM1);
-        setCurrentTeam(TeamEnum.TEAM1);
+        setCurrentTeam(newGame.team1);
         setGame(newGame);
 
         const generateCellStates = (): CellState[][] => {
@@ -106,21 +103,15 @@ export default function GamePage() {
     }
 
     const onCellClick = (cell: CellState) => {
-        console.log('clicked', cell);
-
         // Find what's at this cell position
         const team1Player = game.team1.players.find(p =>
-            p.position.x == cell.position.x && p.position.y == cell.position.y
+            isPosEquals(p.position, cell.position)
         );
         const team2Player = game.team2.players.find(p =>
-            p.position.x == cell.position.x && p.position.y == cell.position.y
+            isPosEquals(p.position, cell.position)
         );
 
-        console.log('team1Player', team1Player);
-        console.log('team2Player', team2Player);
-
         if (selectedPlayer != null && cell.highlighted) {
-            console.log('Clicked on highlighted cell:', cell);
             handleEmptyCellClick(cell);
             return;
         }
@@ -132,21 +123,27 @@ export default function GamePage() {
         //     return;
         // }
 
+        if (team1Player && team2Player) {
+            if (currentTeam?.enum === team1Player.team.enum) {
+                handlePlayerClick(team1Player);
+            } else {
+                handlePlayerClick(team2Player);
+            }
+            return;
+        }
+
         if (team1Player) {
-            console.log('Clicked on Team 1 player:', team1Player);
             // Handle team 1 player click
             handlePlayerClick(team1Player);
             return;
         }
         if (team2Player) {
-            console.log('Clicked on Team 2 player:', team2Player);
             // Handle team 2 player click
             handlePlayerClick(team2Player);
             return;
         }
 
         if (!team1Player && !team2Player) {
-            console.log('Clicked on empty cell:', cell);
             // Handle empty cell click
             handleEmptyCellClick(cell);
             return;
@@ -154,15 +151,23 @@ export default function GamePage() {
     }
 
     const handlePlayerClick = (player: TeamPlayer) => {
+        // Only allow moves for the current user's team
+        if (player.team.enum !== currentTeam?.enum) {
+            // Show a brief visual feedback that it's not their turn
+            alert(`It's ${currentTeam?.name}'s turn!`);
+            return;
+        }
+
         if (selectedPlayer && selectedPlayer === player) {
             switchToNextMode();
             return;
         }
 
-        if (oldStates.has(player.key())) {
+        if (player.oldPosition != null) {
             restorePlayerState(player);
             return;
         }
+
 
         // Select the player and determine available modes
         setSelectedPlayer(player);
@@ -172,6 +177,22 @@ export default function GamePage() {
 
         // Start with the first mode
         switchToMode(0, player, modes);
+    }
+
+    const handleReady = () => {
+        if (currentTeam?.enum === TeamEnum.TEAM1) {
+            // Switch to Team 2's turn
+            game.commitMove(currentTeam!.enum);
+            setCurrentTeam(game.team2);
+            clearSelection();
+        } else {
+            // Both teams have finished their turns, calculate new state
+            game.commitMove(currentTeam!.enum);
+            setCurrentTeam(game.team1);
+            clearSelection();
+
+            const { newState, rendererStates } = game.calculateNewState();
+        }
     }
 
     const determineAvailableModes = (player: TeamPlayer): MoveType[] => {
@@ -194,7 +215,6 @@ export default function GamePage() {
             modes = [MoveType.RUN, MoveType.TACKLE];
         }
 
-        console.log('available modes', modes);
         return modes;
     }
 
@@ -204,104 +224,33 @@ export default function GamePage() {
     }
 
     const switchToMode = (index: number, player: TeamPlayer, modes: MoveType[]) => {
-        console.log('switching to mode', index, modes);
         if (index >= modes.length) return;
 
         const mode = modes[index];
 
-        console.log('switching to mode', index, mode);
         setCurrentMode(mode);
         setModeIndex(index);
 
         // Calculate available cells based on the mode
         const available = game.calculateAvailableCells(player!, mode);
-        console.log('highlighting cells', available);
         updateCellHighlights(available);
     }
 
     const handleEmptyCellClick = (cell: CellState) => {
         // Check if this is an available cell for the selected player
         if (selectedPlayer && cellStates[cell.position.x][cell.position.y].highlighted) {
-            if (currentMode === MoveType.RUN || currentMode === MoveType.TACKLE) {
-                movePlayer(selectedPlayer, { x: cell.position.x, y: cell.position.y });
-            } else if (currentMode === MoveType.PASS) {
-                passBall(selectedPlayer, { x: cell.position.x, y: cell.position.y });
-            }
-            clearSelection();
+            game.doPlayerMove(selectedPlayer, currentMode!, selectedPlayer.position, { x: cell.position.x, y: cell.position.y });
         } else {
             // Clicked on an invalid cell, clear selection
-            clearSelection();
         }
-    }
-
-    const movePlayer = (player: TeamPlayer, newPosition: { x: number, y: number }) => {
-        const newState = {
-            position: { ...player.position },
-            ball: player.ball ? { x: player.ball.position.x, y: player.ball.position.y } : null
-        };
-        oldStates.set(player.key(), newState);
-
-        if (newState.ball) {
-            oldStates.set("ball", newState);
-        }
-
-        // Update player position
-        player.position = newPosition;
-
-        // If player had the ball, move the ball too
-        if (player.ball) {
-            game.ball.position = newPosition;
-        }
-
-        console.log(`Moved player to position: (${newPosition.x}, ${newPosition.y})`);
-    }
-
-    const passBall = (player: TeamPlayer, targetPosition: { x: number, y: number }) => {
-        oldStates.set(player.key(), {
-            position: null,
-            ball: { x: player!.ball!.position.x, y: player!.ball!.position.y }
-        });
-        oldStates.set("ball", oldStates.get(player.key())!);
-
-        console.log('old states', oldStates);
-
-        // Transfer ball ownership
-        player.ball = null;
-        game.ball.ownerTeam = null;
-        game.ball.position = targetPosition;
-
-        console.log(`Passed ball to player at position: (${targetPosition.x}, ${targetPosition.y})`);
+        clearSelection();
     }
 
     const restorePlayerState = (player: TeamPlayer) => {
-        const oldState = oldStates.get(player.key());
-        if (!oldState) {
-            console.log(`No old state found for player ${player.key()}`);
-            return;
-        }
-
-        if (oldState.position) {
-            // Restore the player's position and ball state
-            player.position = { ...oldState.position };
-        }
-        if (oldState.ball) {
-            oldStates.delete("ball");
-            player.ball = {
-                position: { x: oldState.ball.x, y: oldState.ball.y },
-                ownerTeam: player.team.id === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2
-            }
-            game.ball.ownerTeam = player.team.id === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2;
-            game.ball.position = oldState.ball;
-        }
-        // Update game state
-        // updateGameState();
-
-        oldStates.delete(player.key());
+        game.undoPlayerMove(player);
 
         // Clear selection
         clearSelection();
-
-        console.log(`Restored state for player ${player.key()}:`, oldState);
     }
 
     const clearSelection = () => {
@@ -316,7 +265,7 @@ export default function GamePage() {
         const newCellStates = cellStates.map(row =>
             row.map(cell => ({
                 ...cell,
-                highlighted: availablePositions.some(pos => pos.x === cell.position.x && pos.y === cell.position.y)
+                highlighted: availablePositions.some(pos => isPosEquals(pos, cell.position))
             }))
         );
         setCellStates(newCellStates);
@@ -333,11 +282,11 @@ export default function GamePage() {
     }
 
     const isHasOldState = (player: TeamPlayer) => {
-        return oldStates.has(player.key());
+        return player.oldPosition != null;
     }
 
     const isHasOldStateBall = () => {
-        return oldStates.has("ball");
+        return game.ball.oldPosition != null;
     }
 
     return (
@@ -348,13 +297,15 @@ export default function GamePage() {
                 {/* Game Info */}
                 <div className="mb-4 flex justify-between items-center">
                     <div className="flex gap-8">
-                        <div className="text-center">
-                            <div className="text-lg font-semibold text-red-600">{game.team1.name}</div>
-                            <div className="text-2xl font-bold">{game.team1.score}</div>
+                        <div className={`text-center ${currentTeam?.enum === TeamEnum.TEAM1 ? 'ring-4 ring-yellow-400 ring-opacity-75 rounded-lg p-2' : ''}`}>
+                            <div className={`text-lg font-semibold text-blue-600`}>{game.team1.name}</div>
+                            <div className={`text-2xl font-bold text-blue-600`}>{game.team1.score}</div>
+                            {currentTeam?.enum === TeamEnum.TEAM1 && <div className="text-xs text-yellow-600 font-semibold">YOUR TURN</div>}
                         </div>
-                        <div className="text-center">
-                            <div className="text-lg font-semibold text-blue-600">{game.team2.name}</div>
-                            <div className="text-2xl font-bold">{game.team2.score}</div>
+                        <div className={`text-center ${currentTeam?.enum === TeamEnum.TEAM2 ? 'ring-4 ring-yellow-400 ring-opacity-75 rounded-lg p-2' : ''}`}>
+                            <div className={`text-lg font-semibold text-red-600`}>{game.team2.name}</div>
+                            <div className={`text-2xl font-bold text-red-600`}>{game.team2.score}</div>
+                            {currentTeam?.enum === TeamEnum.TEAM2 && <div className="text-xs text-yellow-600 font-semibold">YOUR TURN</div>}
                         </div>
                     </div>
                     <div className="text-sm text-gray-600">
@@ -366,14 +317,14 @@ export default function GamePage() {
                 <div className="field">
                     <div className="grid grid-cols-[repeat(17,1fr)] grid-rows-[repeat(11,1fr)] absolute inset-0">
                         {game.team1.players.map((player, index) => (
-                            <div key={index} className={`player team1 player${index + 1} ${isHasOldState(player) ? 'action-done' : ''}`}
+                            <div key={index} className={`player team1 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''}`}
                                 style={{
                                     gridRow: player.position.y + 1,
                                     gridColumn: player.position.x + 1
                                 }} />
                         ))}
                         {game.team2.players.map((player, index) => (
-                            <div key={index} className={`player team2 player${index + 1} ${isHasOldState(player) ? 'action-done' : ''}`}
+                            <div key={index} className={`player team2 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''}`}
                                 style={{
                                     gridRow: player.position.y + 1,
                                     gridColumn: player.position.x + 1
@@ -403,10 +354,26 @@ export default function GamePage() {
                     </div>
                 </div>
 
+                {/* Ready Button */}
+                <div className="mt-4 flex justify-center">
+                    <button
+                        onClick={handleReady}
+                        className="px-8 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-lg"
+                    >
+                        Ready!
+                    </button>
+                </div>
+
                 {/* Game Controls */}
                 <div className="mt-6 p-4 bg-white rounded-lg shadow">
                     <h3 className="text-lg font-semibold mb-4">Game Controls</h3>
                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <h4 className="font-medium mb-2">Current User</h4>
+                            <div className="text-sm">
+                                {currentTeam?.enum === TeamEnum.TEAM1 ? game.team1.name : game.team2.name}
+                            </div>
+                        </div>
                         <div>
                             <h4 className="font-medium mb-2">Ball Owner</h4>
                             <div className="text-sm">
@@ -445,6 +412,20 @@ export default function GamePage() {
                             </div>
                         </div>
                     )}
+
+                    {/* Turn Status */}
+                    <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+                        <h4 className="font-medium mb-2">Turn Status</h4>
+                        <div className="text-sm">
+                            <span className="font-medium">Current Turn:</span> {currentTeam?.enum === TeamEnum.TEAM1 ? game.team1.name : game.team2.name}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                            {currentTeam?.enum === TeamEnum.TEAM1 ?
+                                `${game.team1.name} is making their moves. Click "Ready!" when finished.` :
+                                `${game.team2.name} is making their moves. Click "Ready!" when finished.`
+                            }
+                        </div>
+                    </div>
 
                 </div>
 
