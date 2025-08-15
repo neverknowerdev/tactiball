@@ -60,6 +60,7 @@ export interface GameState {
     ballPosition: Position;
     ballOwner: string | null;
     type: 'startPositions' | 'move' | 'goal';
+    clashRandomResults: number[];
 }
 
 export interface GameAction {
@@ -270,6 +271,8 @@ export class Game implements GameType {
         // restore last state
         this.restoreState(this.history[this.history.length - 1]);
 
+        let randomNumbers: number[] = [];
+
         // Validation part
         let destinationMap: { [key: string]: boolean } = {};
         // check that all moves are valid
@@ -354,10 +357,16 @@ export class Game implements GameType {
                     // for now it will resolve simple - ball win a team who not owner ball previously.
                     const player1MoveType = playerMoveType[team1Player.key()];
                     const player2MoveType = playerMoveType[team2Player.key()];
-                    const newBallOwner = resolveClash(team1Player, player1MoveType, team2Player, player2MoveType);
+                    const { winner: newBallOwner, randomNumber } = resolveClash(team1Player, player1MoveType, team2Player, player2MoveType);
+
+                    console.log('resolveClash newBallOwner', newBallOwner);
 
                     // Find the player from the winning team
                     const winningPlayer = newBallOwner === TeamEnum.TEAM1 ? team1Player : team2Player;
+
+                    if (randomNumber > 0) {
+                        randomNumbers.push(randomNumber);
+                    }
 
                     this.changeBallOwner(winningPlayer);
                 } else {
@@ -392,6 +401,10 @@ export class Game implements GameType {
         this.playerMoves = [];
 
         const finalState = rendererStates[rendererStates.length - 1];
+
+        if (randomNumbers.length > 0) {
+            finalState.clashRandomResults = randomNumbers;
+        }
 
         this.saveState(finalState);
 
@@ -530,21 +543,21 @@ export class Game implements GameType {
     }
 }
 
-function resolveClash(team1Player: TeamPlayer, team1MoveType: MoveType, team2Player: TeamPlayer, team2MoveType: MoveType): TeamEnum {
+function resolveClash(team1Player: TeamPlayer, team1MoveType: MoveType, team2Player: TeamPlayer, team2MoveType: MoveType): { winner: TeamEnum, randomNumber: number } {
     console.log('resolveClash', team1Player, team1MoveType, team2Player, team2MoveType);
     if (team1Player.ball && team2MoveType == MoveType.TACKLE) {
         console.log('team2Player win cauze of tackle');
-        return TeamEnum.TEAM2;
+        return { winner: TeamEnum.TEAM2, randomNumber: 0 };
     }
 
     if (team2Player.ball && team1MoveType == MoveType.TACKLE) {
         console.log('team1Player win cauze of tacke');
-        return TeamEnum.TEAM1;
+        return { winner: TeamEnum.TEAM1, randomNumber: 0 };
     }
 
     const random = Math.random();
     console.log('random win', random);
-    return random < 0.5 ? TeamEnum.TEAM1 : TeamEnum.TEAM2;
+    return { winner: random < 0.5 ? TeamEnum.TEAM1 : TeamEnum.TEAM2, randomNumber: random };
 }
 
 function isPositionInGates(position: Position): boolean {
@@ -568,7 +581,8 @@ function fillState(team1: Team, team2: Team, ball: Ball, type: 'startPositions' 
         team2PlayerPositions: team2.players.map(player => player.position),
         ballPosition: ball.position,
         ballOwner: ball.ownerTeam || null,
-        type: type
+        type: type,
+        clashRandomResults: []
     }
 
     return state;

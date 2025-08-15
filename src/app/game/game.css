@@ -79,16 +79,17 @@
 .field {
     width: 100%;
     max-width: 800px;
+    overflow-x: auto;
     height: 600px;
     margin: 0 auto;
     background-color: var(--color-green-600);
     position: relative;
-    overflow: hidden;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .field .grid {
     margin: 20px;
+    min-width: 500px;
 }
 
 /* Field markings */
