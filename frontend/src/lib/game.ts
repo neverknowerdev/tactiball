@@ -29,9 +29,30 @@ export interface Position {
     y: number
 }
 
+export class ValidationError extends Error {
+    public readonly cauzedByTeam: TeamEnum;
+    public readonly cauzedByPlayerId: number;
+    public readonly move: GameAction;
+    public readonly message: string;
+
+    constructor(
+        cauzedByTeam: TeamEnum,
+        cauzedByPlayerId: number,
+        move: GameAction,
+        message: string
+    ) {
+        super(`Move validation failed for ${cauzedByTeam} player ${cauzedByPlayerId}: ${message}`);
+        this.name = 'ValidationError';
+        this.cauzedByTeam = cauzedByTeam;
+        this.cauzedByPlayerId = cauzedByPlayerId;
+        this.move = move;
+        this.message = message;
+    }
+}
+
 // Utility function to compare Position objects by value
 export function isPosEquals(pos1: Position, pos2: Position): boolean {
-    return pos1.x === pos2.x && pos1.y === pos2.y;
+    return Number(pos1.x) === Number(pos2.x) && Number(pos1.y) === Number(pos2.y);
 }
 
 export interface TeamPlayer {
@@ -64,10 +85,12 @@ export interface GameState {
 }
 
 export interface GameAction {
-    player: TeamPlayer;
+    playerId: number;
+    teamEnum: TeamEnum;
     moveType: MoveType;
     oldPosition: Position;
     newPosition: Position;
+    playerKey: () => string;
 }
 
 export interface GameType {
@@ -163,12 +186,17 @@ export class Game implements GameType {
     }
 
     doPlayerMove(player: TeamPlayer, type: MoveType, oldPosition: Position, newPosition: Position, render: boolean = true) {
-        const alreadyDoneMove = this.playerMoves.find(move => move.player.key() === player.key())
+        const alreadyDoneMove = this.playerMoves.find(move => move.playerId === player.id && move.teamEnum === player.team.enum)
         if (alreadyDoneMove) {
-            throw new Error('Player already made a move');
+            throw new ValidationError(
+                player.team.enum,
+                player.id,
+                { playerId: player.id, teamEnum: player.team.enum, moveType: type, oldPosition, newPosition, playerKey: player.key },
+                'Player already made a move'
+            );
         }
 
-        this.playerMoves.push({ player, moveType: type, oldPosition, newPosition });
+        this.playerMoves.push({ playerId: player.id, teamEnum: player.team.enum, moveType: type, oldPosition, newPosition, playerKey: player.key });
 
         if (render) {
             this._renderPlayerMove(player, type, oldPosition, newPosition);
@@ -176,7 +204,7 @@ export class Game implements GameType {
     }
 
     undoPlayerMove(player: TeamPlayer, render: boolean = true) {
-        const index = this.playerMoves.findIndex(move => move.player.key() === player.key())
+        const index = this.playerMoves.findIndex(move => move.playerId === player.id && move.teamEnum === player.team.enum)
         if (index == -1) {
             throw new Error('Player did not make a move');
         }
@@ -254,7 +282,7 @@ export class Game implements GameType {
             throw new Error('No moves to commit');
         }
         // search for moves for team
-        const teamMoves = this.playerMoves.filter(move => move.player.team.id === team.id);
+        const teamMoves = this.playerMoves.filter(move => move.teamEnum === team.enum);
         if (teamMoves.length == 0) {
             throw new Error('No moves to commit for current team');
         }
@@ -282,13 +310,23 @@ export class Game implements GameType {
             const allowedCells = move.moveType == MoveType.TACKLE ? [...availablePath, move.oldPosition] : availablePath;
 
             if (!allowedCells.some(cell => isPosEquals(cell, move.newPosition))) {
-                throw new Error(`Move is not valid for player ${move.player.key()}, type ${move.moveType}`);
+                throw new ValidationError(
+                    move.teamEnum,
+                    move.playerId,
+                    move,
+                    `Move is not valid for player ${move.playerId}, team ${move.teamEnum}, type ${move.moveType}`
+                );
             }
 
-            const playerKey = move.moveType == MoveType.PASS || move.moveType == MoveType.SHOT ? "ball" : move.player.key();
+            const playerKey = move.moveType == MoveType.PASS || move.moveType == MoveType.SHOT ? "ball" : move.playerKey();
             const key = `${playerKey}_${move.newPosition.x}_${move.newPosition.y}`;
             if (destinationMap[key]) {
-                throw new Error('Cannot move two players from the same team to the same position');
+                throw new ValidationError(
+                    move.teamEnum,
+                    move.playerId,
+                    move,
+                    'Cannot move two players from the same team to the same position'
+                );
             }
 
             destinationMap[key] = true;
@@ -299,7 +337,7 @@ export class Game implements GameType {
         let playerPaths: { [key: string]: Position[] } = {};
         let playerMoveType: { [key: string]: MoveType } = {};
         for (const move of this.playerMoves) {
-            var playerKey = move.player.key();
+            var playerKey = move.playerKey();
             if (move.moveType == MoveType.PASS || move.moveType == MoveType.SHOT) {
                 playerKey = "ball";
             }

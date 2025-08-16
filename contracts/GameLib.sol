@@ -9,6 +9,10 @@ library GameLib {
     uint256 public constant MAX_MOVE_TIME = 1 minutes;
 
     // Enums
+    enum TeamFormation {
+        FORMATION_2_2_1
+    }
+
     enum TeamEnum {
         NONE,
         TEAM1,
@@ -23,7 +27,7 @@ library GameLib {
     }
 
     enum GameStatus {
-        WAITING_FOR_START,
+        NONE,
         ACTIVE,
         FINISHED,
         FINISHED_BY_TIMEOUT
@@ -91,29 +95,29 @@ library GameLib {
         GameStatistics statistic;
     }
 
+    struct TeamInfo {
+        uint256 teamId;
+        uint8 score;
+        uint64 eloRating;
+        uint64 eloRatingNew;
+        TeamFormation formation;
+        //
+        GameAction[] actions;
+    }
+
     struct Game {
         uint256 gameId;
-        uint256 team1id;
-        uint256 team2id;
         //
         uint256 createdAt;
         //
         uint256 lastMoveAt;
         TeamEnum lastMoveTeam;
         //
-        uint8 team1Score;
-        uint8 team2score;
-        // elo rating at the game start
-        uint64 team1EloRating;
-        uint64 team2EloRating;
-        //
-        uint64 eloRatingDelta;
+        TeamInfo team1;
+        TeamInfo team2;
         //
         GameState[] history;
         GameStatus status;
-        //
-        GameAction[] team1Actions;
-        GameAction[] team2Actions;
         //
         uint8 movesMade;
         //
@@ -127,6 +131,38 @@ library GameLib {
         uint256 createdAt;
     }
 
+    // Helper function to trim leading and trailing spaces from a string
+    function trimSpaces(
+        string memory str
+    ) external pure returns (string memory) {
+        bytes memory strBytes = bytes(str);
+        uint256 start = 0;
+        uint256 end = strBytes.length;
+
+        // Find the first non-space character
+        while (start < end && strBytes[start] == 0x20) {
+            start++;
+        }
+
+        // Find the last non-space character
+        while (end > start && strBytes[end - 1] == 0x20) {
+            end--;
+        }
+
+        // If the string is all spaces, return empty string
+        if (start >= end) {
+            return "";
+        }
+
+        // Create a new string with the trimmed content
+        bytes memory result = new bytes(end - start);
+        for (uint256 i = 0; i < result.length; i++) {
+            result[i] = strBytes[start + i];
+        }
+
+        return string(result);
+    }
+
     // Team Management Functions
     function createTeam(
         uint256 nextTeamId,
@@ -135,6 +171,8 @@ library GameLib {
         uint8 countryID,
         uint256 createdAt
     ) external pure returns (Team memory) {
+        // Trim leading and trailing spaces from the team name
+
         return
             Team({
                 id: nextTeamId,
@@ -168,25 +206,36 @@ library GameLib {
         uint64 team1EloRating,
         uint64 team2EloRating
     ) internal view returns (Game memory) {
+        TeamInfo memory team1Info = TeamInfo({
+            teamId: team1id,
+            score: 0,
+            eloRating: team1EloRating,
+            eloRatingNew: 0,
+            formation: TeamFormation.FORMATION_2_2_1,
+            actions: new GameAction[](0)
+        });
+
+        TeamInfo memory team2Info = TeamInfo({
+            teamId: team2id,
+            score: 0,
+            eloRating: team2EloRating,
+            eloRatingNew: 0,
+            formation: TeamFormation.FORMATION_2_2_1,
+            actions: new GameAction[](0)
+        });
+
         return
             Game({
                 gameId: nextGameId,
-                team1id: team1id,
-                team2id: team2id,
                 createdAt: block.timestamp,
                 lastMoveAt: 0,
-                lastMoveTeam: TeamEnum.TEAM1,
-                team1Score: 0,
-                team2score: 0,
-                team1EloRating: team1EloRating,
-                team2EloRating: team2EloRating,
+                lastMoveTeam: TeamEnum.NONE,
+                team1: team1Info,
+                team2: team2Info,
                 history: new GameState[](0),
-                status: GameStatus.WAITING_FOR_START,
-                team1Actions: new GameAction[](0),
-                team2Actions: new GameAction[](0),
+                status: GameStatus.ACTIVE,
                 movesMade: 0,
-                winner: TeamEnum.NONE,
-                eloRatingDelta: 0
+                winner: TeamEnum.NONE
             });
     }
 
@@ -220,32 +269,103 @@ library GameLib {
         delete gameRequests[request.gameRequestId];
     }
 
+    // Helper functions to access team data
+    function getTeamInfo(
+        Game storage game,
+        TeamEnum team
+    ) internal view returns (TeamInfo storage) {
+        if (team == TeamEnum.TEAM1) {
+            return game.team1;
+        } else {
+            return game.team2;
+        }
+    }
+
+    function getTeamScore(
+        Game storage game,
+        TeamEnum team
+    ) internal view returns (uint8) {
+        return getTeamInfo(game, team).score;
+    }
+
+    function setTeamScore(
+        Game storage game,
+        TeamEnum team,
+        uint8 score
+    ) internal {
+        getTeamInfo(game, team).score = score;
+    }
+
+    function getTeamEloRating(
+        Game storage game,
+        TeamEnum team
+    ) internal view returns (uint64) {
+        return getTeamInfo(game, team).eloRating;
+    }
+
+    function setTeamEloRating(
+        Game storage game,
+        TeamEnum team,
+        uint64 eloRating
+    ) internal {
+        getTeamInfo(game, team).eloRating = eloRating;
+    }
+
+    function getTeamEloRatingNew(
+        Game storage game,
+        TeamEnum team
+    ) internal view returns (uint64) {
+        return getTeamInfo(game, team).eloRatingNew;
+    }
+
+    function setTeamEloRatingNew(
+        Game storage game,
+        TeamEnum team,
+        uint64 eloRating
+    ) internal {
+        getTeamInfo(game, team).eloRatingNew = eloRating;
+    }
+
+    function getTeamActions(
+        Game storage game,
+        TeamEnum team
+    ) internal view returns (GameAction[] storage) {
+        return getTeamInfo(game, team).actions;
+    }
+
+    function setTeamActions(
+        Game storage game,
+        TeamEnum team,
+        GameAction[] calldata actions
+    ) internal {
+        getTeamInfo(game, team).actions = actions;
+    }
+
+    function clearTeamActions(Game storage game, TeamEnum team) internal {
+        delete getTeamInfo(game, team).actions;
+    }
+
     function commitGameActions(
         Game storage game,
         TeamEnum team,
         GameAction[] calldata actions
     ) external returns (bool) {
-        if (team == TeamEnum.TEAM1) {
-            require(
-                game.team1Actions.length == 0,
-                "Team 1 already has actions"
-            );
+        TeamInfo storage teamInfo = getTeamInfo(game, team);
 
-            game.team1Actions = actions;
-            game.lastMoveTeam = TeamEnum.TEAM1;
-        } else {
-            require(
-                game.team2Actions.length == 0,
-                "Team 2 already has actions"
-            );
+        require(
+            teamInfo.actions.length == 0,
+            team == TeamEnum.TEAM1
+                ? "Team 1 already has actions"
+                : "Team 2 already has actions"
+        );
 
-            game.team2Actions = actions;
-            game.lastMoveTeam = TeamEnum.TEAM2;
-        }
-
+        setTeamActions(game, team, actions);
+        game.lastMoveTeam = team;
         game.lastMoveAt = block.timestamp;
 
-        return game.team1Actions.length > 0 && game.team2Actions.length > 0;
+        return
+            getTeamActions(game, TeamEnum.TEAM1).length > 0 &&
+            getTeamActions(game, TeamEnum.TEAM2).length > 0;
     }
 
     function finishGame(
@@ -268,20 +388,26 @@ library GameLib {
             winner = game.lastMoveTeam;
 
             if (winner == TeamEnum.TEAM1) {
-                game.team1Score = 3;
-                game.team2score = 0;
+                setTeamScore(game, TeamEnum.TEAM1, 3);
+                setTeamScore(game, TeamEnum.TEAM2, 0);
             } else {
-                game.team1Score = 0;
-                game.team2score = 3;
+                setTeamScore(game, TeamEnum.TEAM1, 0);
+                setTeamScore(game, TeamEnum.TEAM2, 3);
             }
             // that's technical win, don't update team stat
             // Event will be emitted from the main contract
             return winner;
         }
         if (finishReason == FinishReason.MAX_MOVES_REACHED) {
-            if (game.team1Score > game.team2score) {
+            if (
+                getTeamScore(game, TeamEnum.TEAM1) >
+                getTeamScore(game, TeamEnum.TEAM2)
+            ) {
                 winner = TeamEnum.TEAM1;
-            } else if (game.team1Score < game.team2score) {
+            } else if (
+                getTeamScore(game, TeamEnum.TEAM1) <
+                getTeamScore(game, TeamEnum.TEAM2)
+            ) {
                 winner = TeamEnum.TEAM2;
             } else {
                 winner = TeamEnum.NONE;
@@ -304,17 +430,17 @@ library GameLib {
         game.movesMade++;
         game.lastMoveAt = block.timestamp;
 
-        game.team1Actions = new GameAction[](0);
-        game.team2Actions = new GameAction[](0);
+        clearTeamActions(game, TeamEnum.TEAM1);
+        clearTeamActions(game, TeamEnum.TEAM2);
         game.lastMoveTeam = TeamEnum.NONE;
 
         if (gameState.stateType == StateType.GOAL_TEAM1) {
-            game.team1Score++;
+            uint8 currentScore = getTeamScore(game, TeamEnum.TEAM1);
+            setTeamScore(game, TeamEnum.TEAM1, currentScore + 1);
         } else if (gameState.stateType == StateType.GOAL_TEAM2) {
-            game.team2score++;
+            uint8 currentScore = getTeamScore(game, TeamEnum.TEAM2);
+            setTeamScore(game, TeamEnum.TEAM2, currentScore + 1);
         }
-
-        return;
     }
 
     function _updateTeamStatistics(
@@ -322,52 +448,92 @@ library GameLib {
         Team storage team1,
         Team storage team2
     ) private {
-        team1.statistic.totalGoalsScored += game.team1Score;
-        team1.statistic.totalGoalsConceded += game.team2score;
-        team2.statistic.totalGoalsScored += game.team2score;
-        team2.statistic.totalGoalsConceded += game.team1Score;
+        team1.statistic.totalGoalsScored += getTeamScore(game, TeamEnum.TEAM1);
+        team1.statistic.totalGoalsConceded += getTeamScore(
+            game,
+            TeamEnum.TEAM2
+        );
+        team2.statistic.totalGoalsScored += getTeamScore(game, TeamEnum.TEAM2);
+        team2.statistic.totalGoalsConceded += getTeamScore(
+            game,
+            TeamEnum.TEAM1
+        );
 
-        if (game.team1Score > game.team2score) {
+        if (
+            getTeamScore(game, TeamEnum.TEAM1) >
+            getTeamScore(game, TeamEnum.TEAM2)
+        ) {
             team1.statistic.wins++;
             team2.statistic.losses++;
 
             if (
-                game.team1Score - game.team2score >
+                getTeamScore(game, TeamEnum.TEAM1) -
+                    getTeamScore(game, TeamEnum.TEAM2) >
                 team1.statistic.biggestWinGoalsScored -
                     team1.statistic.biggestWinGoalsConceded
             ) {
-                team1.statistic.biggestWinGoalsScored = game.team1Score;
-                team1.statistic.biggestWinGoalsConceded = game.team2score;
+                team1.statistic.biggestWinGoalsScored = getTeamScore(
+                    game,
+                    TeamEnum.TEAM1
+                );
+                team1.statistic.biggestWinGoalsConceded = getTeamScore(
+                    game,
+                    TeamEnum.TEAM2
+                );
             }
 
             if (
-                game.team1Score - game.team2score >
+                getTeamScore(game, TeamEnum.TEAM1) -
+                    getTeamScore(game, TeamEnum.TEAM2) >
                 team2.statistic.biggestLossGoalsConceded -
                     team2.statistic.biggestLossGoalsScored
             ) {
-                team2.statistic.biggestLossGoalsScored = game.team2score;
-                team2.statistic.biggestLossGoalsConceded = game.team1Score;
+                team2.statistic.biggestLossGoalsScored = getTeamScore(
+                    game,
+                    TeamEnum.TEAM2
+                );
+                team2.statistic.biggestLossGoalsConceded = getTeamScore(
+                    game,
+                    TeamEnum.TEAM1
+                );
             }
-        } else if (game.team1Score < game.team2score) {
+        } else if (
+            getTeamScore(game, TeamEnum.TEAM1) <
+            getTeamScore(game, TeamEnum.TEAM2)
+        ) {
             team1.statistic.losses++;
             team2.statistic.wins++;
 
             if (
-                game.team2score - game.team1Score >
+                getTeamScore(game, TeamEnum.TEAM2) -
+                    getTeamScore(game, TeamEnum.TEAM1) >
                 team2.statistic.biggestWinGoalsScored -
                     team2.statistic.biggestWinGoalsConceded
             ) {
-                team2.statistic.biggestWinGoalsScored = game.team2score;
-                team2.statistic.biggestWinGoalsConceded = game.team1Score;
+                team2.statistic.biggestWinGoalsScored = getTeamScore(
+                    game,
+                    TeamEnum.TEAM2
+                );
+                team2.statistic.biggestWinGoalsConceded = getTeamScore(
+                    game,
+                    TeamEnum.TEAM1
+                );
             }
 
             if (
-                game.team2score - game.team1Score >
+                getTeamScore(game, TeamEnum.TEAM2) -
+                    getTeamScore(game, TeamEnum.TEAM1) >
                 team1.statistic.biggestLossGoalsConceded -
                     team1.statistic.biggestLossGoalsScored
             ) {
-                team1.statistic.biggestLossGoalsScored = game.team1Score;
-                team1.statistic.biggestLossGoalsConceded = game.team2score;
+                team1.statistic.biggestLossGoalsScored = getTeamScore(
+                    game,
+                    TeamEnum.TEAM1
+                );
+                team1.statistic.biggestLossGoalsConceded = getTeamScore(
+                    game,
+                    TeamEnum.TEAM2
+                );
             }
         } else {
             team1.statistic.draws++;

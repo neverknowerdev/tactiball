@@ -9,118 +9,40 @@ export const SmartContractABI = [
                 "internalType": "uint256",
                 "name": "gameId",
                 "type": "uint256"
-            },
+            }
+        ]
+    },
+    {
+        "name": "GameStarted",
+        "type": "event",
+        "anonymous": false,
+        "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "uint256",
-                "name": "time",
+                "name": "gameId",
                 "type": "uint256"
             },
             {
-                "components": [
-                    {
-                        "internalType": "uint256",
-                        "name": "playerId",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "enum GameLib.MoveType",
-                        "name": "moveType",
-                        "type": "uint8"
-                    },
-                    {
-                        "components": [
-                            {
-                                "internalType": "uint8",
-                                "name": "x",
-                                "type": "uint8"
-                            },
-                            {
-                                "internalType": "uint8",
-                                "name": "y",
-                                "type": "uint8"
-                            }
-                        ],
-                        "internalType": "struct GameLib.Position",
-                        "name": "oldPosition",
-                        "type": "tuple"
-                    },
-                    {
-                        "components": [
-                            {
-                                "internalType": "uint8",
-                                "name": "x",
-                                "type": "uint8"
-                            },
-                            {
-                                "internalType": "uint8",
-                                "name": "y",
-                                "type": "uint8"
-                            }
-                        ],
-                        "internalType": "struct GameLib.Position",
-                        "name": "newPosition",
-                        "type": "tuple"
-                    }
-                ],
                 "indexed": false,
-                "internalType": "struct GameLib.GameAction[]",
-                "name": "team1Actions",
-                "type": "tuple[]"
-            },
-            {
-                "components": [
-                    {
-                        "internalType": "uint256",
-                        "name": "playerId",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "enum GameLib.MoveType",
-                        "name": "moveType",
-                        "type": "uint8"
-                    },
-                    {
-                        "components": [
-                            {
-                                "internalType": "uint8",
-                                "name": "x",
-                                "type": "uint8"
-                            },
-                            {
-                                "internalType": "uint8",
-                                "name": "y",
-                                "type": "uint8"
-                            }
-                        ],
-                        "internalType": "struct GameLib.Position",
-                        "name": "oldPosition",
-                        "type": "tuple"
-                    },
-                    {
-                        "components": [
-                            {
-                                "internalType": "uint8",
-                                "name": "x",
-                                "type": "uint8"
-                            },
-                            {
-                                "internalType": "uint8",
-                                "name": "y",
-                                "type": "uint8"
-                            }
-                        ],
-                        "internalType": "struct GameLib.Position",
-                        "name": "newPosition",
-                        "type": "tuple"
-                    }
-                ],
-                "indexed": false,
-                "internalType": "struct GameLib.GameAction[]",
-                "name": "team2Actions",
-                "type": "tuple[]"
+                "internalType": "enum GameLib.TeamEnum",
+                "name": "teamWithBall",
+                "type": "uint8"
             }
-        ],
+        ]
+    },
+    {
+        "name": "GameRequestCreated",
+        "type": "event",
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "gameRequestId",
+                "type": "uint256"
+            }
+        ]
     },
     {
         "name": "getGame",
@@ -143,16 +65,6 @@ export const SmartContractABI = [
                     },
                     {
                         "internalType": "uint256",
-                        "name": "team1id",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "team2id",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
                         "name": "createdAt",
                         "type": "uint256"
                     },
@@ -167,14 +79,170 @@ export const SmartContractABI = [
                         "type": "uint8"
                     },
                     {
-                        "internalType": "uint8",
-                        "name": "team1Score",
-                        "type": "uint8"
+                        "components": [
+                            {
+                                "internalType": "uint256",
+                                "name": "teamId",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint8",
+                                "name": "score",
+                                "type": "uint8"
+                            },
+                            {
+                                "internalType": "uint64",
+                                "name": "eloRating",
+                                "type": "uint64"
+                            },
+                            {
+                                "internalType": "uint64",
+                                "name": "eloRatingNew",
+                                "type": "uint64"
+                            },
+                            {
+                                "internalType": "enum GameLib.TeamFormation",
+                                "name": "formation",
+                                "type": "uint8"
+                            },
+                            {
+                                "components": [
+                                    {
+                                        "internalType": "uint256",
+                                        "name": "playerId",
+                                        "type": "uint256"
+                                    },
+                                    {
+                                        "internalType": "enum GameLib.MoveType",
+                                        "name": "moveType",
+                                        "type": "uint8"
+                                    },
+                                    {
+                                        "components": [
+                                            {
+                                                "internalType": "uint8",
+                                                "name": "x",
+                                                "type": "uint8"
+                                            },
+                                            {
+                                                "internalType": "uint8",
+                                                "name": "y",
+                                                "type": "uint8"
+                                            }
+                                        ],
+                                        "internalType": "struct GameLib.Position",
+                                        "name": "oldPosition",
+                                        "type": "tuple"
+                                    },
+                                    {
+                                        "components": [
+                                            {
+                                                "internalType": "uint8",
+                                                "name": "x",
+                                                "type": "uint8"
+                                            },
+                                            {
+                                                "internalType": "uint8",
+                                                "name": "y",
+                                                "type": "uint8"
+                                            }
+                                        ],
+                                        "internalType": "struct GameLib.Position",
+                                        "name": "newPosition",
+                                        "type": "tuple"
+                                    }
+                                ],
+                                "internalType": "struct GameLib.GameAction[]",
+                                "name": "actions",
+                                "type": "tuple[]"
+                            }
+                        ],
+                        "internalType": "struct GameLib.TeamInfo",
+                        "name": "team1",
+                        "type": "tuple"
                     },
                     {
-                        "internalType": "uint8",
-                        "name": "team2score",
-                        "type": "uint8"
+                        "components": [
+                            {
+                                "internalType": "uint256",
+                                "name": "teamId",
+                                "type": "uint256"
+                            },
+                            {
+                                "internalType": "uint8",
+                                "name": "score",
+                                "type": "uint8"
+                            },
+                            {
+                                "internalType": "uint64",
+                                "name": "eloRating",
+                                "type": "uint64"
+                            },
+                            {
+                                "internalType": "uint64",
+                                "name": "eloRatingNew",
+                                "type": "uint64"
+                            },
+                            {
+                                "internalType": "enum GameLib.TeamFormation",
+                                "name": "formation",
+                                "type": "uint8"
+                            },
+                            {
+                                "components": [
+                                    {
+                                        "internalType": "uint256",
+                                        "name": "playerId",
+                                        "type": "uint256"
+                                    },
+                                    {
+                                        "internalType": "enum GameLib.MoveType",
+                                        "name": "moveType",
+                                        "type": "uint8"
+                                    },
+                                    {
+                                        "components": [
+                                            {
+                                                "internalType": "uint8",
+                                                "name": "x",
+                                                "type": "uint8"
+                                            },
+                                            {
+                                                "internalType": "uint8",
+                                                "name": "y",
+                                                "type": "uint8"
+                                            }
+                                        ],
+                                        "internalType": "struct GameLib.Position",
+                                        "name": "oldPosition",
+                                        "type": "tuple"
+                                    },
+                                    {
+                                        "components": [
+                                            {
+                                                "internalType": "uint8",
+                                                "name": "x",
+                                                "type": "uint8"
+                                            },
+                                            {
+                                                "internalType": "uint8",
+                                                "name": "y",
+                                                "type": "uint8"
+                                            }
+                                        ],
+                                        "internalType": "struct GameLib.Position",
+                                        "name": "newPosition",
+                                        "type": "tuple"
+                                    }
+                                ],
+                                "internalType": "struct GameLib.GameAction[]",
+                                "name": "actions",
+                                "type": "tuple[]"
+                            }
+                        ],
+                        "internalType": "struct GameLib.TeamInfo",
+                        "name": "team2",
+                        "type": "tuple"
                     },
                     {
                         "components": [
@@ -240,9 +308,9 @@ export const SmartContractABI = [
                                 "type": "uint8[]"
                             },
                             {
-                                "internalType": "string",
+                                "internalType": "enum GameLib.StateType",
                                 "name": "stateType",
-                                "type": "string"
+                                "type": "uint8"
                             }
                         ],
                         "internalType": "struct GameLib.GameState[]",
@@ -253,108 +321,6 @@ export const SmartContractABI = [
                         "internalType": "enum GameLib.GameStatus",
                         "name": "status",
                         "type": "uint8"
-                    },
-                    {
-                        "components": [
-                            {
-                                "internalType": "uint256",
-                                "name": "playerId",
-                                "type": "uint256"
-                            },
-                            {
-                                "internalType": "enum GameLib.MoveType",
-                                "name": "moveType",
-                                "type": "uint8"
-                            },
-                            {
-                                "components": [
-                                    {
-                                        "internalType": "uint8",
-                                        "name": "x",
-                                        "type": "uint8"
-                                    },
-                                    {
-                                        "internalType": "uint8",
-                                        "name": "y",
-                                        "type": "uint8"
-                                    }
-                                ],
-                                "internalType": "struct GameLib.Position",
-                                "name": "oldPosition",
-                                "type": "tuple"
-                            },
-                            {
-                                "components": [
-                                    {
-                                        "internalType": "uint8",
-                                        "name": "x",
-                                        "type": "uint8"
-                                    },
-                                    {
-                                        "internalType": "uint8",
-                                        "name": "y",
-                                        "type": "uint8"
-                                    }
-                                ],
-                                "internalType": "struct GameLib.Position",
-                                "name": "newPosition",
-                                "type": "tuple"
-                            }
-                        ],
-                        "internalType": "struct GameLib.GameAction[]",
-                        "name": "team1Actions",
-                        "type": "tuple[]"
-                    },
-                    {
-                        "components": [
-                            {
-                                "internalType": "uint256",
-                                "name": "playerId",
-                                "type": "uint256"
-                            },
-                            {
-                                "internalType": "enum GameLib.MoveType",
-                                "name": "moveType",
-                                "type": "uint8"
-                            },
-                            {
-                                "components": [
-                                    {
-                                        "internalType": "uint8",
-                                        "name": "x",
-                                        "type": "uint8"
-                                    },
-                                    {
-                                        "internalType": "uint8",
-                                        "name": "y",
-                                        "type": "uint8"
-                                    }
-                                ],
-                                "internalType": "struct GameLib.Position",
-                                "name": "oldPosition",
-                                "type": "tuple"
-                            },
-                            {
-                                "components": [
-                                    {
-                                        "internalType": "uint8",
-                                        "name": "x",
-                                        "type": "uint8"
-                                    },
-                                    {
-                                        "internalType": "uint8",
-                                        "name": "y",
-                                        "type": "uint8"
-                                    }
-                                ],
-                                "internalType": "struct GameLib.Position",
-                                "name": "newPosition",
-                                "type": "tuple"
-                            }
-                        ],
-                        "internalType": "struct GameLib.GameAction[]",
-                        "name": "team2Actions",
-                        "type": "tuple[]"
                     },
                     {
                         "internalType": "uint8",
@@ -374,10 +340,132 @@ export const SmartContractABI = [
         ]
     },
     {
-        "name": "newGameState",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "name": "getTeam",
         "type": "function",
+        "stateMutability": "view",
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "teamId",
+                "type": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "id",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "wallet",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "string",
+                        "name": "name",
+                        "type": "string"
+                    },
+                    {
+                        "internalType": "uint64",
+                        "name": "eloRating",
+                        "type": "uint64"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "registeredAt",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256[]",
+                        "name": "games",
+                        "type": "uint256[]"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "country",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "bool",
+                        "name": "hasActiveGame",
+                        "type": "bool"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "gameRequestId",
+                        "type": "uint256"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "uint32",
+                                "name": "wins",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "losses",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "draws",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "totalGames",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "totalGoalsScored",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "totalGoalsConceded",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "biggestWinGoalsScored",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "biggestWinGoalsConceded",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "biggestLossGoalsScored",
+                                "type": "uint32"
+                            },
+                            {
+                                "internalType": "uint32",
+                                "name": "biggestLossGoalsConceded",
+                                "type": "uint32"
+                            }
+                        ],
+                        "internalType": "struct GameLib.GameStatistics",
+                        "name": "statistic",
+                        "type": "tuple"
+                    }
+                ],
+                "internalType": "struct GameLib.Team",
+                "name": "",
+                "type": "tuple"
+            }
+        ]
+    },
+    {
+        "name": "newGameState",
+        "type": "function",
+        "stateMutability": "nonpayable",
         "inputs": [
             {
                 "internalType": "uint256",
@@ -448,27 +536,83 @@ export const SmartContractABI = [
                         "type": "uint8[]"
                     },
                     {
-                        "internalType": "string",
+                        "internalType": "enum GameLib.StateType",
                         "name": "stateType",
-                        "type": "string"
+                        "type": "uint8"
                     }
                 ],
                 "internalType": "struct GameLib.GameState",
                 "name": "gameState",
                 "type": "tuple"
-            },
+            }
+        ],
+        "outputs": []
+    },
+    {
+        "name": "createTeam",
+        "type": "function",
+        "stateMutability": "nonpayable",
+        "inputs": [
             {
                 "internalType": "string",
-                "name": "errorMsg",
+                "name": "name",
                 "type": "string"
+            },
+            {
+                "internalType": "uint8",
+                "name": "country",
+                "type": "uint8"
+            }
+        ],
+        "outputs": []
+    },
+    {
+        "name": "createGameRequest",
+        "type": "function",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "team1id",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "team2id",
+                "type": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
             }
         ]
     },
     {
-        "name": "recordTeamScore",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "name": "startGame",
         "type": "function",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "gameRequestId",
+                "type": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ]
+    },
+    {
+        "name": "commitGameActions",
+        "type": "function",
+        "stateMutability": "nonpayable",
         "inputs": [
             {
                 "internalType": "uint256",
@@ -479,7 +623,106 @@ export const SmartContractABI = [
                 "internalType": "enum GameLib.TeamEnum",
                 "name": "team",
                 "type": "uint8"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "playerId",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "enum GameLib.MoveType",
+                        "name": "moveType",
+                        "type": "uint8"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "uint8",
+                                "name": "x",
+                                "type": "uint8"
+                            },
+                            {
+                                "internalType": "uint8",
+                                "name": "y",
+                                "type": "uint8"
+                            }
+                        ],
+                        "internalType": "struct GameLib.Position",
+                        "name": "oldPosition",
+                        "type": "tuple"
+                    },
+                    {
+                        "components": [
+                            {
+                                "internalType": "uint8",
+                                "name": "x",
+                                "type": "uint8"
+                            },
+                            {
+                                "internalType": "uint8",
+                                "name": "y",
+                                "type": "uint8"
+                            }
+                        ],
+                        "internalType": "struct GameLib.Position",
+                        "name": "newPosition",
+                        "type": "tuple"
+                    }
+                ],
+                "internalType": "struct GameLib.GameAction[]",
+                "name": "actions",
+                "type": "tuple[]"
+            }
+        ],
+        "outputs": []
+    },
+    {
+        "name": "getTeamIdByWallet",
+        "type": "function",
+        "stateMutability": "view",
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "wallet",
+                "type": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
             }
         ]
     },
+    {
+        "name": "setGameError",
+        "type": "function",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "gameId",
+                "type": "uint256"
+            },
+            {
+                "internalType": "enum GameLib.TeamEnum",
+                "name": "cauzedByTeam",
+                "type": "uint8"
+            },
+            {
+                "internalType": "enum GameLib.ErrorType",
+                "name": "errorType",
+                "type": "uint8"
+            },
+            {
+                "internalType": "string",
+                "name": "errorMsg",
+                "type": "string"
+            }
+        ],
+        "outputs": []
+    }
 ];

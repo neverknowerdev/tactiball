@@ -40,7 +40,6 @@ describe("ELO Rating System", function () {
     describe("Team Creation", function () {
         it("Should create team with default ELO rating of 100", async function () {
             await game.connect(team1Owner).createTeam(
-                team1Owner.address,
                 "Team Alpha",
                 1 // USA country ID
             );
@@ -55,8 +54,8 @@ describe("ELO Rating System", function () {
     describe("Game Creation", function () {
         beforeEach(async function () {
             // Create two teams
-            await game.connect(team1Owner).createTeam(team1Owner.address, "Team Alpha", 1); // USA
-            await game.connect(team2Owner).createTeam(team2Owner.address, "Team Beta", 2); // Canada
+            await game.connect(team1Owner).createTeam("Team Alpha", 1); // USA
+            await game.connect(team2Owner).createTeam("Team Beta", 2); // Canada
 
             const team1Id = await game.getTeamIdByWallet(team1Owner.address);
             const team2Id = await game.getTeamIdByWallet(team2Owner.address);
@@ -85,8 +84,8 @@ describe("ELO Rating System", function () {
             // we can test it through the game contract
 
             // Create teams and start a game
-            await game.connect(team1Owner).createTeam(team1Owner.address, "Team Alpha", 1); // USA
-            await game.connect(team2Owner).createTeam(team2Owner.address, "Team Beta", 2); // Canada
+            await game.connect(team1Owner).createTeam("Team Alpha", 1); // USA
+            await game.connect(team2Owner).createTeam("Team Beta", 2); // Canada
 
             const team1Id = await game.getTeamIdByWallet(team1Owner.address);
             const team2Id = await game.getTeamIdByWallet(team2Owner.address);
@@ -107,7 +106,7 @@ describe("ELO Rating System", function () {
     describe("Default ELO Rating", function () {
         it("Should use constant from EloCalculationLib", async function () {
             // This test verifies that the default rating is properly imported
-            await game.connect(team1Owner).createTeam(team1Owner.address, "Test Team", 1); // USA
+            await game.connect(team1Owner).createTeam("Test Team", 1); // USA
 
             const teamId = await game.getTeamIdByWallet(team1Owner.address);
             const team = await game.getTeam(teamId);

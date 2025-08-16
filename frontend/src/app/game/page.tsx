@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Game, TeamEnum, TeamPlayer, MoveType, isPosEquals, Team } from '@/lib/game/game';
+import { Game, TeamEnum, TeamPlayer, MoveType, isPosEquals, Team } from '@/lib/game';
 import './game.css';
 
 // Cell type enum

@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ChessBall
+
+A strategic soccer game that combines football and chess mechanics.
+
+## Project Structure
+
+The project is organized into two main parts:
+
+- **`/frontend`** - Next.js React application
+- **`/contracts`** - Solidity smart contracts
+- **`/web3-functions`** - Gelato Web3 Functions for automation
+- **`/test`** - Smart contract tests
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+ 
+- Yarn package manager
+- Hardhat for smart contract development
+
+### Installation
+
+1. Install root dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+yarn install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install frontend dependencies:
+```bash
+yarn frontend:install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Running the Project
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+#### Frontend Development
+```bash
+yarn dev
+```
+This will start the Next.js development server on http://localhost:3001
 
-## Learn More
+#### Smart Contract Development
+```bash
+# Compile contracts
+npx hardhat compile
 
-To learn more about Next.js, take a look at the following resources:
+# Run tests
+npx hardhat test
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Deploy contracts
+npx hardhat run scripts/deploy.ts --network <network>
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Available Scripts
 
-## Deploy on Vercel
+- `yarn dev` - Start frontend development server
+- `yarn build` - Build frontend for production
+- `yarn start` - Start frontend production server
+- `yarn lint` - Run frontend linting
+- `yarn frontend:install` - Install frontend dependencies
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Frontend Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+frontend/
+├── src/
+│   ├── app/          # Next.js app router pages
+│   └── lib/          # Utility functions and game logic
+├── public/            # Static assets
+├── package.json       # Frontend dependencies
+└── tsconfig.json      # TypeScript configuration
+```
+
+## Smart Contract Structure
+
+```
+contracts/
+├── Game.sol           # Main game contract
+├── GameLib.sol        # Game logic library
+└── EloCalculationLib.sol # ELO rating calculations
+```
+
+## Technologies Used
+
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
+- **Smart Contracts**: Solidity, Hardhat
+- **Automation**: Gelato Web3 Functions
+- **Testing**: Mocha, Chai, Hardhat testing framework

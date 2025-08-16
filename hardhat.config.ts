@@ -1,50 +1,46 @@
-import type { HardhatUserConfig } from "hardhat/config";
+import "@nomicfoundation/hardhat-toolbox";
+import "@nomicfoundation/hardhat-verify";
+import "@gelatonetwork/web3-functions-sdk/hardhat-plugin";
 
-import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
-import { configVariable } from "hardhat/config";
-
-const config: HardhatUserConfig = {
-  plugins: [hardhatToolboxMochaEthersPlugin],
+const config = {
   solidity: {
-    profiles: {
-      default: {
-        version: "0.8.28",
-        settings: {
-          viaIR: true,
-          optimizer: {
-            enabled: true,
-            runs: 1,
-          },
+    version: "0.8.24",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 1  // Minimal runs for maximum size reduction
+      },
+      viaIR: true,
+      outputSelection: {
+        "*": {
+          "*": ["storageLayout"],
         },
       },
-      production: {
-        version: "0.8.28",
-        settings: {
-          viaIR: true,
-          optimizer: {
-            enabled: true,
-            runs: 200,
-          },
-        },
-      },
-    },
+    }
   },
+  w3f: {
+    rootDir: "./web3-functions",
+    debug: false,
+    networks: ["hardhat", "baseSepolia"],
+  },
+  defaultNetwork: "hardhat",
   networks: {
-    hardhatMainnet: {
-      type: "edr-simulated",
-      chainType: "l1",
+    hardhat: {
+      chainId: 31337,
+      mining: {
+        auto: true,
+        interval: 1000 // 1 second
+      },
+      // accounts: {
+      //     mnemonic: "gm1 gm2 gm3 gm4 gm5 gm6 gm7 gm8 gm9 gm10 gm11 gm12"
+      // }
     },
-    hardhatOp: {
-      type: "edr-simulated",
-      chainType: "op",
-    },
-    sepolia: {
-      type: "http",
-      chainType: "l1",
-      url: configVariable("SEPOLIA_RPC_URL"),
-      accounts: [configVariable("SEPOLIA_PRIVATE_KEY")],
+    baseSepolia: {
+      url: process.env.BASE_SEPOLIA_RPC_URL || "",
+      accounts: process.env.BASE_SEPOLIA_PRIVATE_KEY ? [process.env.BASE_SEPOLIA_PRIVATE_KEY] : [],
+      chainId: 84532,
     },
   },
 };
-
 export default config;
+
