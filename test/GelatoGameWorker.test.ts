@@ -4,6 +4,8 @@ import { ethers, w3f } from "hardhat";
 import { generateEventLog } from "./tools/helpers";
 import { isPosEquals } from "../frontend/src/lib/game";
 
+import { upgrades } from "hardhat";
+
 describe("Gelato Game Worker", function () {
     let gameContract: any;
     let owner: any;
@@ -26,15 +28,22 @@ describe("Gelato Game Worker", function () {
         });
         await gameLib.waitForDeployment();
 
-        // Deploy the main contract with linked libraries
-        gameContract = await ethers.deployContract("ChessBallGame", [
-            gelatoAddress.address, // gelatoAddress - using owner for testing
-            relayerAddress.address // relayerAddress - using owner for testing
-        ], {
+        // Deploy the main contract using the upgradeable pattern
+        const ChessBallGame = await ethers.getContractFactory("ChessBallGame", {
             libraries: {
                 EloCalculationLib: await eloLib.getAddress(),
                 GameLib: await gameLib.getAddress(),
             },
+        });
+
+        // Deploy using UUPS proxy pattern
+        gameContract = await upgrades.deployProxy(ChessBallGame, [
+            gelatoAddress.address, // gelatoAddress - using owner for testing
+            relayerAddress.address // relayerAddress - using owner for testing
+        ], {
+            kind: 'uups',
+            initializer: 'initialize',
+            unsafeAllowLinkedLibraries: true
         });
         await gameContract.waitForDeployment();
     });

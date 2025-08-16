@@ -1,17 +1,14 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import { ethers } from "hardhat";
+import { upgrades } from "hardhat";
 
 describe("Game Contract - Team Management", function () {
     let game: any;
     let owner: any;
     let team1Owner: any;
     let team2Owner: any;
-    let ethers: any;
 
     beforeEach(async function () {
-        const networkConnection = await network.connect();
-        ethers = (networkConnection as any).ethers;
-
         [owner, team1Owner, team2Owner] = await ethers.getSigners();
 
         // Deploy libraries first
@@ -25,14 +22,21 @@ describe("Game Contract - Team Management", function () {
         });
         await gameLib.waitForDeployment();
 
-        // Deploy the main contract with linked libraries
-        game = await ethers.deployContract("ChessBallGame", [
-            owner.address // gelatoAddress - using owner for testing
-        ], {
+        // Deploy the main contract using the upgradeable pattern
+        const ChessBallGame = await ethers.getContractFactory("ChessBallGame", {
             libraries: {
                 EloCalculationLib: await eloLib.getAddress(),
                 GameLib: await gameLib.getAddress(),
             },
+        });
+
+        game = await upgrades.deployProxy(ChessBallGame, [
+            owner.address, // gelatoAddress - using owner for testing
+            owner.address  // relayerAddress - using owner for testing
+        ], {
+            kind: 'uups',
+            initializer: 'initialize',
+            unsafeAllowLinkedLibraries: true
         });
         await game.waitForDeployment();
     });

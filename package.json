@@ -7,11 +7,16 @@
     "build": "cd frontend && yarn build",
     "start": "cd frontend && yarn start",
     "lint": "cd frontend && yarn lint",
-    "frontend:install": "cd frontend && yarn install"
+    "frontend:install": "cd frontend && yarn install",
+    "deploy:upgradeable": "hardhat run scripts/deploy-upgradeable.ts",
+    "upgrade:contract": "hardhat run scripts/upgrade-contract.ts",
+    "test:upgradeable": "hardhat test test/UpgradeableGame.test.ts"
   },
   "dependencies": {
     "@gelatonetwork/web3-functions-sdk": "https://github.com/neverknowerdev/web3-functions-sdk.git#hardfix_local",
     "@openzeppelin/contracts": "^5.4.0",
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
+    "@openzeppelin/hardhat-upgrades": "^3.9.1",
     "@uniswap/lib": "^4.0.1-alpha",
     "ethereum-datetime": "^1.0.0",
     "ethers": "^6.14.0",

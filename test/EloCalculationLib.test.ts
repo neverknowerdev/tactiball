@@ -1,12 +1,10 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import { ethers } from "hardhat";
 
 describe("EloCalculationLib", function () {
     let eloLib: any;
 
     before(async function () {
-        const connection = await network.connect();
-        const { ethers } = connection as any;
 
         // Deploy just the ELO library for now
         eloLib = await ethers.deployContract("EloCalculationLib");

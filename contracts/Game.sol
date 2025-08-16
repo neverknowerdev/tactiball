@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./GameLib.sol";
 import "./EloCalculationLib.sol";
 
-contract ChessBallGame {
+contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using GameLib for *;
 
     // Gelato address for automation
@@ -52,11 +55,20 @@ contract ChessBallGame {
     mapping(uint256 => GameLib.GameRequest) public gameRequests;
     uint256 public gameRequestIndex;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
-     * @dev Constructor to set the Gelato address
+     * @dev Initializer function to set the Gelato address
      * @param _gelatoAddress The address of the Gelato automation service
+     * @param _relayerAddress The address of the relayer service
      */
-    constructor(address _gelatoAddress, address _relayerAddress) {
+    function initialize(
+        address _gelatoAddress,
+        address _relayerAddress
+    ) public initializer {
         require(_gelatoAddress != address(0), "Gelato address cannot be zero");
         require(
             _relayerAddress != address(0),
@@ -64,7 +76,15 @@ contract ChessBallGame {
         );
         gelatoAddress = _gelatoAddress;
         relayerAddress = _relayerAddress;
+        __Ownable_init(msg.sender);
     }
+
+    /**
+     * @dev Required by the OZ UUPS module
+     */
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
 
     mapping(string => bool) public teamNames;
     // Internal function that creates a team with a specified sender
@@ -435,6 +455,15 @@ contract ChessBallGame {
         GameLib.GameState calldata gameState
     ) public gameExists(gameId) onlyGelato {
         GameLib.Game storage game = games[gameId];
+
+        require(game.status == GameLib.GameStatus.ACTIVE, "Game is not active");
+
+        if (game.history.length > 0) {
+            require(
+                game.team1.actions.length > 0 && game.team2.actions.length > 0,
+                "Actions are not committed"
+            );
+        }
 
         GameLib.newGameState(game, gameState);
         emit NewGameState(gameId, block.timestamp, gameState);
