@@ -260,12 +260,10 @@ export class Game implements GameType {
     }
 
     _renderPlayerUndoMove(player: TeamPlayer) {
-        if (player.ball?.oldPosition && isPosEquals(player.ball.oldPosition, player.oldPosition!)) {
-            this.ball.position = player.ball.oldPosition;
+        if (this.ball.oldPosition && isPosEquals(this.ball.oldPosition, player.oldPosition!)) {
+            this.ball.position = this.ball.oldPosition;
             this.ball.oldPosition = null;
             this.changeBallOwner(player);
-        } else if (this.ball.ownerTeam == player.team.enum && isPosEquals(this.ball.position, player.position)) {
-            this.changeBallOwner(null);
         }
 
         player.position = player.oldPosition!;

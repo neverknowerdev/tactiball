@@ -14,14 +14,7 @@ enum CellType {
 type CellState = {
     position: { x: number, y: number };
     highlighted: boolean;
-    player: TeamEnum | null;
     type: CellType;
-};
-
-// Player state type for storing old states
-type PlayerState = {
-    position: { x: number, y: number } | null;
-    ball: { x: number, y: number } | null;
 };
 
 const FIELD_WIDTH = 17;
@@ -35,20 +28,6 @@ export default function GamePage() {
     const [availableModes, setAvailableModes] = useState<MoveType[]>([]);
     const [modeIndex, setModeIndex] = useState<number>(0);
     const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
-
-    // useEffect(() => {
-    //     if (game == null || game?.team1.players == null || game?.team2.players == null) {
-    //         return;
-    //     }
-
-    //     for (const player of game?.team1.players!) {
-    //         cellStates[player.position.x][player.position.y].player = TeamEnum.TEAM1;
-    //     }
-    //     for (const player of game?.team2.players!) {
-    //         cellStates[player.position.x][player.position.y].player = TeamEnum.TEAM2;
-    //     }
-    //     setCellStates(cellStates);
-    // }, [game?.team1.players, game?.team2.players]);
 
     useEffect(() => {
         if (game == null || game?.ball == null) {
@@ -79,7 +58,6 @@ export default function GamePage() {
 
                     colCells.push({
                         position: { x: x, y: y },
-                        player: null,
                         highlighted,
                         type
                     });
@@ -115,13 +93,6 @@ export default function GamePage() {
             handleEmptyCellClick(cell);
             return;
         }
-
-        // console.log('selectedPlayer', selectedPlayer);
-        // if (selectedPlayer != null && (selectedPlayer.team != team1Player?.team || selectedPlayer.team != team2Player?.team)) {
-        //     console.log('Clicked on cell when has selectedPlayer cell:', cell);
-        //     handleEmptyCellClick(cell);
-        //     return;
-        // }
 
         if (team1Player && team2Player) {
             if (currentTeam?.enum === team1Player.team.enum) {
