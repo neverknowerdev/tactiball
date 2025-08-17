@@ -10,13 +10,43 @@ import "./EloCalculationLib.sol";
 contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using GameLib for *;
 
+    // ========================================
+    // STATE VARIABLES
+    // ========================================
+
     // Gelato address for automation
     address public gelatoAddress;
     address public relayerAddress;
 
-    // Events
-    event GameStarted(uint256 indexed gameId, GameLib.TeamEnum teamWithBall);
+    // State variables
+    mapping(uint256 => GameLib.Game) public games;
+    mapping(uint256 => GameLib.Team) public teams;
+    mapping(address => uint256) public teamIdByWallet;
 
+    uint256 public nextGameId;
+    uint256 public nextTeamId;
+
+    uint256[] public activeGames;
+
+    // Game request mappings
+    mapping(uint256 => GameLib.GameRequest) public gameRequests;
+    uint256 public gameRequestIndex;
+
+    mapping(string => bool) public teamNames;
+
+    uint256[200] private __gap;
+
+    // ========================================
+    // EVENTS
+    // ========================================
+
+    event GameStarted(uint256 indexed gameId, GameLib.TeamEnum teamWithBall);
+    event TeamCreated(
+        uint256 indexed teamId,
+        address indexed owner,
+        string name,
+        uint8 country
+    );
     event GoalScored(uint256 indexed gameId, GameLib.TeamEnum scoringTeam);
     event GameFinished(
         uint256 indexed gameId,
@@ -40,20 +70,11 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 time,
         string errorMsg
     );
+    event GameRequestCreated(uint256 gameRequestId);
 
-    // State variables
-    mapping(uint256 => GameLib.Game) public games;
-    mapping(uint256 => GameLib.Team) public teams;
-    mapping(address => uint256) public teamIdByWallet;
-
-    uint256 public nextGameId;
-    uint256 public nextTeamId;
-
-    uint64 public activeGameCount;
-
-    // Game request mappings
-    mapping(uint256 => GameLib.GameRequest) public gameRequests;
-    uint256 public gameRequestIndex;
+    // ========================================
+    // CONSTRUCTOR & INITIALIZATION
+    // ========================================
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -86,7 +107,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address newImplementation
     ) internal override onlyOwner {}
 
-    mapping(string => bool) public teamNames;
+    // ========================================
+    // CREATE TEAM
+    // ========================================
+
     // Internal function that creates a team with a specified sender
     function _createTeam(
         address sender,
@@ -95,7 +119,6 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     ) internal {
         require(teamIdByWallet[sender] == 0, "Team already exists");
         require(bytes(name).length > 0, "Name is required");
-        require(country > 0, "Country is required");
 
         name = GameLib.trimSpaces(name);
         require(teamNames[name] == false, "Team name already exists");
@@ -112,6 +135,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         teams[team.id] = team;
         teamNames[name] = true;
         teamIdByWallet[sender] = team.id;
+
+        emit TeamCreated(team.id, sender, name, country);
     }
 
     // Public wrapper that calls internal function with msg.sender
@@ -128,7 +153,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         _createTeam(sender, name, country);
     }
 
-    event GameRequestCreated(uint256 gameRequestId);
+    // ========================================
+    // CREATE GAME REQUEST
+    // ========================================
+
     // Internal function that creates a game request with a specified sender
     function _createGameRequest(
         address sender,
@@ -217,6 +245,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         _cancelGameRequest(sender, gameRequestId);
     }
 
+    // ========================================
+    // START GAME
+    // ========================================
+
     // Internal function that starts a game with a specified sender
     function _startGame(address sender, uint256 gameRequestId) internal {
         require(
@@ -269,7 +301,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         teams[team1id].games.push(game.gameId);
         teams[team2id].games.push(game.gameId);
 
-        activeGameCount++;
+        activeGames.push(game.gameId);
 
         emit GameStarted(game.gameId, GameLib.TeamEnum.TEAM1);
         // emit with empty arrays to trigger the game worker at the game start
@@ -288,6 +320,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     ) public onlyRelayer {
         _startGame(sender, gameRequestId);
     }
+
+    // ========================================
+    // MAKING MOVE
+    // ========================================
 
     // Internal function that commits game actions with a specified sender
     function _commitGameActions(
@@ -354,6 +390,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         _commitGameActions(sender, gameId, team, actions);
     }
 
+    // ========================================
+    // FINISH GAME
+    // ========================================
+
     // Internal function that finishes a game by timeout with a specified sender
     function _finishGameByTimeout(
         address sender,
@@ -412,9 +452,28 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             _updateEloRatings(gameId);
         }
 
-        activeGameCount--;
+        _removeGameFromActiveGames(gameId);
         emit GameFinished(gameId, game.winner, finishReason);
     }
+
+    /**
+     * @dev Remove a game ID from the activeGames array
+     * @param gameId The ID of the game to remove
+     */
+    function _removeGameFromActiveGames(uint256 gameId) private {
+        for (uint256 i = 0; i < activeGames.length; i++) {
+            if (activeGames[i] == gameId) {
+                // Replace the element to remove with the last element and pop
+                activeGames[i] = activeGames[activeGames.length - 1];
+                activeGames.pop();
+                break;
+            }
+        }
+    }
+
+    // ========================================
+    // GELATO ORACLE FUNCTIONS
+    // ========================================
 
     error GameError(
         uint256 gameId,
@@ -479,6 +538,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
     }
 
+    // ========================================
+    // VIEW FUNCTIONS
+    // ========================================
+
     // View functions for accessing game data
     function getGame(
         uint256 gameId
@@ -505,31 +568,17 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         return teamIdByWallet[wallet];
     }
 
-    modifier gameExists(uint256 gameId) {
-        require(games[gameId].createdAt > 0, "Game does not exist");
-        _;
+    function getActiveGames() public view returns (uint256[] memory) {
+        return activeGames;
     }
 
-    modifier teamExists(uint256 teamId) {
-        require(teams[teamId].id > 0, "Team does not exist");
-        _;
+    function getActiveGameCount() public view returns (uint256) {
+        return activeGames.length;
     }
 
-    modifier onlyGelato() {
-        require(
-            msg.sender == gelatoAddress,
-            "Only gelato can call this function"
-        );
-        _;
-    }
-
-    modifier onlyRelayer() {
-        require(
-            msg.sender == relayerAddress,
-            "Only relayer can call this function"
-        );
-        _;
-    }
+    // ========================================
+    // ELO RATING
+    // ========================================
 
     /**
      * @dev Update ELO ratings for both teams after a game
@@ -556,5 +605,35 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // Update game team info
         game.team1.eloRatingNew = team1EloRatingNew;
         game.team2.eloRatingNew = team2EloRatingNew;
+    }
+
+    // ========================================
+    // MODIFIERS
+    // ========================================
+
+    modifier gameExists(uint256 gameId) {
+        require(games[gameId].createdAt > 0, "Game does not exist");
+        _;
+    }
+
+    modifier teamExists(uint256 teamId) {
+        require(teams[teamId].id > 0, "Team does not exist");
+        _;
+    }
+
+    modifier onlyGelato() {
+        require(
+            msg.sender == gelatoAddress,
+            "Only gelato can call this function"
+        );
+        _;
+    }
+
+    modifier onlyRelayer() {
+        require(
+            msg.sender == relayerAddress,
+            "Only relayer can call this function"
+        );
+        _;
     }
 }

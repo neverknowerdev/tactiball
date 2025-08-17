@@ -1,0 +1,16 @@
+{
+  "baseSepolia": {
+    "network": "baseSepolia",
+    "chainId": "84532",
+    "proxyAddress": "0x659e3755a8E491C652c560D093f7c5800d174FDD",
+    "implementationAddress": "0xcdc6271865eE9A570361698664E992d80b62767a",
+    "libraries": {
+      "eloCalculationLib": "0xD4066959d297f9EA3444f26F7360E720905F49ad",
+      "gameLib": "0xb680Ee45015D402842bdF01849f48766A2d2620d"
+    },
+    "deployer": "0xf831c2F992866D01A2d66dB807adD7EEE8980914",
+    "timestamp": "2025-08-17T09:48:35.271Z",
+    "eloCalculationLibHash": "0cfad71c2351dfe78994e83a2d4e0025cbc8fc3e1a7878468ce423fdbb244d7e",
+    "gameLibHash": "c6b4b2d3232a564b4c9c9f99c69496dd796f3ecb529869a49b68a3d5e9a64192"
+  }
+}
