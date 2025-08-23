@@ -2,7 +2,7 @@ import { Web3FunctionHardhat } from "@gelatonetwork/web3-functions-sdk/hardhat-p
 import { assert, expect } from "chai";
 import { ethers, w3f } from "hardhat";
 import { generateEventLog } from "./tools/helpers";
-import { isPosEquals } from "../frontend/src/lib/game";
+import { isPosEquals } from "../frontend/lib/game";
 
 import { upgrades } from "hardhat";
 

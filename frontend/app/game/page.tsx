@@ -33,7 +33,7 @@ export default function GamePage() {
         if (game == null || game?.ball == null) {
             return;
         }
-    }, [game?.ball]);
+    }, [game, game?.ball]);
 
 
     useEffect(() => {
@@ -162,7 +162,7 @@ export default function GamePage() {
             setCurrentTeam(game.team1);
             clearSelection();
 
-            const { newState, rendererStates } = game.calculateNewState();
+            game.calculateNewState();
         }
     }
 
@@ -307,8 +307,8 @@ export default function GamePage() {
                         }} />
 
 
-                        {cellStates.map((row, rowIndex) => (
-                            row.map((cell, colIndex) => (
+                        {cellStates.map((row) => (
+                            row.map((cell) => (
                                 <div
                                     onClick={() => {
                                         onCellClick(cell);

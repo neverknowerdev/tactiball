@@ -132,7 +132,7 @@ export class Game implements GameType {
         this.status = 'WAITING';
         this.playerMoves = [];
 
-        let playerTypeByIndex = function (index: number) {
+        const playerTypeByIndex = function (index: number) {
             if (index == 0) {
                 return 'goalkeeper';
             }
@@ -298,10 +298,10 @@ export class Game implements GameType {
         // restore last state
         this.restoreState(this.history[this.history.length - 1]);
 
-        let randomNumbers: number[] = [];
+        const randomNumbers: number[] = [];
 
         // Validation part
-        let destinationMap: { [key: string]: boolean } = {};
+        const destinationMap: { [key: string]: boolean } = {};
         // check that all moves are valid
         for (const move of this.playerMoves) {
             const availablePath = this.calculatePath(move.oldPosition, move.newPosition, move.moveType);
@@ -333,10 +333,10 @@ export class Game implements GameType {
 
         let maxPathSize = 0;
         // calculate moves
-        let playerPaths: { [key: string]: Position[] } = {};
-        let playerMoveType: { [key: string]: MoveType } = {};
+        const playerPaths: { [key: string]: Position[] } = {};
+        const playerMoveType: { [key: string]: MoveType } = {};
         for (const move of this.playerMoves) {
-            var playerKey = move.playerKey();
+            let playerKey = move.playerKey();
             if (move.moveType == MoveType.PASS || move.moveType == MoveType.SHOT) {
                 playerKey = "ball";
             }
@@ -349,7 +349,7 @@ export class Game implements GameType {
             }
         }
 
-        var rendererStates: GameState[] = [];
+        const rendererStates: GameState[] = [];
         for (let i = 0; i < maxPathSize; i++) {
             let isBallChangedPosition = false;
 

@@ -5,7 +5,7 @@ import {
 } from "@gelatonetwork/web3-functions-sdk";
 import { Contract, Interface } from "ethers";
 import { SmartContractABI } from "./abi";
-import { Game, TeamEnum, ValidationError, GameAction, isPosEquals } from '../../frontend/src/lib/game'
+import { Game, TeamEnum, ValidationError, GameAction, isPosEquals } from '../../frontend/lib/game'
 import { mapGameStateToContract, mapContractActionToTS, mapContractGameStateToTS, mapContractGameInfoToTS, ContractGameAction, TSGameState, TSGameInfo, CONTRACT_ENUMS, getTeamEnumNumber } from './structs'
 
 Web3Function.onRun(async (context: Web3FunctionEventContext): Promise<Web3FunctionResult> => {

@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 import { readFileSync } from "fs";
 import { join } from "path";
 
-const GELATO_ADDRESS = "0x12EBb8C121b706aE6368147afc5B54702cB26637";
+const GELATO_ADDRESS = "0x12ebb8c121b706ae6368147afc5b54702cb26637";
 const RELAYER_ADDRESS = "0xc510350904b2fD01D9af92342f49a3c7aEC47739";
 
 // Helper function to add delay between transactions
@@ -179,7 +179,8 @@ async function main() {
     }
 
     // Add/update deployment for current network
-    const networkKey = `baseSepolia`; // Use network name as key
+    const networkName = (await ethers.provider.getNetwork()).name;
+    const networkKey = networkName; // Use network name as key
     allDeployments[networkKey] = deploymentInfo;
 
     fs.writeFileSync(deploymentFile, JSON.stringify(allDeployments, null, 2));

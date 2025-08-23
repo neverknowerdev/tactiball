@@ -2,7 +2,7 @@
 // GAME WORKER STRUCTS AND MAPPINGS
 // ============================================================================
 
-import { MoveType, GameState, GameAction, Position, TeamPlayer, Team, TeamEnum } from '../../frontend/src/lib/game';
+import { MoveType, GameState, GameAction, Position, TeamPlayer, Team, TeamEnum } from '../../frontend/lib/game';
 
 // Constants for enum values to match Solidity contract
 export const CONTRACT_ENUMS = {
@@ -167,7 +167,8 @@ export function mapContractActionToTS(contractAction: ContractGameAction): GameA
         teamEnum: TeamEnum.TEAM1, // Default to TEAM1, will be overridden by the actual team
         moveType: getMoveTypeEnum(Number(contractAction.moveType)),
         oldPosition: convertPosition(contractAction.oldPosition),
-        newPosition: convertPosition(contractAction.newPosition)
+        newPosition: convertPosition(contractAction.newPosition),
+        playerKey: () => `player_${contractAction.playerId}`
     };
 }
 

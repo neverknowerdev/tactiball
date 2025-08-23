@@ -1,149 +1,203 @@
-# ChessBall Deployment Scripts
+# Enhanced Team Event Simulation Script
 
-This directory contains the deployment and management scripts for the ChessBall smart contracts.
+This script automatically fetches real team data from your smart contract and simulates `TeamCreated` events to populate your database via the event-router.
 
-## 📁 Scripts Overview
+## What It Does
 
-### `deploy.ts` - Initial Deployment
-Deploys all contracts (libraries, implementation, and proxy) for the first time.
+The enhanced script now:
 
-**Features:**
-- Deploys `EloCalculationLib` first
-- Deploys `GameLib` with `EloCalculationLib` linked
-- Deploys `ChessBallGame` implementation with both libraries linked
-- Deploys UUPS proxy contract
-- Calculates and stores source code hashes for future comparisons
-- **NEW**: Saves deployments per network separately in `deployment.json`
+1. **Automatically Fetches Team Data**: Reads real team information directly from your smart contract
+2. **Dynamic Team Selection**: Accepts team IDs as command line parameters
+3. **Real-time Validation**: Ensures teams exist before creating events
+4. **Smart Contract Integration**: Uses Viem to interact with your deployed contract
+5. **Database Population**: Sends properly formatted events to your event-router
 
-**Usage:**
-```bash
-yarn hardhat run scripts/deploy.ts --network baseSepolia
+## Prerequisites
+
+1. **Supabase Edge Function Running**: Your `event-router` function must be deployed and running
+2. **Smart Contract Deployed**: Contract must be accessible on Base network
+3. **Node.js**: Version 18+ (for fetch API and ES modules support)
+4. **Viem**: For smart contract interaction
+
+## Setup
+
+### 1. Update Configuration
+
+**IMPORTANT**: Update these values in `simulate-teams.js`:
+
+```javascript
+const CONTRACT_ADDRESS = "0xYOUR_ACTUAL_CONTRACT_ADDRESS_HERE";
+const RPC_URL = "https://your-rpc-endpoint.com"; // Base RPC URL
 ```
 
-### `upgrade-contract.ts` - Smart Contract Upgrades
-Upgrades the main proxy contract with intelligent library handling.
-
-**Features:**
-- **Smart Library Detection**: Compares source code hashes to detect actual changes
-- **Efficient Updates**: Only deploys new libraries when source code genuinely changes
-- **Force Update Option**: Use `FORCE_LIBRARY_UPDATE=true` to force library redeployment
-- **Network-Aware**: Works with the new network-based deployment structure
-- **Upgrade History**: Tracks previous implementations and libraries
-
-**Usage:**
-```bash
-# Normal upgrade (libraries only if changed)
-yarn hardhat run scripts/upgrade-contract.ts --network baseSepolia
-
-# Force library update
-FORCE_LIBRARY_UPDATE=true yarn hardhat run scripts/upgrade-contract.ts --network baseSepolia
-```
-
-### `verify.ts` - Contract Verification
-Verifies contracts both on-chain and on Basescan.
-
-**Features:**
-- On-chain verification (contract accessibility, state checks)
-- Basescan source code verification
-- Library linking support
-- **Network-Aware**: Automatically detects current network
-
-**Usage:**
-```bash
-yarn hardhat run scripts/verify.ts --network baseSepolia
-```
-
-## 🌐 Network-Based Deployment Structure
-
-The deployment system now saves deployments per network separately in a single `deployment.json` file:
-
-```json
-{
-  "baseSepolia": {
-    "network": "baseSepolia",
-    "chainId": "84532",
-    "proxyAddress": "0x...",
-    "implementationAddress": "0x...",
-    "libraries": {
-      "eloCalculationLib": "0x...",
-      "gameLib": "0x..."
-    },
-    "deployer": "0x...",
-    "gasPrice": "1500088",
-    "timestamp": "2025-08-17T09:10:51.354Z",
-    "eloCalculationLibHash": "0cfad71c...",
-    "gameLibHash": "c6b4b2d3...",
-    "upgradeTimestamp": "2025-08-17T09:11:46.092Z",
-    "previousImplementation": "0x...",
-    "previousLibraries": { ... },
-    "librariesUpdated": false
-  }
-}
-```
-
-**Benefits:**
-- ✅ Multiple networks in one file
-- ✅ No overwriting between networks
-- ✅ Easy to manage deployments across testnets/mainnets
-- ✅ Automatic network detection
-
-## 🔧 Environment Setup
-
-Create a `.env` file with:
+### 2. Install Dependencies
 
 ```bash
-# RPC URLs
-BASE_SEPOLIA_RPC_URL=your_base_sepolia_rpc_url
-BASE_MAINNET_RPC_URL=your_base_mainnet_rpc_url
-
-# API Keys
-BASESCAN_API_KEY=your_basescan_api_key_here
-
-# Optional: Force library updates during upgrades
-FORCE_LIBRARY_UPDATE=false
+yarn add -D viem
 ```
 
-## 🚀 Deployment Workflow
+### 3. Get Your Contract Address
 
-1. **Initial Deployment:**
-   ```bash
-   yarn hardhat run scripts/deploy.ts --network baseSepolia
-   ```
+Find your deployed contract address from your deployment files or blockchain explorer.
 
-2. **Verify Deployment:**
-   ```bash
-   yarn hardhat run scripts/verify.ts --network baseSepolia
-   ```
+## Usage
 
-3. **Upgrade Contracts (when needed):**
-   ```bash
-   yarn hardhat run scripts/upgrade-contract.ts --network baseSepolia
-   ```
+### Basic Usage
 
-4. **Verify Upgrade:**
-   ```bash
-   yarn hardhat run scripts/verify.ts --network baseSepolia
-   ```
+```bash
+# Simulate teams 1, 2, 3 with default local URL
+node scripts/simulate-teams.js 1 2 3
 
-## 💡 Smart Library Handling
+# Simulate single team
+node scripts/simulate-teams.js 5
 
-The upgrade system automatically detects when libraries need updating:
+# Simulate multiple teams
+node scripts/simulate-teams.js 1 2 3 4 5
+```
 
-- **Source Code Comparison**: Uses SHA256 hashes of normalized source code
-- **Efficient**: Only deploys new libraries when source code changes
-- **Transparent**: Clear reporting of what changed and why
-- **Flexible**: Force update option when needed
+### Custom Event Router URL
 
-## 🔍 Verification Status
+```bash
+# Simulate teams with custom event-router URL
+node scripts/simulate-teams.js 1 2 3 "https://your-project.supabase.co/functions/v1/event-router"
 
-All contracts are automatically verified on Basescan:
-- ✅ `EloCalculationLib` - Library for ELO calculations
-- ✅ `GameLib` - Game logic library (depends on EloCalculationLib)
-- ✅ `ChessBallGame` - Main implementation contract
-- ✅ Proxy contract (automatically handled by OpenZeppelin)
+# For production Supabase
+node scripts/simulate-teams.js 1 2 3 "https://your-project.supabase.co/functions/v1/event-router"
+```
 
-## 📊 Gas Optimization
+### Examples
 
-- **Smart Library Reuse**: Libraries only redeploy when source code changes
-- **Gas Price Adjustment**: Automatic gas price adjustment for Base Sepolia
-- **Transaction Delays**: Built-in delays to prevent replacement transaction errors
+```bash
+# Local development
+node scripts/simulate-teams.js 1 2 3
+
+# Production with specific teams
+node scripts/simulate-teams.js 1 5 10 "https://your-project.supabase.co/functions/v1/event-router"
+
+# Single team test
+node scripts/simulate-teams.js 7
+```
+
+## How It Works
+
+1. **Parameter Parsing**: Accepts team IDs and optional event-router URL
+2. **Smart Contract Query**: Fetches real team data using Viem
+3. **Data Validation**: Ensures teams exist and data is valid
+4. **Event Creation**: Generates properly formatted blockchain events
+5. **HTTP Requests**: Sends events to your event-router function
+6. **Summary Report**: Shows success/failure for each team
+
+## Expected Output
+
+```
+🚀 Enhanced Team Event Simulation Script
+
+Usage:
+  node scripts/simulate-teams.js [teamIds...] [eventRouterUrl]
+
+Examples:
+  # Simulate teams 1, 2, 3 with default local URL
+  node scripts/simulate-teams.js 1 2 3
+
+  # Simulate team 5 with custom event-router URL
+  node scripts/simulate-teams.js 5 "https://your-project.supabase.co/functions/v1/event-router"
+
+🚀 Simulating TeamCreated events for 3 teams
+📡 Sending to: http://localhost:54321/functions/v1/event-router
+🔗 Contract: 0xYourContractAddress
+🌐 RPC: https://your-rpc-endpoint.com
+
+🔍 Fetching team 1 from smart contract...
+✅ Team 1 found: Real Team Name
+📤 Sending TeamCreated event for team 0x0000000000000000000000000000000000000000000000000000000000000001
+✅ Success: {"success":true}
+
+🔍 Fetching team 2 from smart contract...
+✅ Team 2 found: Another Team Name
+📤 Sending TeamCreated event for team 0x0000000000000000000000000000000000000000000000000000000000000002
+✅ Success: {"success":true}
+
+📊 Summary:
+✅ Successful: 2 teams
+   Teams: 1, 2
+🎉 Events sent successfully!
+```
+
+## Configuration Options
+
+### RPC Endpoints
+
+- **Base Mainnet**: `https://mainnet.base.org`
+- **Base Sepolia**: `https://sepolia.base.org`
+- **Alchemy**: `https://base-mainnet.g.alchemy.com/v2/YOUR_API_KEY`
+- **Infura**: `https://base-mainnet.infura.io/v3/YOUR_API_KEY`
+
+### Contract Addresses
+
+- **Mainnet**: Your deployed contract on Base mainnet
+- **Testnet**: Your deployed contract on Base Sepolia
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Contract Not Found**: Verify contract address and RPC URL
+2. **Teams Don't Exist**: Check if teams with those IDs exist on contract
+3. **RPC Connection**: Ensure RPC endpoint is accessible
+4. **Event Router**: Verify your Supabase function is running
+
+### Debug Mode
+
+The script provides detailed logging for each step:
+- Contract queries
+- Data validation
+- Event creation
+- HTTP requests
+- Success/failure summary
+
+### Error Handling
+
+- **Invalid Team IDs**: Script validates and filters input
+- **Contract Errors**: Graceful handling of contract call failures
+- **Network Issues**: Retry logic for RPC calls
+- **HTTP Errors**: Detailed error reporting for event-router
+
+## Next Steps
+
+After successfully running the script:
+
+1. **Verify Database**: Check your Supabase `teams` table for new entries
+2. **Test Frontend**: Your frontend should now show real team counts
+3. **Monitor Logs**: Watch your event-router function logs
+4. **Scale Up**: Use for other event types (games, etc.)
+
+## Security Note
+
+This script is for development/testing purposes. In production:
+- Validate event authenticity
+- Use secure RPC endpoints
+- Implement rate limiting
+- Monitor for abuse
+
+## Advanced Usage
+
+### Batch Processing
+
+```bash
+# Process many teams at once
+node scripts/simulate-teams.js {1..20}
+
+# Process specific ranges
+node scripts/simulate-teams.js 1 2 3 10 11 12 15 20
+```
+
+### Integration with CI/CD
+
+```bash
+# In your deployment pipeline
+node scripts/simulate-teams.js 1 2 3 "https://prod-project.supabase.co/functions/v1/event-router"
+```
+
+### Monitoring and Logging
+
+The script provides comprehensive logging for monitoring and debugging production deployments.

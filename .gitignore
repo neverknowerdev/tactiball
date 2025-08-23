@@ -151,3 +151,5 @@ web3-functions/.web3-functions-cache/
 
 # Tailwind CSS
 .tailwindcss-manifest.css
+
+supabase/.temp
