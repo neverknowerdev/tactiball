@@ -1,3 +1,5 @@
+import { throws } from "assert";
+
 export enum TeamEnum {
     TEAM1 = 'team1',
     TEAM2 = 'team2'
@@ -67,6 +69,7 @@ export interface TeamPlayer {
 
 export interface Team {
     id: number;
+    teamId: number;
     enum: TeamEnum;
     name: string;
     color: string;
@@ -76,6 +79,8 @@ export interface Team {
 }
 
 export interface GameState {
+    team1Moves: GameAction[];
+    team2Moves: GameAction[];
     team1PlayerPositions: Position[];
     team2PlayerPositions: Position[];
     ballPosition: Position;
@@ -106,7 +111,7 @@ export interface GameType {
 
     playerMoves: GameAction[];
 
-    status: 'WAITING' | 'ACTIVE' | 'FINISHED';
+    status: 'ACTIVE' | 'FINISHED' | 'FINISHED_BY_TIMEOUT';
 }
 
 export class Game implements GameType {
@@ -119,19 +124,18 @@ export class Game implements GameType {
     public ball: Ball;
 
     public createdAt: number;
-    public status: 'WAITING' | 'ACTIVE' | 'FINISHED';
+    public status: 'ACTIVE' | 'FINISHED' | 'FINISHED_BY_TIMEOUT';
 
     constructor(gameId: number) {
         this.gameId = gameId;
 
         this.history = [];
-        this.team1 = { id: 1, enum: TeamEnum.TEAM1, name: 'Team 1', color: 'red', score: 0, players: [], isCommittedMove: false };
-        this.team2 = { id: 2, enum: TeamEnum.TEAM2, name: 'Team 2', color: 'blue', score: 0, players: [], isCommittedMove: false };
+        this.team1 = { id: 1, teamId: 0, enum: TeamEnum.TEAM1, name: 'Team 1', color: 'red', score: 0, players: [], isCommittedMove: false };
+        this.team2 = { id: 2, teamId: 0, enum: TeamEnum.TEAM2, name: 'Team 2', color: 'blue', score: 0, players: [], isCommittedMove: false };
         this.ball = { position: { x: 0, y: 0 }, oldPosition: null, ownerTeam: null };
         this.createdAt = Date.now();
-        this.status = 'WAITING';
+        this.status = 'ACTIVE';
         this.playerMoves = [];
-
         const playerTypeByIndex = function (index: number) {
             if (index == 0) {
                 return 'goalkeeper';
@@ -244,7 +248,7 @@ export class Game implements GameType {
     }
 
     changeBallOwner(newOwner: TeamPlayer | null) {
-        console.log('changeBallOwner', newOwner, this.ball.ownerTeam);
+        console.log('changeBallOwner', newOwner?.key());
         this.team1.players.forEach(player => {
             player.ball = null;
         });
@@ -289,7 +293,7 @@ export class Game implements GameType {
         team.isCommittedMove = true;
     }
 
-    calculateNewState(): { newState: GameState, rendererStates: GameState[] } {
+    calculateNewState(randomNumbers: number[] = []): { newState: GameState, rendererStates: GameState[] } {
         // Create new state based on current team and ball positions
         if (!this.team1.isCommittedMove || !this.team2.isCommittedMove) {
             throw new Error('Not all team committed their moves');
@@ -297,8 +301,6 @@ export class Game implements GameType {
 
         // restore last state
         this.restoreState(this.history[this.history.length - 1]);
-
-        const randomNumbers: number[] = [];
 
         // Validation part
         const destinationMap: { [key: string]: boolean } = {};
@@ -389,19 +391,21 @@ export class Game implements GameType {
                 const team1Player = this.team1.players.find(player => isPosEquals(player.position, this.ball.position));
                 const team2Player = this.team2.players.find(player => isPosEquals(player.position, this.ball.position));
 
+                const ballOwner = this.ball.ownerTeam;
+
                 if (team1Player && team2Player) {
                     // now we have a clash
                     // for now it will resolve simple - ball win a team who not owner ball previously.
                     const player1MoveType = playerMoveType[team1Player.key()];
                     const player2MoveType = playerMoveType[team2Player.key()];
-                    const { winner: newBallOwner, randomNumber } = resolveClash(team1Player, player1MoveType, team2Player, player2MoveType);
+                    const { winner: newBallOwner, randomNumber } = resolveClash(team1Player, player1MoveType, team2Player, player2MoveType, randomNumbers);
 
                     console.log('resolveClash newBallOwner', newBallOwner);
 
                     // Find the player from the winning team
                     const winningPlayer = newBallOwner === TeamEnum.TEAM1 ? team1Player : team2Player;
 
-                    if (randomNumber > 0) {
+                    if (randomNumber) {
                         randomNumbers.push(randomNumber);
                     }
 
@@ -411,18 +415,26 @@ export class Game implements GameType {
                     // check for new owner of a ball
                     if (team1Player) {
                         this.changeBallOwner(team1Player);
+
+                        // if ball is owner by opposite team player - ball is not moving further anymore
+                        if (ballOwner == TeamEnum.TEAM2) {
+                            delete playerPaths["ball"];
+                        }
                     } else if (team2Player) {
                         this.changeBallOwner(team2Player);
+
+                        // if ball is owner by opposite team player - ball is not moving further anymore
+                        if (ballOwner == TeamEnum.TEAM1) {
+                            delete playerPaths["ball"];
+                        }
                     }
-                    delete playerPaths["ball"];
                 }
             }
 
             rendererStates.push(fillState(this.team1, this.team2, this.ball, 'move'));
 
 
-            // check if penalty
-
+            // TODO: check if penalty
         }
 
         // clear oldP
@@ -437,15 +449,17 @@ export class Game implements GameType {
         this.team1.isCommittedMove = false;
         this.team2.isCommittedMove = false;
 
-        this.playerMoves = [];
-
-        const finalState = rendererStates[rendererStates.length - 1];
+        let finalState = rendererStates[rendererStates.length - 1];
+        finalState.team1Moves = this.playerMoves.filter(move => move.teamEnum === TeamEnum.TEAM1);
+        finalState.team2Moves = this.playerMoves.filter(move => move.teamEnum === TeamEnum.TEAM2);
 
         if (randomNumbers.length > 0) {
             finalState.clashRandomResults = randomNumbers;
         }
 
         this.saveState(finalState);
+
+        this.playerMoves = [];
 
         console.log('finalState', finalState);
         return { newState: finalState, rendererStates: rendererStates };
@@ -582,7 +596,7 @@ export class Game implements GameType {
     }
 }
 
-function resolveClash(team1Player: TeamPlayer, team1MoveType: MoveType, team2Player: TeamPlayer, team2MoveType: MoveType): { winner: TeamEnum, randomNumber: number } {
+function resolveClash(team1Player: TeamPlayer, team1MoveType: MoveType, team2Player: TeamPlayer, team2MoveType: MoveType, predefinedRandomNumber: number | null): { winner: TeamEnum, randomNumber: number | null } {
     console.log('resolveClash', team1Player, team1MoveType, team2Player, team2MoveType);
     if (team1Player.ball && team2MoveType == MoveType.TACKLE) {
         console.log('team2Player win cauze of tackle');
@@ -594,9 +608,9 @@ function resolveClash(team1Player: TeamPlayer, team1MoveType: MoveType, team2Pla
         return { winner: TeamEnum.TEAM1, randomNumber: 0 };
     }
 
-    const random = Math.random();
+    const random = predefinedRandomNumber ? predefinedRandomNumber : Math.floor(Math.random() * 100);
     console.log('random win', random);
-    return { winner: random < 0.5 ? TeamEnum.TEAM1 : TeamEnum.TEAM2, randomNumber: random };
+    return { winner: random < 50 ? TeamEnum.TEAM1 : TeamEnum.TEAM2, randomNumber: predefinedRandomNumber ? null : random };
 }
 
 function isPositionInGates(position: Position): boolean {
@@ -621,7 +635,9 @@ function fillState(team1: Team, team2: Team, ball: Ball, type: 'startPositions' 
         ballPosition: ball.position,
         ballOwner: ball.ownerTeam || null,
         type: type,
-        clashRandomResults: []
+        clashRandomResults: [],
+        team1Moves: [],
+        team2Moves: []
     }
 
     return state;

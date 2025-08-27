@@ -30,7 +30,7 @@ const config = {
   w3f: {
     rootDir: "./web3-functions",
     debug: false,
-    networks: ["hardhat", "baseSepolia", "baseMainnet"],
+    networks: ["hardhat"],
   },
   defaultNetwork: "hardhat",
   networks: {

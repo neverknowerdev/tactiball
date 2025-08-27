@@ -13,6 +13,8 @@ Web3Function.onRun(async (context: Web3FunctionEventContext): Promise<Web3Functi
     let smartContract: Contract | null = null;
     let gameId: number = 0;
 
+    console.log('GameWorker started');
+
     try {
         const provider = multiChainProvider.default();
         // Contract instance for on-chain reads (cast provider to appease TS types)
@@ -25,30 +27,27 @@ Web3Function.onRun(async (context: Web3FunctionEventContext): Promise<Web3Functi
         const iface = new Interface(SmartContractABI);
 
         const result = await processGameActions(context, smartContract, iface);
-        gameId = result.gameId;
 
-        // Prepare transaction data
-        let callData: any[] = [];
-        result.statesToSend.forEach((state: any) => {
-            // Map the game state to the contract's expected format
-            const contractGameState = mapGameStateToContract(state);
 
-            callData.push({
-                to: userArgs.smartContractAddress as string,
-                data: smartContract!.interface.encodeFunctionData('newGameState', [gameId, contractGameState])
-            });
-        });
-
-        if (callData.length === 0) {
+        if (result.statesToSend.length === 0) {
             return {
                 canExec: false,
                 message: "No actions to process"
             };
         }
 
+        gameId = result.gameId;
+        const contractGameStates = result.statesToSend.map(mapGameStateToContract);
+
+        let callData = {
+            to: userArgs.smartContractAddress as string,
+            data: smartContract!.interface.encodeFunctionData('newGameState', [gameId, contractGameStates])
+        }
+
+        console.log('success! sending transactions', contractGameStates.length);
         return {
             canExec: true,
-            callData: callData,
+            callData: [callData],
         };
     } catch (error) {
         console.error('Error in game worker:', error);
@@ -103,14 +102,10 @@ async function processGameActions(
     const contractGameInfo = await smartContract.getGame(gameId);
     const gameInfo = mapContractGameInfoToTS(contractGameInfo);
     console.log('gameInfo.status', contractGameInfo.status, gameInfo.status);
-    console.log('GameInfo:', gameInfo);
 
     // Get team actions from the game info
     const team1Actions = gameInfo.team1?.actions || [];
     const team2Actions = gameInfo.team2?.actions || [];
-
-    console.log('team1Actions', team1Actions);
-    console.log('team2Actions', team2Actions);
 
     if ((team1Actions.length == 0 || team2Actions.length == 0) && gameInfo.history.length > 0) {
         throw new Error("teamActions cannot be empty");
@@ -120,8 +115,8 @@ async function processGameActions(
 
     game.newGame(gameId, TeamEnum.TEAM1);
 
-    for (const state of gameInfo.history) {
-        game.saveState(state);
+    for (let i = 0; i < gameInfo.history.length; i++) {
+        game.saveState(gameInfo.history[i]);
     }
 
     let statesToSend: TSGameState[] = [];

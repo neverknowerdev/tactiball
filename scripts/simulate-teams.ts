@@ -10,7 +10,7 @@ import { base } from 'viem/chains';
 import gameArtifact from '../artifacts/contracts/Game.sol/ChessBallGame.json';
 
 // Configuration - UPDATE THESE VALUES
-const CONTRACT_ADDRESS = "0x63D9Bc6A1e2c85CC4e1d5b4D57D35b130D74Dd9a"; // Replace with your contract address
+const CONTRACT_ADDRESS = "0x08011cd93f958a01d8bF10CC6aAe507cA629b95C"; // Replace with your contract address
 const RPC_URL = "https://mainnet.base.org"; // Replace with your RPC URL
 
 // Create Viem client

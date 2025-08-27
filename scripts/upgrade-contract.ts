@@ -202,7 +202,7 @@ async function main() {
 
     const newDeploymentInfo = {
         ...deploymentInfo,
-        implementationAddress: actualImplementationAddress,
+        implementationAddress: newImplementationAddress,
         libraries: {
             eloCalculationLib: eloCalculationLibAddress,
             gameLib: gameLibAddress

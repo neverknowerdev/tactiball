@@ -5,6 +5,21 @@
       "address": "0x63D9Bc6A1e2c85CC4e1d5b4D57D35b130D74Dd9a",
       "txHash": "0x4f33e662bc54e6b8cb98fb00870d5f351c94c2fbe0ea868a6cc15da898ee808d",
       "kind": "uups"
+    },
+    {
+      "address": "0x08011cd93f958a01d8bF10CC6aAe507cA629b95C",
+      "txHash": "0x75e7367ee3693c984058a72a75bfff0739217236553f6e518e5160747d627dc6",
+      "kind": "uups"
+    },
+    {
+      "address": "0x29F8072455510f8931fF9c41Cc444482Ef127cCA",
+      "txHash": "0x4d2343a589b79ce72082fa3dad097b9358874c93de5f48d10e086d3ebedbcf0c",
+      "kind": "uups"
+    },
+    {
+      "address": "0x4d9FFa66dfb960571013e17096690EE0b13555c4",
+      "txHash": "0x66457ddb42d0e63b25232517a4071c9572613e82b131c0310e6e67f592276e4a",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -1917,6 +1932,4453 @@
           "t_uint32": {
             "label": "uint32",
             "numberOfBytes": "4"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "2c58f67d1cd21464d40e0f11f3be2e0dfe881d609dbb16210747a33d2e7f0ff9": {
+      "address": "0x30efD0935d27E89992e69D8625D0965fE28E773A",
+      "txHash": "0x2ce477b09ce6ad36200e6c048e842445bf9a5a7e64db9e31f1dbe1bb4d3f8c3a",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "gelatoAddress",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:39"
+          },
+          {
+            "label": "relayerAddress",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:40"
+          },
+          {
+            "label": "games",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Game)3722_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:43"
+          },
+          {
+            "label": "teams",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Team)3678_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:44"
+          },
+          {
+            "label": "teamIdByWallet",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:45"
+          },
+          {
+            "label": "nextGameId",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:47"
+          },
+          {
+            "label": "nextTeamId",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:48"
+          },
+          {
+            "label": "activeGames",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_array(t_uint256)dyn_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:50"
+          },
+          {
+            "label": "gameRequests",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_uint256,t_struct(GameRequest)3731_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:53"
+          },
+          {
+            "label": "gameRequestIndex",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:54"
+          },
+          {
+            "label": "teamNames",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_mapping(t_string_memory_ptr,t_bool)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:56"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_array(t_uint256)200_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:58"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_struct(GameAction)3608_storage)dyn_storage": {
+            "label": "struct GameLib.GameAction[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(GameState)3634_storage)dyn_storage": {
+            "label": "struct GameLib.GameState[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(Position)3596_storage)dyn_storage": {
+            "label": "struct GameLib.Position[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)200_storage": {
+            "label": "uint256[200]",
+            "numberOfBytes": "6400"
+          },
+          "t_array(t_uint256)dyn_storage": {
+            "label": "uint256[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint8)dyn_storage": {
+            "label": "uint8[]",
+            "numberOfBytes": "32"
+          },
+          "t_enum(GameStatus)3588": {
+            "label": "enum GameLib.GameStatus",
+            "members": [
+              "NONE",
+              "ACTIVE",
+              "FINISHED",
+              "FINISHED_BY_TIMEOUT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(MoveType)3583": {
+            "label": "enum GameLib.MoveType",
+            "members": [
+              "PASS",
+              "TACKLE",
+              "RUN",
+              "SHOT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(StateType)3613": {
+            "label": "enum GameLib.StateType",
+            "members": [
+              "START_POSITIONS",
+              "MOVE",
+              "GOAL_TEAM1",
+              "GOAL_TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamEnum)3578": {
+            "label": "enum GameLib.TeamEnum",
+            "members": [
+              "NONE",
+              "TEAM1",
+              "TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamFormation)3574": {
+            "label": "enum GameLib.TeamFormation",
+            "members": [
+              "FORMATION_2_2_1"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_bool)": {
+            "label": "mapping(string => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Game)3722_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Game)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(GameRequest)3731_storage)": {
+            "label": "mapping(uint256 => struct GameLib.GameRequest)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Team)3678_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Team)",
+            "numberOfBytes": "32"
+          },
+          "t_string_memory_ptr": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Game)3722_storage": {
+            "label": "struct GameLib.Game",
+            "members": [
+              {
+                "label": "gameId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "lastMoveAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "lastMoveTeam",
+                "type": "t_enum(TeamEnum)3578",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "team1",
+                "type": "t_struct(TeamInfo)3694_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "team2",
+                "type": "t_struct(TeamInfo)3694_storage",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "history",
+                "type": "t_array(t_struct(GameState)3634_storage)dyn_storage",
+                "offset": 0,
+                "slot": "10"
+              },
+              {
+                "label": "status",
+                "type": "t_enum(GameStatus)3588",
+                "offset": 0,
+                "slot": "11"
+              },
+              {
+                "label": "movesMade",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "11"
+              },
+              {
+                "label": "winner",
+                "type": "t_enum(TeamEnum)3578",
+                "offset": 2,
+                "slot": "11"
+              }
+            ],
+            "numberOfBytes": "384"
+          },
+          "t_struct(GameAction)3608_storage": {
+            "label": "struct GameLib.GameAction",
+            "members": [
+              {
+                "label": "playerId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "moveType",
+                "type": "t_enum(MoveType)3583",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "oldPosition",
+                "type": "t_struct(Position)3596_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "newPosition",
+                "type": "t_struct(Position)3596_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameRequest)3731_storage": {
+            "label": "struct GameLib.GameRequest",
+            "members": [
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team1id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team2id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameState)3634_storage": {
+            "label": "struct GameLib.GameState",
+            "members": [
+              {
+                "label": "team1Positions",
+                "type": "t_array(t_struct(Position)3596_storage)dyn_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team2Positions",
+                "type": "t_array(t_struct(Position)3596_storage)dyn_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "ballPosition",
+                "type": "t_struct(Position)3596_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "ballOwner",
+                "type": "t_enum(TeamEnum)3578",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "clashRandomResults",
+                "type": "t_array(t_uint8)dyn_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "stateType",
+                "type": "t_enum(StateType)3613",
+                "offset": 0,
+                "slot": "5"
+              }
+            ],
+            "numberOfBytes": "192"
+          },
+          "t_struct(GameStatistics)3655_storage": {
+            "label": "struct GameLib.GameStatistics",
+            "members": [
+              {
+                "label": "wins",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "losses",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "0"
+              },
+              {
+                "label": "draws",
+                "type": "t_uint32",
+                "offset": 8,
+                "slot": "0"
+              },
+              {
+                "label": "totalGames",
+                "type": "t_uint32",
+                "offset": 12,
+                "slot": "0"
+              },
+              {
+                "label": "totalGoalsScored",
+                "type": "t_uint32",
+                "offset": 16,
+                "slot": "0"
+              },
+              {
+                "label": "totalGoalsConceded",
+                "type": "t_uint32",
+                "offset": 20,
+                "slot": "0"
+              },
+              {
+                "label": "biggestWinGoalsScored",
+                "type": "t_uint32",
+                "offset": 24,
+                "slot": "0"
+              },
+              {
+                "label": "biggestWinGoalsConceded",
+                "type": "t_uint32",
+                "offset": 28,
+                "slot": "0"
+              },
+              {
+                "label": "biggestLossGoalsScored",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "biggestLossGoalsConceded",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(Position)3596_storage": {
+            "label": "struct GameLib.Position",
+            "members": [
+              {
+                "label": "x",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "y",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(Team)3678_storage": {
+            "label": "struct GameLib.Team",
+            "members": [
+              {
+                "label": "id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "wallet",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "name",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "registeredAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "games",
+                "type": "t_array(t_uint256)dyn_storage",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "country",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "hasActiveGame",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "6"
+              },
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "statistic",
+                "type": "t_struct(GameStatistics)3655_storage",
+                "offset": 0,
+                "slot": "8"
+              }
+            ],
+            "numberOfBytes": "320"
+          },
+          "t_struct(TeamInfo)3694_storage": {
+            "label": "struct GameLib.TeamInfo",
+            "members": [
+              {
+                "label": "teamId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "score",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 1,
+                "slot": "1"
+              },
+              {
+                "label": "eloRatingNew",
+                "type": "t_uint64",
+                "offset": 9,
+                "slot": "1"
+              },
+              {
+                "label": "formation",
+                "type": "t_enum(TeamFormation)3574",
+                "offset": 17,
+                "slot": "1"
+              },
+              {
+                "label": "actions",
+                "type": "t_array(t_struct(GameAction)3608_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "09ec6016677bb26c2844e32a1c336cb8abd2ed12367be108563a7e98a2894499": {
+      "address": "0xA1193B46DB862D4C88809A879385DaF6B57af49a",
+      "txHash": "0x3665cfbce3fa96c683fa6e615a5cbd255eea8c46e1166a893cbc2f82721f6957",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "gelatoAddress",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:39"
+          },
+          {
+            "label": "relayerAddress",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:40"
+          },
+          {
+            "label": "games",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Game)3736_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:43"
+          },
+          {
+            "label": "teams",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Team)3692_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:44"
+          },
+          {
+            "label": "teamIdByWallet",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:45"
+          },
+          {
+            "label": "nextGameId",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:47"
+          },
+          {
+            "label": "nextTeamId",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:48"
+          },
+          {
+            "label": "activeGames",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_array(t_uint256)dyn_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:50"
+          },
+          {
+            "label": "gameRequests",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_uint256,t_struct(GameRequest)3745_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:53"
+          },
+          {
+            "label": "gameRequestIndex",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:54"
+          },
+          {
+            "label": "teamNames",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_mapping(t_string_memory_ptr,t_bool)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:56"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_array(t_uint256)200_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:58"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_struct(GameAction)3622_storage)dyn_storage": {
+            "label": "struct GameLib.GameAction[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(GameState)3648_storage)dyn_storage": {
+            "label": "struct GameLib.GameState[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(Position)3610_storage)dyn_storage": {
+            "label": "struct GameLib.Position[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)200_storage": {
+            "label": "uint256[200]",
+            "numberOfBytes": "6400"
+          },
+          "t_array(t_uint256)dyn_storage": {
+            "label": "uint256[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint8)dyn_storage": {
+            "label": "uint8[]",
+            "numberOfBytes": "32"
+          },
+          "t_enum(GameStatus)3602": {
+            "label": "enum GameLib.GameStatus",
+            "members": [
+              "NONE",
+              "ACTIVE",
+              "FINISHED",
+              "FINISHED_BY_TIMEOUT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(MoveType)3597": {
+            "label": "enum GameLib.MoveType",
+            "members": [
+              "PASS",
+              "TACKLE",
+              "RUN",
+              "SHOT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(StateType)3627": {
+            "label": "enum GameLib.StateType",
+            "members": [
+              "START_POSITIONS",
+              "MOVE",
+              "GOAL_TEAM1",
+              "GOAL_TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamEnum)3592": {
+            "label": "enum GameLib.TeamEnum",
+            "members": [
+              "NONE",
+              "TEAM1",
+              "TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamFormation)3588": {
+            "label": "enum GameLib.TeamFormation",
+            "members": [
+              "FORMATION_2_2_1"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_bool)": {
+            "label": "mapping(string => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Game)3736_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Game)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(GameRequest)3745_storage)": {
+            "label": "mapping(uint256 => struct GameLib.GameRequest)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Team)3692_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Team)",
+            "numberOfBytes": "32"
+          },
+          "t_string_memory_ptr": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Game)3736_storage": {
+            "label": "struct GameLib.Game",
+            "members": [
+              {
+                "label": "gameId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "lastMoveAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "lastMoveTeam",
+                "type": "t_enum(TeamEnum)3592",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "team1",
+                "type": "t_struct(TeamInfo)3708_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "team2",
+                "type": "t_struct(TeamInfo)3708_storage",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "history",
+                "type": "t_array(t_struct(GameState)3648_storage)dyn_storage",
+                "offset": 0,
+                "slot": "10"
+              },
+              {
+                "label": "status",
+                "type": "t_enum(GameStatus)3602",
+                "offset": 0,
+                "slot": "11"
+              },
+              {
+                "label": "movesMade",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "11"
+              },
+              {
+                "label": "winner",
+                "type": "t_enum(TeamEnum)3592",
+                "offset": 2,
+                "slot": "11"
+              }
+            ],
+            "numberOfBytes": "384"
+          },
+          "t_struct(GameAction)3622_storage": {
+            "label": "struct GameLib.GameAction",
+            "members": [
+              {
+                "label": "playerId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "moveType",
+                "type": "t_enum(MoveType)3597",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "oldPosition",
+                "type": "t_struct(Position)3610_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "newPosition",
+                "type": "t_struct(Position)3610_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameRequest)3745_storage": {
+            "label": "struct GameLib.GameRequest",
+            "members": [
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team1id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team2id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameState)3648_storage": {
+            "label": "struct GameLib.GameState",
+            "members": [
+              {
+                "label": "team1Positions",
+                "type": "t_array(t_struct(Position)3610_storage)dyn_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team2Positions",
+                "type": "t_array(t_struct(Position)3610_storage)dyn_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "ballPosition",
+                "type": "t_struct(Position)3610_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "ballOwner",
+                "type": "t_enum(TeamEnum)3592",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "clashRandomResults",
+                "type": "t_array(t_uint8)dyn_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "stateType",
+                "type": "t_enum(StateType)3627",
+                "offset": 0,
+                "slot": "5"
+              }
+            ],
+            "numberOfBytes": "192"
+          },
+          "t_struct(GameStatistics)3669_storage": {
+            "label": "struct GameLib.GameStatistics",
+            "members": [
+              {
+                "label": "wins",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "losses",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "0"
+              },
+              {
+                "label": "draws",
+                "type": "t_uint32",
+                "offset": 8,
+                "slot": "0"
+              },
+              {
+                "label": "totalGames",
+                "type": "t_uint32",
+                "offset": 12,
+                "slot": "0"
+              },
+              {
+                "label": "totalGoalsScored",
+                "type": "t_uint32",
+                "offset": 16,
+                "slot": "0"
+              },
+              {
+                "label": "totalGoalsConceded",
+                "type": "t_uint32",
+                "offset": 20,
+                "slot": "0"
+              },
+              {
+                "label": "biggestWinGoalsScored",
+                "type": "t_uint32",
+                "offset": 24,
+                "slot": "0"
+              },
+              {
+                "label": "biggestWinGoalsConceded",
+                "type": "t_uint32",
+                "offset": 28,
+                "slot": "0"
+              },
+              {
+                "label": "biggestLossGoalsScored",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "biggestLossGoalsConceded",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(Position)3610_storage": {
+            "label": "struct GameLib.Position",
+            "members": [
+              {
+                "label": "x",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "y",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(Team)3692_storage": {
+            "label": "struct GameLib.Team",
+            "members": [
+              {
+                "label": "id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "wallet",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "name",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "registeredAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "games",
+                "type": "t_array(t_uint256)dyn_storage",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "country",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "hasActiveGame",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "6"
+              },
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "statistic",
+                "type": "t_struct(GameStatistics)3669_storage",
+                "offset": 0,
+                "slot": "8"
+              }
+            ],
+            "numberOfBytes": "320"
+          },
+          "t_struct(TeamInfo)3708_storage": {
+            "label": "struct GameLib.TeamInfo",
+            "members": [
+              {
+                "label": "teamId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "score",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 1,
+                "slot": "1"
+              },
+              {
+                "label": "eloRatingNew",
+                "type": "t_uint64",
+                "offset": 9,
+                "slot": "1"
+              },
+              {
+                "label": "formation",
+                "type": "t_enum(TeamFormation)3588",
+                "offset": 17,
+                "slot": "1"
+              },
+              {
+                "label": "actions",
+                "type": "t_array(t_struct(GameAction)3622_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "9da13417fcd4340de3d65d6d97457bf642cb3161b0678b670f6b267a2d72b805": {
+      "address": "0xb22325513c3fC1A412A90D6C9A38d857B0B43520",
+      "txHash": "0x539fd6af3fd8180afc7377e640194dc8a78628dc601e128f0470e3e6681538e1",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "gelatoAddress",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:39"
+          },
+          {
+            "label": "relayerAddress",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:40"
+          },
+          {
+            "label": "games",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Game)3730_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:43"
+          },
+          {
+            "label": "teams",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Team)3686_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:44"
+          },
+          {
+            "label": "teamIdByWallet",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:45"
+          },
+          {
+            "label": "nextGameId",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:47"
+          },
+          {
+            "label": "nextTeamId",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:48"
+          },
+          {
+            "label": "activeGames",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_array(t_uint256)dyn_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:50"
+          },
+          {
+            "label": "gameRequests",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_uint256,t_struct(GameRequest)3739_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:53"
+          },
+          {
+            "label": "gameRequestIndex",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:54"
+          },
+          {
+            "label": "teamNames",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_mapping(t_string_memory_ptr,t_bool)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:56"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_array(t_uint256)200_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:58"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_struct(GameAction)3616_storage)dyn_storage": {
+            "label": "struct GameLib.GameAction[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(GameState)3642_storage)dyn_storage": {
+            "label": "struct GameLib.GameState[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(Position)3604_storage)dyn_storage": {
+            "label": "struct GameLib.Position[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)200_storage": {
+            "label": "uint256[200]",
+            "numberOfBytes": "6400"
+          },
+          "t_array(t_uint256)dyn_storage": {
+            "label": "uint256[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint8)dyn_storage": {
+            "label": "uint8[]",
+            "numberOfBytes": "32"
+          },
+          "t_enum(GameStatus)3596": {
+            "label": "enum GameLib.GameStatus",
+            "members": [
+              "NONE",
+              "ACTIVE",
+              "FINISHED",
+              "FINISHED_BY_TIMEOUT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(MoveType)3591": {
+            "label": "enum GameLib.MoveType",
+            "members": [
+              "PASS",
+              "TACKLE",
+              "RUN",
+              "SHOT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(StateType)3621": {
+            "label": "enum GameLib.StateType",
+            "members": [
+              "START_POSITIONS",
+              "MOVE",
+              "GOAL_TEAM1",
+              "GOAL_TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamEnum)3586": {
+            "label": "enum GameLib.TeamEnum",
+            "members": [
+              "NONE",
+              "TEAM1",
+              "TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamFormation)3582": {
+            "label": "enum GameLib.TeamFormation",
+            "members": [
+              "FORMATION_2_2_1"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_bool)": {
+            "label": "mapping(string => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Game)3730_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Game)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(GameRequest)3739_storage)": {
+            "label": "mapping(uint256 => struct GameLib.GameRequest)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Team)3686_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Team)",
+            "numberOfBytes": "32"
+          },
+          "t_string_memory_ptr": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Game)3730_storage": {
+            "label": "struct GameLib.Game",
+            "members": [
+              {
+                "label": "gameId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "lastMoveAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "lastMoveTeam",
+                "type": "t_enum(TeamEnum)3586",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "team1",
+                "type": "t_struct(TeamInfo)3702_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "team2",
+                "type": "t_struct(TeamInfo)3702_storage",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "history",
+                "type": "t_array(t_struct(GameState)3642_storage)dyn_storage",
+                "offset": 0,
+                "slot": "10"
+              },
+              {
+                "label": "status",
+                "type": "t_enum(GameStatus)3596",
+                "offset": 0,
+                "slot": "11"
+              },
+              {
+                "label": "movesMade",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "11"
+              },
+              {
+                "label": "winner",
+                "type": "t_enum(TeamEnum)3586",
+                "offset": 2,
+                "slot": "11"
+              }
+            ],
+            "numberOfBytes": "384"
+          },
+          "t_struct(GameAction)3616_storage": {
+            "label": "struct GameLib.GameAction",
+            "members": [
+              {
+                "label": "playerId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "moveType",
+                "type": "t_enum(MoveType)3591",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "oldPosition",
+                "type": "t_struct(Position)3604_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "newPosition",
+                "type": "t_struct(Position)3604_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameRequest)3739_storage": {
+            "label": "struct GameLib.GameRequest",
+            "members": [
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team1id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team2id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameState)3642_storage": {
+            "label": "struct GameLib.GameState",
+            "members": [
+              {
+                "label": "team1Positions",
+                "type": "t_array(t_struct(Position)3604_storage)dyn_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team2Positions",
+                "type": "t_array(t_struct(Position)3604_storage)dyn_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "ballPosition",
+                "type": "t_struct(Position)3604_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "ballOwner",
+                "type": "t_enum(TeamEnum)3586",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "clashRandomResults",
+                "type": "t_array(t_uint8)dyn_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "stateType",
+                "type": "t_enum(StateType)3621",
+                "offset": 0,
+                "slot": "5"
+              }
+            ],
+            "numberOfBytes": "192"
+          },
+          "t_struct(GameStatistics)3663_storage": {
+            "label": "struct GameLib.GameStatistics",
+            "members": [
+              {
+                "label": "wins",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "losses",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "0"
+              },
+              {
+                "label": "draws",
+                "type": "t_uint32",
+                "offset": 8,
+                "slot": "0"
+              },
+              {
+                "label": "totalGames",
+                "type": "t_uint32",
+                "offset": 12,
+                "slot": "0"
+              },
+              {
+                "label": "totalGoalsScored",
+                "type": "t_uint32",
+                "offset": 16,
+                "slot": "0"
+              },
+              {
+                "label": "totalGoalsConceded",
+                "type": "t_uint32",
+                "offset": 20,
+                "slot": "0"
+              },
+              {
+                "label": "biggestWinGoalsScored",
+                "type": "t_uint32",
+                "offset": 24,
+                "slot": "0"
+              },
+              {
+                "label": "biggestWinGoalsConceded",
+                "type": "t_uint32",
+                "offset": 28,
+                "slot": "0"
+              },
+              {
+                "label": "biggestLossGoalsScored",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "biggestLossGoalsConceded",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(Position)3604_storage": {
+            "label": "struct GameLib.Position",
+            "members": [
+              {
+                "label": "x",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "y",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(Team)3686_storage": {
+            "label": "struct GameLib.Team",
+            "members": [
+              {
+                "label": "id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "wallet",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "name",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "registeredAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "games",
+                "type": "t_array(t_uint256)dyn_storage",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "country",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "hasActiveGame",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "6"
+              },
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "statistic",
+                "type": "t_struct(GameStatistics)3663_storage",
+                "offset": 0,
+                "slot": "8"
+              }
+            ],
+            "numberOfBytes": "320"
+          },
+          "t_struct(TeamInfo)3702_storage": {
+            "label": "struct GameLib.TeamInfo",
+            "members": [
+              {
+                "label": "teamId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "score",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 1,
+                "slot": "1"
+              },
+              {
+                "label": "eloRatingNew",
+                "type": "t_uint64",
+                "offset": 9,
+                "slot": "1"
+              },
+              {
+                "label": "formation",
+                "type": "t_enum(TeamFormation)3582",
+                "offset": 17,
+                "slot": "1"
+              },
+              {
+                "label": "actions",
+                "type": "t_array(t_struct(GameAction)3616_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "89a6d1f80829902bb1a39471ed4cca119dae603db53fd17266693bd5f2dd0e8a": {
+      "address": "0xd8dADFde5F586A887a21Ccd1E0fDd235C87c9A33",
+      "txHash": "0x4e0e5518c749fbc8e62a21d2eada0cf10aabeca4e6b049e98cd980926e52324c",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "gelatoAddress",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:40"
+          },
+          {
+            "label": "relayerAddress",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:41"
+          },
+          {
+            "label": "games",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Game)3751_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:44"
+          },
+          {
+            "label": "teams",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Team)3707_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:45"
+          },
+          {
+            "label": "teamIdByWallet",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:46"
+          },
+          {
+            "label": "nextGameId",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:48"
+          },
+          {
+            "label": "nextTeamId",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:49"
+          },
+          {
+            "label": "activeGames",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_array(t_uint256)dyn_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:51"
+          },
+          {
+            "label": "gameRequests",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_uint256,t_struct(GameRequest)3760_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:54"
+          },
+          {
+            "label": "gameRequestIndex",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:55"
+          },
+          {
+            "label": "teamNames",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_mapping(t_string_memory_ptr,t_bool)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:57"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_array(t_uint256)200_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:59"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_struct(GameAction)3629_storage)dyn_storage": {
+            "label": "struct GameLib.GameAction[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(GameState)3663_storage)dyn_storage": {
+            "label": "struct GameLib.GameState[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(Position)3617_storage)dyn_storage": {
+            "label": "struct GameLib.Position[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)200_storage": {
+            "label": "uint256[200]",
+            "numberOfBytes": "6400"
+          },
+          "t_array(t_uint256)dyn_storage": {
+            "label": "uint256[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint8)dyn_storage": {
+            "label": "uint8[]",
+            "numberOfBytes": "32"
+          },
+          "t_enum(GameStatus)3609": {
+            "label": "enum GameLib.GameStatus",
+            "members": [
+              "NONE",
+              "ACTIVE",
+              "FINISHED",
+              "FINISHED_BY_TIMEOUT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(MoveType)3604": {
+            "label": "enum GameLib.MoveType",
+            "members": [
+              "PASS",
+              "TACKLE",
+              "RUN",
+              "SHOT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(StateType)3634": {
+            "label": "enum GameLib.StateType",
+            "members": [
+              "START_POSITIONS",
+              "MOVE",
+              "GOAL_TEAM1",
+              "GOAL_TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamEnum)3599": {
+            "label": "enum GameLib.TeamEnum",
+            "members": [
+              "NONE",
+              "TEAM1",
+              "TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamFormation)3595": {
+            "label": "enum GameLib.TeamFormation",
+            "members": [
+              "FORMATION_2_2_1"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_bool)": {
+            "label": "mapping(string => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Game)3751_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Game)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(GameRequest)3760_storage)": {
+            "label": "mapping(uint256 => struct GameLib.GameRequest)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Team)3707_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Team)",
+            "numberOfBytes": "32"
+          },
+          "t_string_memory_ptr": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Game)3751_storage": {
+            "label": "struct GameLib.Game",
+            "members": [
+              {
+                "label": "gameId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "lastMoveAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "lastMoveTeam",
+                "type": "t_enum(TeamEnum)3599",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "team1",
+                "type": "t_struct(TeamInfo)3723_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "team2",
+                "type": "t_struct(TeamInfo)3723_storage",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "history",
+                "type": "t_array(t_struct(GameState)3663_storage)dyn_storage",
+                "offset": 0,
+                "slot": "10"
+              },
+              {
+                "label": "status",
+                "type": "t_enum(GameStatus)3609",
+                "offset": 0,
+                "slot": "11"
+              },
+              {
+                "label": "movesMade",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "11"
+              },
+              {
+                "label": "winner",
+                "type": "t_enum(TeamEnum)3599",
+                "offset": 2,
+                "slot": "11"
+              }
+            ],
+            "numberOfBytes": "384"
+          },
+          "t_struct(GameAction)3629_storage": {
+            "label": "struct GameLib.GameAction",
+            "members": [
+              {
+                "label": "playerId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "moveType",
+                "type": "t_enum(MoveType)3604",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "oldPosition",
+                "type": "t_struct(Position)3617_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "newPosition",
+                "type": "t_struct(Position)3617_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameRequest)3760_storage": {
+            "label": "struct GameLib.GameRequest",
+            "members": [
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team1id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team2id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameState)3663_storage": {
+            "label": "struct GameLib.GameState",
+            "members": [
+              {
+                "label": "team1Positions",
+                "type": "t_array(t_struct(Position)3617_storage)dyn_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team2Positions",
+                "type": "t_array(t_struct(Position)3617_storage)dyn_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team1Moves",
+                "type": "t_array(t_struct(GameAction)3629_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "team2Moves",
+                "type": "t_array(t_struct(GameAction)3629_storage)dyn_storage",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "ballPosition",
+                "type": "t_struct(Position)3617_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "ballOwner",
+                "type": "t_enum(TeamEnum)3599",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "clashRandomResults",
+                "type": "t_array(t_uint8)dyn_storage",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "stateType",
+                "type": "t_enum(StateType)3634",
+                "offset": 0,
+                "slot": "7"
+              }
+            ],
+            "numberOfBytes": "256"
+          },
+          "t_struct(GameStatistics)3684_storage": {
+            "label": "struct GameLib.GameStatistics",
+            "members": [
+              {
+                "label": "wins",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "losses",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "0"
+              },
+              {
+                "label": "draws",
+                "type": "t_uint32",
+                "offset": 8,
+                "slot": "0"
+              },
+              {
+                "label": "totalGames",
+                "type": "t_uint32",
+                "offset": 12,
+                "slot": "0"
+              },
+              {
+                "label": "totalGoalsScored",
+                "type": "t_uint32",
+                "offset": 16,
+                "slot": "0"
+              },
+              {
+                "label": "totalGoalsConceded",
+                "type": "t_uint32",
+                "offset": 20,
+                "slot": "0"
+              },
+              {
+                "label": "biggestWinGoalsScored",
+                "type": "t_uint32",
+                "offset": 24,
+                "slot": "0"
+              },
+              {
+                "label": "biggestWinGoalsConceded",
+                "type": "t_uint32",
+                "offset": 28,
+                "slot": "0"
+              },
+              {
+                "label": "biggestLossGoalsScored",
+                "type": "t_uint32",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "biggestLossGoalsConceded",
+                "type": "t_uint32",
+                "offset": 4,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_struct(Position)3617_storage": {
+            "label": "struct GameLib.Position",
+            "members": [
+              {
+                "label": "x",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "y",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(Team)3707_storage": {
+            "label": "struct GameLib.Team",
+            "members": [
+              {
+                "label": "id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "wallet",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "name",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "registeredAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "games",
+                "type": "t_array(t_uint256)dyn_storage",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "country",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "hasActiveGame",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "6"
+              },
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "statistic",
+                "type": "t_struct(GameStatistics)3684_storage",
+                "offset": 0,
+                "slot": "8"
+              }
+            ],
+            "numberOfBytes": "320"
+          },
+          "t_struct(TeamInfo)3723_storage": {
+            "label": "struct GameLib.TeamInfo",
+            "members": [
+              {
+                "label": "teamId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "score",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 1,
+                "slot": "1"
+              },
+              {
+                "label": "eloRatingNew",
+                "type": "t_uint64",
+                "offset": 9,
+                "slot": "1"
+              },
+              {
+                "label": "formation",
+                "type": "t_enum(TeamFormation)3595",
+                "offset": 17,
+                "slot": "1"
+              },
+              {
+                "label": "actions",
+                "type": "t_array(t_struct(GameAction)3629_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint32": {
+            "label": "uint32",
+            "numberOfBytes": "4"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "e7e7602636edde743e1798fde9d892b966ef00e72cd4edc97cadc4cb6c4d1373": {
+      "address": "0x74f8E7951F3a9a6620173Dc32c69a8d70877576f",
+      "txHash": "0xa327bbac8b7bacbbe90dcb4bd32ac77dca181b76ec7b7d2769e45d0ac8e05f12",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "gelatoAddress",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:40"
+          },
+          {
+            "label": "relayerAddress",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:41"
+          },
+          {
+            "label": "games",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Game)3762_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:44"
+          },
+          {
+            "label": "teams",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Team)3710_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:45"
+          },
+          {
+            "label": "teamIdByWallet",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:46"
+          },
+          {
+            "label": "nextGameId",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:48"
+          },
+          {
+            "label": "nextTeamId",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:49"
+          },
+          {
+            "label": "activeGames",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_array(t_uint256)dyn_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:51"
+          },
+          {
+            "label": "gameRequests",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_uint256,t_struct(GameRequest)3771_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:54"
+          },
+          {
+            "label": "gameRequestIndex",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:55"
+          },
+          {
+            "label": "teamNames",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_mapping(t_string_memory_ptr,t_bool)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:57"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_array(t_uint256)100_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:59"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_struct(GameAction)3629_storage)dyn_storage": {
+            "label": "struct GameLib.GameAction[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(GameState)3663_storage)dyn_storage": {
+            "label": "struct GameLib.GameState[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(Position)3617_storage)dyn_storage": {
+            "label": "struct GameLib.Position[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)100_storage": {
+            "label": "uint256[100]",
+            "numberOfBytes": "3200"
+          },
+          "t_array(t_uint256)5_storage": {
+            "label": "uint256[5]",
+            "numberOfBytes": "160"
+          },
+          "t_array(t_uint256)dyn_storage": {
+            "label": "uint256[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint8)dyn_storage": {
+            "label": "uint8[]",
+            "numberOfBytes": "32"
+          },
+          "t_enum(GameStatus)3609": {
+            "label": "enum GameLib.GameStatus",
+            "members": [
+              "NONE",
+              "ACTIVE",
+              "FINISHED",
+              "FINISHED_BY_TIMEOUT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(MoveType)3604": {
+            "label": "enum GameLib.MoveType",
+            "members": [
+              "PASS",
+              "TACKLE",
+              "RUN",
+              "SHOT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(StateType)3634": {
+            "label": "enum GameLib.StateType",
+            "members": [
+              "START_POSITIONS",
+              "MOVE",
+              "GOAL_TEAM1",
+              "GOAL_TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamEnum)3599": {
+            "label": "enum GameLib.TeamEnum",
+            "members": [
+              "NONE",
+              "TEAM1",
+              "TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamFormation)3595": {
+            "label": "enum GameLib.TeamFormation",
+            "members": [
+              "FORMATION_2_2_1"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_bool)": {
+            "label": "mapping(string => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Game)3762_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Game)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(GameRequest)3771_storage)": {
+            "label": "mapping(uint256 => struct GameLib.GameRequest)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Team)3710_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Team)",
+            "numberOfBytes": "32"
+          },
+          "t_string_memory_ptr": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Game)3762_storage": {
+            "label": "struct GameLib.Game",
+            "members": [
+              {
+                "label": "gameId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "lastMoveAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "lastMoveTeam",
+                "type": "t_enum(TeamEnum)3599",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "team1",
+                "type": "t_struct(TeamInfo)3730_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "team2",
+                "type": "t_struct(TeamInfo)3730_storage",
+                "offset": 0,
+                "slot": "12"
+              },
+              {
+                "label": "history",
+                "type": "t_array(t_struct(GameState)3663_storage)dyn_storage",
+                "offset": 0,
+                "slot": "20"
+              },
+              {
+                "label": "status",
+                "type": "t_enum(GameStatus)3609",
+                "offset": 0,
+                "slot": "21"
+              },
+              {
+                "label": "movesMade",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "21"
+              },
+              {
+                "label": "winner",
+                "type": "t_enum(TeamEnum)3599",
+                "offset": 2,
+                "slot": "21"
+              },
+              {
+                "label": "__gap",
+                "type": "t_array(t_uint256)5_storage",
+                "offset": 0,
+                "slot": "22"
+              }
+            ],
+            "numberOfBytes": "864"
+          },
+          "t_struct(GameAction)3629_storage": {
+            "label": "struct GameLib.GameAction",
+            "members": [
+              {
+                "label": "playerId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "moveType",
+                "type": "t_enum(MoveType)3604",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "oldPosition",
+                "type": "t_struct(Position)3617_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "newPosition",
+                "type": "t_struct(Position)3617_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameRequest)3771_storage": {
+            "label": "struct GameLib.GameRequest",
+            "members": [
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team1id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team2id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameState)3663_storage": {
+            "label": "struct GameLib.GameState",
+            "members": [
+              {
+                "label": "team1Positions",
+                "type": "t_array(t_struct(Position)3617_storage)dyn_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team2Positions",
+                "type": "t_array(t_struct(Position)3617_storage)dyn_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team1Moves",
+                "type": "t_array(t_struct(GameAction)3629_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "team2Moves",
+                "type": "t_array(t_struct(GameAction)3629_storage)dyn_storage",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "ballPosition",
+                "type": "t_struct(Position)3617_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "ballOwner",
+                "type": "t_enum(TeamEnum)3599",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "clashRandomResults",
+                "type": "t_array(t_uint8)dyn_storage",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "stateType",
+                "type": "t_enum(StateType)3634",
+                "offset": 0,
+                "slot": "7"
+              }
+            ],
+            "numberOfBytes": "256"
+          },
+          "t_struct(Position)3617_storage": {
+            "label": "struct GameLib.Position",
+            "members": [
+              {
+                "label": "x",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "y",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(Team)3710_storage": {
+            "label": "struct GameLib.Team",
+            "members": [
+              {
+                "label": "id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "wallet",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "name",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "registeredAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "games",
+                "type": "t_array(t_uint256)dyn_storage",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "country",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "hasActiveGame",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "6"
+              },
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "totalGames",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "8"
+              },
+              {
+                "label": "__gap",
+                "type": "t_array(t_uint256)5_storage",
+                "offset": 0,
+                "slot": "9"
+              }
+            ],
+            "numberOfBytes": "448"
+          },
+          "t_struct(TeamInfo)3730_storage": {
+            "label": "struct GameLib.TeamInfo",
+            "members": [
+              {
+                "label": "teamId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "score",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 1,
+                "slot": "1"
+              },
+              {
+                "label": "eloRatingNew",
+                "type": "t_uint64",
+                "offset": 9,
+                "slot": "1"
+              },
+              {
+                "label": "formation",
+                "type": "t_enum(TeamFormation)3595",
+                "offset": 17,
+                "slot": "1"
+              },
+              {
+                "label": "actions",
+                "type": "t_array(t_struct(GameAction)3629_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "__gap",
+                "type": "t_array(t_uint256)5_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "256"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "e762a63f9d47083d03b2a9b3be85f8b674ac6dc53c5bbddb8201dd8e350badba": {
+      "address": "0x250812E55d86b8778B81B1f65a962F1562De8151",
+      "txHash": "0xcfbe486bb6fcf6d27353f8f7e4721b15a8adc46f42de126c7fa9a89f49b383ee",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "gelatoAddress",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:40"
+          },
+          {
+            "label": "relayerAddress",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:41"
+          },
+          {
+            "label": "games",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Game)3762_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:44"
+          },
+          {
+            "label": "teams",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Team)3710_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:45"
+          },
+          {
+            "label": "teamIdByWallet",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:46"
+          },
+          {
+            "label": "nextGameId",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:48"
+          },
+          {
+            "label": "nextTeamId",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:49"
+          },
+          {
+            "label": "activeGames",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_array(t_uint256)dyn_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:51"
+          },
+          {
+            "label": "gameRequests",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_uint256,t_struct(GameRequest)3771_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:54"
+          },
+          {
+            "label": "gameRequestIndex",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:55"
+          },
+          {
+            "label": "teamNames",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_mapping(t_string_memory_ptr,t_bool)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:57"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_array(t_uint256)100_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:59"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_struct(GameAction)3629_storage)dyn_storage": {
+            "label": "struct GameLib.GameAction[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(GameState)3663_storage)dyn_storage": {
+            "label": "struct GameLib.GameState[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(Position)3617_storage)dyn_storage": {
+            "label": "struct GameLib.Position[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)100_storage": {
+            "label": "uint256[100]",
+            "numberOfBytes": "3200"
+          },
+          "t_array(t_uint256)5_storage": {
+            "label": "uint256[5]",
+            "numberOfBytes": "160"
+          },
+          "t_array(t_uint256)dyn_storage": {
+            "label": "uint256[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint8)dyn_storage": {
+            "label": "uint8[]",
+            "numberOfBytes": "32"
+          },
+          "t_enum(GameStatus)3609": {
+            "label": "enum GameLib.GameStatus",
+            "members": [
+              "NONE",
+              "ACTIVE",
+              "FINISHED",
+              "FINISHED_BY_TIMEOUT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(MoveType)3604": {
+            "label": "enum GameLib.MoveType",
+            "members": [
+              "PASS",
+              "TACKLE",
+              "RUN",
+              "SHOT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(StateType)3634": {
+            "label": "enum GameLib.StateType",
+            "members": [
+              "START_POSITIONS",
+              "MOVE",
+              "GOAL_TEAM1",
+              "GOAL_TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamEnum)3599": {
+            "label": "enum GameLib.TeamEnum",
+            "members": [
+              "NONE",
+              "TEAM1",
+              "TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamFormation)3595": {
+            "label": "enum GameLib.TeamFormation",
+            "members": [
+              "FORMATION_2_2_1"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_bool)": {
+            "label": "mapping(string => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Game)3762_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Game)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(GameRequest)3771_storage)": {
+            "label": "mapping(uint256 => struct GameLib.GameRequest)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Team)3710_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Team)",
+            "numberOfBytes": "32"
+          },
+          "t_string_memory_ptr": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Game)3762_storage": {
+            "label": "struct GameLib.Game",
+            "members": [
+              {
+                "label": "gameId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "lastMoveAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "lastMoveTeam",
+                "type": "t_enum(TeamEnum)3599",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "team1",
+                "type": "t_struct(TeamInfo)3730_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "team2",
+                "type": "t_struct(TeamInfo)3730_storage",
+                "offset": 0,
+                "slot": "12"
+              },
+              {
+                "label": "history",
+                "type": "t_array(t_struct(GameState)3663_storage)dyn_storage",
+                "offset": 0,
+                "slot": "20"
+              },
+              {
+                "label": "status",
+                "type": "t_enum(GameStatus)3609",
+                "offset": 0,
+                "slot": "21"
+              },
+              {
+                "label": "movesMade",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "21"
+              },
+              {
+                "label": "winner",
+                "type": "t_enum(TeamEnum)3599",
+                "offset": 2,
+                "slot": "21"
+              },
+              {
+                "label": "__gap",
+                "type": "t_array(t_uint256)5_storage",
+                "offset": 0,
+                "slot": "22"
+              }
+            ],
+            "numberOfBytes": "864"
+          },
+          "t_struct(GameAction)3629_storage": {
+            "label": "struct GameLib.GameAction",
+            "members": [
+              {
+                "label": "playerId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "moveType",
+                "type": "t_enum(MoveType)3604",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "oldPosition",
+                "type": "t_struct(Position)3617_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "newPosition",
+                "type": "t_struct(Position)3617_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameRequest)3771_storage": {
+            "label": "struct GameLib.GameRequest",
+            "members": [
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team1id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team2id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameState)3663_storage": {
+            "label": "struct GameLib.GameState",
+            "members": [
+              {
+                "label": "team1Positions",
+                "type": "t_array(t_struct(Position)3617_storage)dyn_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team2Positions",
+                "type": "t_array(t_struct(Position)3617_storage)dyn_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team1Moves",
+                "type": "t_array(t_struct(GameAction)3629_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "team2Moves",
+                "type": "t_array(t_struct(GameAction)3629_storage)dyn_storage",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "ballPosition",
+                "type": "t_struct(Position)3617_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "ballOwner",
+                "type": "t_enum(TeamEnum)3599",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "clashRandomResults",
+                "type": "t_array(t_uint8)dyn_storage",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "stateType",
+                "type": "t_enum(StateType)3634",
+                "offset": 0,
+                "slot": "7"
+              }
+            ],
+            "numberOfBytes": "256"
+          },
+          "t_struct(Position)3617_storage": {
+            "label": "struct GameLib.Position",
+            "members": [
+              {
+                "label": "x",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "y",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(Team)3710_storage": {
+            "label": "struct GameLib.Team",
+            "members": [
+              {
+                "label": "id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "wallet",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "name",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "registeredAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "games",
+                "type": "t_array(t_uint256)dyn_storage",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "country",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "hasActiveGame",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "6"
+              },
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "totalGames",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "8"
+              },
+              {
+                "label": "__gap",
+                "type": "t_array(t_uint256)5_storage",
+                "offset": 0,
+                "slot": "9"
+              }
+            ],
+            "numberOfBytes": "448"
+          },
+          "t_struct(TeamInfo)3730_storage": {
+            "label": "struct GameLib.TeamInfo",
+            "members": [
+              {
+                "label": "teamId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "score",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 1,
+                "slot": "1"
+              },
+              {
+                "label": "eloRatingNew",
+                "type": "t_uint64",
+                "offset": 9,
+                "slot": "1"
+              },
+              {
+                "label": "formation",
+                "type": "t_enum(TeamFormation)3595",
+                "offset": 17,
+                "slot": "1"
+              },
+              {
+                "label": "actions",
+                "type": "t_array(t_struct(GameAction)3629_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "__gap",
+                "type": "t_array(t_uint256)5_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "256"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "799b39dda6fa44e62c3f03a7f7ee47aac7f08f488b2fc88bf2e3d6a96fc69726": {
+      "address": "0x29EAb6a7e453d96bE883e7fF33D332fC12092feb",
+      "txHash": "0xd317074b747c7a43d39548f2c4054df18afbd58a27f41630b4705a9a56bed560",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "gelatoAddress",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:40"
+          },
+          {
+            "label": "relayerAddress",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:41"
+          },
+          {
+            "label": "games",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint256,t_struct(Game)3785_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:44"
+          },
+          {
+            "label": "teams",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint256,t_struct(Team)3733_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:45"
+          },
+          {
+            "label": "teamIdByWallet",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:46"
+          },
+          {
+            "label": "nextGameId",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:48"
+          },
+          {
+            "label": "nextTeamId",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:49"
+          },
+          {
+            "label": "activeGames",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_array(t_uint256)dyn_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:51"
+          },
+          {
+            "label": "gameRequests",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_uint256,t_struct(GameRequest)3794_storage)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:54"
+          },
+          {
+            "label": "gameRequestIndex",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_uint256",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:55"
+          },
+          {
+            "label": "teamNames",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_mapping(t_string_memory_ptr,t_bool)",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:57"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_array(t_uint256)100_storage",
+            "contract": "ChessBallGame",
+            "src": "contracts/Game.sol:59"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_struct(GameAction)3652_storage)dyn_storage": {
+            "label": "struct GameLib.GameAction[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(GameState)3686_storage)dyn_storage": {
+            "label": "struct GameLib.GameState[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(Position)3640_storage)dyn_storage": {
+            "label": "struct GameLib.Position[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)100_storage": {
+            "label": "uint256[100]",
+            "numberOfBytes": "3200"
+          },
+          "t_array(t_uint256)5_storage": {
+            "label": "uint256[5]",
+            "numberOfBytes": "160"
+          },
+          "t_array(t_uint256)dyn_storage": {
+            "label": "uint256[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint8)dyn_storage": {
+            "label": "uint8[]",
+            "numberOfBytes": "32"
+          },
+          "t_enum(GameStatus)3632": {
+            "label": "enum GameLib.GameStatus",
+            "members": [
+              "NONE",
+              "ACTIVE",
+              "FINISHED",
+              "FINISHED_BY_TIMEOUT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(MoveType)3627": {
+            "label": "enum GameLib.MoveType",
+            "members": [
+              "PASS",
+              "TACKLE",
+              "RUN",
+              "SHOT"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(StateType)3657": {
+            "label": "enum GameLib.StateType",
+            "members": [
+              "START_POSITIONS",
+              "MOVE",
+              "GOAL_TEAM1",
+              "GOAL_TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamEnum)3622": {
+            "label": "enum GameLib.TeamEnum",
+            "members": [
+              "NONE",
+              "TEAM1",
+              "TEAM2"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(TeamFormation)3618": {
+            "label": "enum GameLib.TeamFormation",
+            "members": [
+              "FORMATION_2_2_1"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_string_memory_ptr,t_bool)": {
+            "label": "mapping(string => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Game)3785_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Game)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(GameRequest)3794_storage)": {
+            "label": "mapping(uint256 => struct GameLib.GameRequest)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(Team)3733_storage)": {
+            "label": "mapping(uint256 => struct GameLib.Team)",
+            "numberOfBytes": "32"
+          },
+          "t_string_memory_ptr": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(Game)3785_storage": {
+            "label": "struct GameLib.Game",
+            "members": [
+              {
+                "label": "gameId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "lastMoveAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "lastMoveTeam",
+                "type": "t_enum(TeamEnum)3622",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "team1",
+                "type": "t_struct(TeamInfo)3753_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "team2",
+                "type": "t_struct(TeamInfo)3753_storage",
+                "offset": 0,
+                "slot": "12"
+              },
+              {
+                "label": "history",
+                "type": "t_array(t_struct(GameState)3686_storage)dyn_storage",
+                "offset": 0,
+                "slot": "20"
+              },
+              {
+                "label": "status",
+                "type": "t_enum(GameStatus)3632",
+                "offset": 0,
+                "slot": "21"
+              },
+              {
+                "label": "movesMade",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "21"
+              },
+              {
+                "label": "winner",
+                "type": "t_enum(TeamEnum)3622",
+                "offset": 2,
+                "slot": "21"
+              },
+              {
+                "label": "__gap",
+                "type": "t_array(t_uint256)5_storage",
+                "offset": 0,
+                "slot": "22"
+              }
+            ],
+            "numberOfBytes": "864"
+          },
+          "t_struct(GameAction)3652_storage": {
+            "label": "struct GameLib.GameAction",
+            "members": [
+              {
+                "label": "playerId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "moveType",
+                "type": "t_enum(MoveType)3627",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "oldPosition",
+                "type": "t_struct(Position)3640_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "newPosition",
+                "type": "t_struct(Position)3640_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameRequest)3794_storage": {
+            "label": "struct GameLib.GameRequest",
+            "members": [
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team1id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team2id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "createdAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(GameState)3686_storage": {
+            "label": "struct GameLib.GameState",
+            "members": [
+              {
+                "label": "team1Positions",
+                "type": "t_array(t_struct(Position)3640_storage)dyn_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "team2Positions",
+                "type": "t_array(t_struct(Position)3640_storage)dyn_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "team1Moves",
+                "type": "t_array(t_struct(GameAction)3652_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "team2Moves",
+                "type": "t_array(t_struct(GameAction)3652_storage)dyn_storage",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "ballPosition",
+                "type": "t_struct(Position)3640_storage",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "ballOwner",
+                "type": "t_enum(TeamEnum)3622",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "clashRandomResults",
+                "type": "t_array(t_uint8)dyn_storage",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "stateType",
+                "type": "t_enum(StateType)3657",
+                "offset": 0,
+                "slot": "7"
+              }
+            ],
+            "numberOfBytes": "256"
+          },
+          "t_struct(Position)3640_storage": {
+            "label": "struct GameLib.Position",
+            "members": [
+              {
+                "label": "x",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "y",
+                "type": "t_uint8",
+                "offset": 1,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(Team)3733_storage": {
+            "label": "struct GameLib.Team",
+            "members": [
+              {
+                "label": "id",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "wallet",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "name",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "registeredAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "games",
+                "type": "t_array(t_uint256)dyn_storage",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "country",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "hasActiveGame",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "6"
+              },
+              {
+                "label": "gameRequestId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "7"
+              },
+              {
+                "label": "totalGames",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "8"
+              },
+              {
+                "label": "__gap",
+                "type": "t_array(t_uint256)5_storage",
+                "offset": 0,
+                "slot": "9"
+              }
+            ],
+            "numberOfBytes": "448"
+          },
+          "t_struct(TeamInfo)3753_storage": {
+            "label": "struct GameLib.TeamInfo",
+            "members": [
+              {
+                "label": "teamId",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "score",
+                "type": "t_uint8",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "eloRating",
+                "type": "t_uint64",
+                "offset": 1,
+                "slot": "1"
+              },
+              {
+                "label": "eloRatingNew",
+                "type": "t_uint64",
+                "offset": 9,
+                "slot": "1"
+              },
+              {
+                "label": "formation",
+                "type": "t_enum(TeamFormation)3618",
+                "offset": 17,
+                "slot": "1"
+              },
+              {
+                "label": "actions",
+                "type": "t_array(t_struct(GameAction)3652_storage)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "__gap",
+                "type": "t_array(t_uint256)5_storage",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "256"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
           },
           "t_uint8": {
             "label": "uint8",

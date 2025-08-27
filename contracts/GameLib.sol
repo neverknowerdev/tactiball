@@ -61,6 +61,8 @@ library GameLib {
     struct GameState {
         Position[] team1Positions;
         Position[] team2Positions;
+        GameAction[] team1Moves;
+        GameAction[] team2Moves;
         Position ballPosition;
         TeamEnum ballOwner;
         uint8[] clashRandomResults;
@@ -92,7 +94,8 @@ library GameLib {
         uint8 country;
         bool hasActiveGame;
         uint256 gameRequestId;
-        GameStatistics statistic;
+        uint64 totalGames;
+        uint256[5] __gap;
     }
 
     struct TeamInfo {
@@ -103,6 +106,7 @@ library GameLib {
         TeamFormation formation;
         //
         GameAction[] actions;
+        uint256[5] __gap;
     }
 
     struct Game {
@@ -122,6 +126,7 @@ library GameLib {
         uint8 movesMade;
         //
         TeamEnum winner;
+        uint256[5] __gap;
     }
 
     struct GameRequest {
@@ -184,18 +189,14 @@ library GameLib {
                 country: countryID,
                 hasActiveGame: false,
                 gameRequestId: 0,
-                statistic: GameStatistics({
-                    wins: 0,
-                    losses: 0,
-                    draws: 0,
-                    totalGames: 0,
-                    totalGoalsScored: 0,
-                    totalGoalsConceded: 0,
-                    biggestWinGoalsScored: 0,
-                    biggestWinGoalsConceded: 0,
-                    biggestLossGoalsScored: 0,
-                    biggestLossGoalsConceded: 0
-                })
+                totalGames: 0,
+                __gap: [
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0)
+                ]
             });
     }
     // Game Management Functions
@@ -212,7 +213,8 @@ library GameLib {
             eloRating: team1EloRating,
             eloRatingNew: 0,
             formation: TeamFormation.FORMATION_2_2_1,
-            actions: new GameAction[](0)
+            actions: new GameAction[](0),
+            __gap: [uint256(0), uint256(0), uint256(0), uint256(0), uint256(0)]
         });
 
         TeamInfo memory team2Info = TeamInfo({
@@ -221,7 +223,8 @@ library GameLib {
             eloRating: team2EloRating,
             eloRatingNew: 0,
             formation: TeamFormation.FORMATION_2_2_1,
-            actions: new GameAction[](0)
+            actions: new GameAction[](0),
+            __gap: [uint256(0), uint256(0), uint256(0), uint256(0), uint256(0)]
         });
 
         return
@@ -235,7 +238,14 @@ library GameLib {
                 history: new GameState[](0),
                 status: GameStatus.ACTIVE,
                 movesMade: 0,
-                winner: TeamEnum.NONE
+                winner: TeamEnum.NONE,
+                __gap: [
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0)
+                ]
             });
     }
 
@@ -376,16 +386,16 @@ library GameLib {
     ) internal returns (TeamEnum winner) {
         require(game.status == GameStatus.ACTIVE, "Game is not active");
 
-        game.status = GameStatus.FINISHED;
-
-        team1.statistic.totalGames++;
-        team2.statistic.totalGames++;
+        team1.totalGames++;
+        team2.totalGames++;
 
         team1.hasActiveGame = false;
         team2.hasActiveGame = false;
 
         if (finishReason == FinishReason.MOVE_TIMEOUT) {
             winner = game.lastMoveTeam;
+
+            game.status = GameStatus.FINISHED_BY_TIMEOUT;
 
             if (winner == TeamEnum.TEAM1) {
                 setTeamScore(game, TeamEnum.TEAM1, 3);
@@ -417,7 +427,6 @@ library GameLib {
 
         game.winner = winner;
 
-        _updateTeamStatistics(game, team1, team2);
         return winner;
     }
 
@@ -440,104 +449,6 @@ library GameLib {
         } else if (gameState.stateType == StateType.GOAL_TEAM2) {
             uint8 currentScore = getTeamScore(game, TeamEnum.TEAM2);
             setTeamScore(game, TeamEnum.TEAM2, currentScore + 1);
-        }
-    }
-
-    function _updateTeamStatistics(
-        Game storage game,
-        Team storage team1,
-        Team storage team2
-    ) private {
-        team1.statistic.totalGoalsScored += getTeamScore(game, TeamEnum.TEAM1);
-        team1.statistic.totalGoalsConceded += getTeamScore(
-            game,
-            TeamEnum.TEAM2
-        );
-        team2.statistic.totalGoalsScored += getTeamScore(game, TeamEnum.TEAM2);
-        team2.statistic.totalGoalsConceded += getTeamScore(
-            game,
-            TeamEnum.TEAM1
-        );
-
-        if (
-            getTeamScore(game, TeamEnum.TEAM1) >
-            getTeamScore(game, TeamEnum.TEAM2)
-        ) {
-            team1.statistic.wins++;
-            team2.statistic.losses++;
-
-            if (
-                getTeamScore(game, TeamEnum.TEAM1) -
-                    getTeamScore(game, TeamEnum.TEAM2) >
-                team1.statistic.biggestWinGoalsScored -
-                    team1.statistic.biggestWinGoalsConceded
-            ) {
-                team1.statistic.biggestWinGoalsScored = getTeamScore(
-                    game,
-                    TeamEnum.TEAM1
-                );
-                team1.statistic.biggestWinGoalsConceded = getTeamScore(
-                    game,
-                    TeamEnum.TEAM2
-                );
-            }
-
-            if (
-                getTeamScore(game, TeamEnum.TEAM1) -
-                    getTeamScore(game, TeamEnum.TEAM2) >
-                team2.statistic.biggestLossGoalsConceded -
-                    team2.statistic.biggestLossGoalsScored
-            ) {
-                team2.statistic.biggestLossGoalsScored = getTeamScore(
-                    game,
-                    TeamEnum.TEAM2
-                );
-                team2.statistic.biggestLossGoalsConceded = getTeamScore(
-                    game,
-                    TeamEnum.TEAM1
-                );
-            }
-        } else if (
-            getTeamScore(game, TeamEnum.TEAM1) <
-            getTeamScore(game, TeamEnum.TEAM2)
-        ) {
-            team1.statistic.losses++;
-            team2.statistic.wins++;
-
-            if (
-                getTeamScore(game, TeamEnum.TEAM2) -
-                    getTeamScore(game, TeamEnum.TEAM1) >
-                team2.statistic.biggestWinGoalsScored -
-                    team2.statistic.biggestWinGoalsConceded
-            ) {
-                team2.statistic.biggestWinGoalsScored = getTeamScore(
-                    game,
-                    TeamEnum.TEAM2
-                );
-                team2.statistic.biggestWinGoalsConceded = getTeamScore(
-                    game,
-                    TeamEnum.TEAM1
-                );
-            }
-
-            if (
-                getTeamScore(game, TeamEnum.TEAM2) -
-                    getTeamScore(game, TeamEnum.TEAM1) >
-                team1.statistic.biggestLossGoalsConceded -
-                    team1.statistic.biggestLossGoalsScored
-            ) {
-                team1.statistic.biggestLossGoalsScored = getTeamScore(
-                    game,
-                    TeamEnum.TEAM1
-                );
-                team1.statistic.biggestLossGoalsConceded = getTeamScore(
-                    game,
-                    TeamEnum.TEAM2
-                );
-            }
-        } else {
-            team1.statistic.draws++;
-            team2.statistic.draws++;
         }
     }
 }

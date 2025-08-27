@@ -93,9 +93,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         return NextResponse.json({
             success: true,
             data: {
-                totalTeams: teamCount || 0,
-                totalGames: gameCount || 0,
-                totalTransactions: transactionCount,
+                total_teams: teamCount || 0,
+                total_games: gameCount || 0,
+                total_transactions: transactionCount,
                 lastUpdated: new Date().toISOString()
             }
         });

@@ -95,7 +95,7 @@ Set these in your Supabase project:
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ABLY_API_KEY=your_ably_api_key
-CONTRACT_ADDRESS=0x63d9bc6a1e2c85cc4e1d5b4d57d35b130d74dd9a
+CONTRACT_ADDRESS=0x08011cd93f958a01d8bF10CC6aAe507cA629b95C
 RPC_URL=https://mainnet.base.org
 ```
 

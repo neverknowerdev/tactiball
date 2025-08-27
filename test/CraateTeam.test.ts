@@ -185,16 +185,7 @@ describe("Game Contract - Team Management", function () {
             const teamId = await game.getTeamIdByWallet(team1Owner.address);
             const team = await game.getTeam(teamId);
 
-            expect(team.statistic.wins).to.equal(0);
-            expect(team.statistic.losses).to.equal(0);
-            expect(team.statistic.draws).to.equal(0);
-            expect(team.statistic.totalGames).to.equal(0);
-            expect(team.statistic.totalGoalsScored).to.equal(0);
-            expect(team.statistic.totalGoalsConceded).to.equal(0);
-            expect(team.statistic.biggestWinGoalsScored).to.equal(0);
-            expect(team.statistic.biggestWinGoalsConceded).to.equal(0);
-            expect(team.statistic.biggestLossGoalsScored).to.equal(0);
-            expect(team.statistic.biggestLossGoalsConceded).to.equal(0);
+            expect(team.totalGames).to.equal(0);
         });
 
         it("Should initialize games array as empty", async function () {
@@ -241,7 +232,7 @@ describe("Game Contract - Team Management", function () {
                     "", // Empty name
                     1
                 )
-            ).to.be.revertedWithCustomError(game, "NameIsRequired");
+            ).to.be.revertedWithCustomError(game, "CreateTeam_NameIsRequired");
         });
 
         it("Should accept team creation with zero country ID", async function () {
@@ -267,7 +258,7 @@ describe("Game Contract - Team Management", function () {
                     "Team Beta",
                     2
                 )
-            ).to.be.revertedWithCustomError(game, "TeamAlreadyExists");
+            ).to.be.revertedWithCustomError(game, "CreateTeam_TeamAlreadyExists");
         });
     });
 

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
-import { AbiDecoder, CONTRACT_ABI, DecodedEvent } from './abi-decoder.ts'
+import { AbiDecoder, CONTRACT_ABI, CONTRACT_ADDRESS, DecodedEvent } from './abi-decoder.ts'
 import { WebSocketService, BroadcastMessage } from './websocket-service.ts'
 
 // Event types from smart contract
@@ -102,7 +102,7 @@ async function processLog(supabase: any, wsService: WebSocketService, eventLog: 
 }
 
 async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
-    const { teamId, owner, name, country } = decodedData.args
+    const { teamId, owner, name, country } = AbiDecoder.getTypedArgs(decodedData)
 
     console.log('teamId', teamId)
     console.log('owner', owner)
@@ -113,10 +113,10 @@ async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsSer
     const { data, error } = await supabase
         .from('teams')
         .insert({
-            id: Number(teamId),
+            id: teamId,
             primary_wallet: owner,
             name: name,
-            country: Number(country),
+            country: country,
             created_at: new Date(timestamp * 1000).toISOString()
         })
         .select()
@@ -130,13 +130,31 @@ async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsSer
 }
 
 async function handleGameRequestCreated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
-    const { gameRequestId, team1Id, team2Id } = decodedData.args
+    const { gameRequestId, team1id, team2id } = AbiDecoder.getTypedArgs(decodedData);
+    console.log('gameRequestId', gameRequestId, 'team1id', team1id, 'team2id', team2id)
+
+    // Get both teams' info in a single query
+    const { data: teamsData, error: teamsError } = await supabase
+        .from('teams')
+        .select('id, name, country, primary_wallet, active_game_id, elo_rating, game_request_id')
+        .in('id', [team1id, team2id]);
+
+    if (teamsError) {
+        console.error('Error getting teams:', teamsError);
+        throw teamsError;
+    }
+
+    const team1Data = teamsData.find((team: any) => team.id === team1id);
+    const team2Data = teamsData.find((team: any) => team.id === team2id);
 
     // Broadcast to team channel
-    await wsService.broadcastToGameTeams(team1Id, team2Id, {
+    await wsService.broadcastToGameTeams(Number(team1id), Number(team2id), {
         type: 'GAME_REQUEST_CREATED',
-        teamId: Number(team1Id),
-        team2Id: Number(team2Id),
+        game_request_id: gameRequestId,
+        team1_id: team1id,
+        team2_id: team2id,
+        team1_info: team1Data,
+        team2_info: team2Data,
         timestamp: timestamp * 1000
     });
 
@@ -144,14 +162,14 @@ async function handleGameRequestCreated(decodedData: DecodedEvent, supabase: any
 }
 
 async function handleGameRequestCancelled(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
-    const { gameRequestId, team1Id, team2Id } = decodedData.args
+    const { gameRequestId, team1id, team2id } = AbiDecoder.getTypedArgs(decodedData)
 
     // Broadcast to both team channels
-    await wsService.broadcastToGameTeams(team1Id, team2Id, {
+    await wsService.broadcastToGameTeams(team1id, team2id, {
         type: 'GAME_REQUEST_CANCELLED',
-        requestId: gameRequestId,
-        team1Id: Number(team1Id),
-        team2Id: Number(team2Id),
+        request_id: gameRequestId,
+        team1_id: team1id,
+        team2_id: team2id,
         timestamp: timestamp * 1000
     })
 
@@ -159,25 +177,25 @@ async function handleGameRequestCancelled(decodedData: DecodedEvent, supabase: a
 }
 
 async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
-    const { gameId, team1Id, team2Id, teamWithBall } = decodedData.args
+    const { gameId, team1id, team2id, teamWithBall } = AbiDecoder.getTypedArgs(decodedData)
 
     // Broadcast to both team channels
-    await wsService.broadcastToGameTeams(team1Id, team2Id, {
+    await wsService.broadcastToGameTeams(team1id, team2id, {
         type: 'GAME_STARTED',
-        gameId: gameId,
-        team1Id: Number(team1Id),
-        team2Id: Number(team2Id),
-        teamWithBall: Number(teamWithBall),
+        game_id: gameId,
+        team1_id: team1id,
+        team2_id: team2id,
+        team_with_ball: teamWithBall,
         timestamp: timestamp * 1000
     })
 
     // Broadcast to game channel
     await wsService.broadcastToGame(gameId, {
         type: 'GAME_STARTED',
-        gameId: gameId,
-        team1Id: team1Id,
-        team2Id: team2Id,
-        teamWithBall: teamWithBall,
+        game_id: gameId,
+        team1_id: team1id,
+        team2_id: team2id,
+        team_with_ball: teamWithBall,
         timestamp: timestamp * 1000
     })
 
@@ -187,27 +205,27 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
         .from('games')
         .insert({
             id: gameId,
-            team1: Number(team1Id),
-            team2: Number(team2Id),
+            team1: team1id,
+            team2: team2id,
             created_at: new Date(timestamp * 1000).toISOString(),
             last_move_at: null,
             status: 'active',
             moves_made: 0,
             team1_info: {
-                eloRatingOld: 0,
-                eloRatingNew: 0,
-                eloRatingDiff: 0,
+                elo_rating_old: 0,
+                elo_rating_new: 0,
+                elo_rating_diff: 0,
                 formation: "2-2-1",
                 score: 0,
-                hasMadeMove: false
+                has_made_move: false
             },
             team2_info: {
-                eloRatingOld: 0,
-                eloRatingNew: 0,
-                eloRatingDiff: 0,
+                elo_rating_old: 0,
+                elo_rating_new: 0,
+                elo_rating_diff: 0,
                 formation: "2-2-1",
                 score: 0,
-                hasMadeMove: false
+                has_made_move: false
             },
             history: []
         })
@@ -221,33 +239,33 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
     // Update teams with active game
     await supabase
         .from('teams')
-        .update({ active_game_id: Number(gameId) })
-        .in('id', [Number(team1Id), Number(team2Id)])
+        .update({ active_game_id: gameId })
+        .in('id', [team1id, team2id])
 
     console.log(`Game started: ${gameId}`)
 }
 
 async function handleGameActionCommitted(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
-    const { gameId, timestamp: gameActionTimestamp } = decodedData.args
+    const { gameId, timestamp: gameActionTimestamp } = AbiDecoder.getTypedArgs(decodedData)
 
     // Broadcast to game channel
     await wsService.broadcastToGame(gameId, {
         type: 'GAME_ACTION_COMMITTED',
-        gameId: gameId,
-        timestamp: Number(gameActionTimestamp)
+        game_id: gameId,
+        timestamp: gameActionTimestamp
     })
 
     console.log(`Game action committed: ${gameId} at ${timestamp}`)
 }
 
 async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
-    const { gameId, time } = decodedData.args
+    const { gameId, time } = AbiDecoder.getTypedArgs(decodedData)
 
     // Broadcast to game channel
-    await wsService.broadcastToGame(Number(gameId), {
+    await wsService.broadcastToGame(gameId, {
         type: 'NEW_GAME_STATE_NOTIFICATION',
-        gameId: Number(gameId),
-        time: Number(time),
+        game_id: gameId,
+        time: time,
         timestamp: timestamp
     })
 
@@ -255,7 +273,7 @@ async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsSe
     const { data: game, error: fetchError } = await supabase
         .from('games')
         .select('*')
-        .eq('id', Number(gameId))
+        .eq('id', gameId)
         .single()
 
     if (fetchError) {
@@ -265,17 +283,17 @@ async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsSe
 
     try {
         // Use the updateGame function to fetch from contract and update database
-        const smartContractGame = await updateGame(Number(gameId), supabase, timestamp)
+        const smartContractGame = await updateGame(gameId, supabase, timestamp)
 
         // Get the latest game state from history
         const latestState = smartContractGame.history[smartContractGame.history.length - 1]
 
         // Broadcast to game channel
-        await wsService.broadcastToGame(Number(gameId), {
+        await wsService.broadcastToGame(gameId, {
             type: 'NEW_GAME_STATE',
-            gameId: Number(gameId),
-            time: Number(time),
-            newState: latestState,
+            game_id: gameId,
+            time: time,
+            new_state: latestState,
             timestamp: timestamp
         })
 
@@ -287,14 +305,14 @@ async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsSe
 }
 
 async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
-    const { gameId, winner, finishReason } = decodedData.args
+    const { gameId, winner, finishReason } = AbiDecoder.getTypedArgs(decodedData)
 
     // Broadcast to game channel
-    await wsService.broadcastToGame(Number(gameId), {
+    await wsService.broadcastToGame(gameId, {
         type: 'GAME_FINISHED',
-        gameId: Number(gameId),
+        game_id: gameId,
         winner: winner,
-        finishReason: finishReason,
+        finish_reason: finishReason,
         timestamp: timestamp
     })
 
@@ -305,7 +323,7 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
     const { data: game, error: fetchError } = await supabase
         .from('games')
         .select('*')
-        .eq('id', Number(gameId))
+        .eq('id', gameId)
         .single()
 
     if (fetchError) {
@@ -325,14 +343,14 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
     }
 
     // Use the updateGame function to fetch from contract and update database
-    const smartContractGame = await updateGame(Number(gameId), supabase, timestamp)
+    const smartContractGame = await updateGame(gameId, supabase, timestamp)
 
     // Also broadcast to team channels
     await wsService.broadcastToGameTeams(game.team1, game.team2, {
         type: 'GAME_FINISHED',
-        gameId: gameId,
+        game_id: gameId,
         winner: winner,
-        finishReason: finishReason,
+        finish_reason: finishReason,
         status: status,
         timestamp: timestamp
     })
@@ -341,7 +359,7 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
 }
 
 async function handleGameStateError(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
-    const { gameId, causedByTeam, errorType, errorMsg } = decodedData.args
+    const { gameId, causedByTeam, errorType, errorMsg } = AbiDecoder.getTypedArgs(decodedData)
 
     console.log(`Handling GameStateError event for game ${gameId}, caused by team ${causedByTeam}, error: ${errorMsg}`)
 
@@ -350,7 +368,7 @@ async function handleGameStateError(decodedData: DecodedEvent, supabase: any, ws
         const { data: game, error } = await supabase
             .from('games')
             .select('team1, team2')
-            .eq('id', Number(gameId))
+            .eq('id', gameId)
             .single()
 
         if (error) {
@@ -359,14 +377,14 @@ async function handleGameStateError(decodedData: DecodedEvent, supabase: any, ws
         }
 
         // Broadcast error to game channel
-        const gameChannel = `game_${Number(gameId)}`
+        const gameChannel = `game_${gameId}`
 
         const message: BroadcastMessage = {
             type: 'GAME_STATE_ERROR',
-            gameId: Number(gameId),
-            causedByTeam: Number(causedByTeam),
-            errorType: Number(errorType),
-            errorMsg: errorMsg,
+            game_id: gameId,
+            caused_by_team: causedByTeam,
+            error_type: errorType,
+            error_msg: errorMsg,
             timestamp: timestamp
         }
 
@@ -385,67 +403,67 @@ async function handleGameStateError(decodedData: DecodedEvent, supabase: any, ws
  */
 function mapContractGameToDatabase(gameData: any, time: number, timestamp: number) {
     return {
-        gameId: Number(gameData.gameId),
-        createdAt: Number(gameData.createdAt),
-        lastMoveAt: Number(gameData.lastMoveAt),
-        lastMoveTeam: Number(gameData.lastMoveTeam),
+        game_id: Number(gameData.gameId),
+        created_at: Number(gameData.createdAt),
+        last_move_at: Number(gameData.lastMoveAt),
+        last_move_team: Number(gameData.lastMoveTeam),
         team1: {
-            teamId: Number(gameData.team1.teamId),
+            team_id: Number(gameData.team1.teamId),
             score: Number(gameData.team1.score),
-            eloRating: Number(gameData.team1.eloRating),
-            eloRatingNew: Number(gameData.team1.eloRatingNew),
+            elo_rating: Number(gameData.team1.eloRating),
+            elo_rating_new: Number(gameData.team1.eloRatingNew),
             formation: Number(gameData.team1.formation),
             actions: gameData.team1.actions.map((action: any) => ({
-                playerId: Number(action.playerId),
-                moveType: Number(action.moveType),
-                oldPosition: {
+                player_id: Number(action.playerId),
+                move_type: Number(action.moveType),
+                old_position: {
                     x: Number(action.oldPosition.x),
                     y: Number(action.oldPosition.y)
                 },
-                newPosition: {
+                new_position: {
                     x: Number(action.newPosition.x),
                     y: Number(action.newPosition.y)
                 }
             }))
         },
         team2: {
-            teamId: Number(gameData.team2.teamId),
+            team_id: Number(gameData.team2.teamId),
             score: Number(gameData.team2.score),
-            eloRating: Number(gameData.team2.eloRating),
-            eloRatingNew: Number(gameData.team2.eloRatingNew),
+            elo_rating: Number(gameData.team2.eloRating),
+            elo_rating_new: Number(gameData.team2.eloRatingNew),
             formation: Number(gameData.team2.formation),
             actions: gameData.team2.actions.map((action: any) => ({
-                playerId: Number(action.playerId),
-                moveType: Number(action.moveType),
-                oldPosition: {
+                player_id: Number(action.playerId),
+                move_type: Number(action.moveType),
+                old_position: {
                     x: Number(action.oldPosition.x),
                     y: Number(action.oldPosition.y)
                 },
-                newPosition: {
+                new_position: {
                     x: Number(action.newPosition.x),
                     y: Number(action.newPosition.y)
                 }
             }))
         },
         history: gameData.history.map((state: any) => ({
-            team1Positions: state.team1Positions.map((pos: any) => ({
+            team1_positions: state.team1Positions.map((pos: any) => ({
                 x: Number(pos.x),
                 y: Number(pos.y)
             })),
-            team2Positions: state.team2Positions.map((pos: any) => ({
+            team2_positions: state.team2Positions.map((pos: any) => ({
                 x: Number(pos.x),
                 y: Number(pos.y)
             })),
-            ballPosition: {
+            ball_position: {
                 x: Number(state.ballPosition.x),
                 y: Number(state.ballPosition.y)
             },
-            ballOwner: Number(state.ballOwner),
-            clashRandomResults: state.clashRandomResults.map((result: any) => Number(result)),
-            stateType: Number(state.stateType)
+            ball_owner: Number(state.ballOwner),
+            clash_random_results: state.clashRandomResults.map((result: any) => Number(result)),
+            state_type: Number(state.stateType)
         })),
         status: Number(gameData.status),
-        movesMade: Number(gameData.movesMade),
+        moves_made: Number(gameData.movesMade),
         winner: gameData.winner ? Number(gameData.winner) : null
     }
 }
@@ -456,11 +474,6 @@ function mapContractGameToDatabase(gameData: any, time: number, timestamp: numbe
  * Returns the mapped game data for further use
  */
 async function updateGame(gameId: number, supabase: any, timestamp: number) {
-    const contractAddress = Deno.env.get('CONTRACT_ADDRESS')
-    if (!contractAddress) {
-        throw new Error('Missing CONTRACT_ADDRESS environment variable')
-    }
-
     // Create contract instance to call getGame function
     const { createPublicClient, http, parseAbiItem } = await import('https://esm.sh/viem@2.0.0')
     const { base } = await import('https://esm.sh/viem@2.0.0/chains')
@@ -478,7 +491,7 @@ async function updateGame(gameId: number, supabase: any, timestamp: number) {
 
     // Call getGame function on smart contract
     const gameData = await publicClient.readContract({
-        address: contractAddress as `0x${string}`,
+        address: CONTRACT_ADDRESS as `0x${string}`,
         abi: [CONTRACT_ABI],
         functionName: 'getGame',
         args: [BigInt(gameId)]

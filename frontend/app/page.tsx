@@ -22,6 +22,9 @@ import {
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useAccount, useSignMessage } from "wagmi";
 import { CreateTeamModal } from "./components/CreateTeamModal";
+import { SearchOpponentModal } from "./components/SearchOpponentModal";
+import { GameRequestModal } from "./components/GameRequestModal";
+import { subscribeToTeamChannel, unsubscribeFromTeamChannel } from '@/lib/ably';
 import { getName } from "@coinbase/onchainkit/identity";
 import { base } from 'viem/chains';
 import { authUserWithSignature } from '@/lib/auth';
@@ -40,12 +43,23 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
   const [isCreatingTeam, setIsCreatingTeam] = useState(false);
+  const [isSearchOpponentModalOpen, setIsSearchOpponentModalOpen] = useState(false);
+  const [isGameRequestModalOpen, setIsGameRequestModalOpen] = useState(false);
+  const [gameRequestData, setGameRequestData] = useState<{
+    game_request_id: string;
+    team1_info: any;
+    team2_info: any;
+  } | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [globalStats, setGlobalStats] = useState<{
-    totalTeams: number;
-    totalGames: number;
-    totalTransactions: number;
-  } | null>(null);
+    total_teams: number;
+    total_games: number;
+    total_transactions: number;
+  }>({
+    total_teams: 0,
+    total_games: 0,
+    total_transactions: 0,
+  });
 
   const addFrame = useAddFrame();
   const openUrl = useOpenUrl();
@@ -57,7 +71,16 @@ export default function App() {
       console.log('getting stored stats', stored);
       if (stored) {
         const parsed = JSON.parse(stored);
-        setGlobalStats(parsed);
+        console.log('parsed', parsed);
+        setGlobalStats({
+          total_teams: Number(parsed.total_teams),
+          total_games: Number(parsed.total_games),
+          total_transactions: Number(parsed.total_transactions),
+        });
+      }
+
+      if (localStorage.getItem('userTeam')) {
+        setTeamInfo(JSON.parse(localStorage.getItem('userTeam') || '{}'));
       }
     } catch (error) {
       console.error('Error loading stats from localStorage:', error);
@@ -144,11 +167,15 @@ export default function App() {
       }
 
       const data = await response.json();
+      console.log('teamInfo', data);
 
       if (data.isFound) {
         setTeamInfo(data.team);
+        localStorage.setItem('user_team_id', data.team.id);
+        localStorage.setItem('userTeam', JSON.stringify(data.team));
       } else {
         setTeamInfo(null);
+        localStorage.removeItem('user_team_id');
       }
     } catch (err) {
       console.error('Error fetching team info:', err);
@@ -159,6 +186,36 @@ export default function App() {
   }, []);
 
 
+
+  const handlePlayNow = useCallback(() => {
+    if (!teamInfo) {
+      toast.error("You need to create a team first!", {
+        position: "top-center",
+        autoClose: 3000,
+        hideProgressBar: false,
+        draggable: true,
+        progress: undefined,
+      });
+      return;
+    }
+
+    if (teamInfo.active_game_id) {
+      toast.error("You have an ongoing game! Please finish it first.", {
+        position: "top-center",
+        autoClose: 3000,
+        hideProgressBar: false,
+        draggable: true,
+        progress: undefined,
+      });
+      return;
+    }
+
+    setIsSearchOpponentModalOpen(true);
+  }, [teamInfo]);
+
+  const handleCancelSearch = useCallback(() => {
+    setIsSearchOpponentModalOpen(false);
+  }, []);
 
   const handleCreateTeam = useCallback(async (teamName: string, countryIndex: string) => {
     if (!address) {
@@ -237,9 +294,14 @@ export default function App() {
         fetchTeamInfo(address);
       }
 
+      globalStats.total_teams++;
+      globalStats.total_transactions++;
+
+      setGlobalStats(globalStats);
+      localStorage.setItem('chessball_global_stats', JSON.stringify(globalStats));
+
       // Close modal and show success message
       setIsCreateTeamModalOpen(false);
-      alert(`Team created successfully! Transaction: ${result.transactionHash}`);
     } catch (error) {
       console.error("Error creating team:", error);
 
@@ -261,9 +323,12 @@ export default function App() {
       fetchGlobalStats(); // Fetch global stats on wallet connection
     } else {
       setTeamInfo(null);
+
       setError(null);
       setUsername(null);
-      setGlobalStats(null); // Clear global stats on wallet disconnection
+
+      // Disconnect from team channel when wallet disconnects
+      unsubscribeFromTeamChannel();
     }
   }, [isConnected, address]);
 
@@ -272,6 +337,96 @@ export default function App() {
       setFrameReady();
     }
   }, [setFrameReady, isFrameReady]);
+
+  // Subscribe to team channel when team info is available
+  useEffect(() => {
+    if (teamInfo?.id && isConnected && address) {
+      const connectToTeam = async () => {
+        try {
+          await subscribeToTeamChannel(teamInfo.id);
+          console.log(`Connected to team ${teamInfo.id} channel`);
+        } catch (error) {
+          console.error('Failed to connect to team channel:', error);
+        }
+      };
+
+      connectToTeam();
+
+      // Cleanup function to disconnect when component unmounts or team changes
+      return () => {
+        unsubscribeFromTeamChannel();
+      };
+    }
+  }, [teamInfo?.id, isConnected, address]);
+
+  // Listen for game events from team channel
+  useEffect(() => {
+    const handleGameEvent = (event: CustomEvent) => {
+      const gameEvent = event.detail;
+      console.log('Received game event on page level:', gameEvent);
+
+      if (gameEvent.type === 'GAME_REQUEST_CREATED') {
+        console.log('GAME_REQUEST_CREATED event received:', gameEvent);
+        // Close search opponent modal if it's open
+        setIsSearchOpponentModalOpen(false);
+        setIsGameRequestModalOpen(true);
+
+        setGameRequestData({
+          game_request_id: gameEvent.game_request_id,
+          team1_info: gameEvent.team1_info,
+          team2_info: gameEvent.team2_info,
+        });
+
+
+      } else if (gameEvent.type === 'GAME_REQUEST_CANCELLED') {
+        console.log('GAME_REQUEST_CANCELLED event received:', gameEvent);
+
+        // Close search opponent modal if it's open
+        setIsSearchOpponentModalOpen(false);
+        setIsGameRequestModalOpen(false);
+        setGameRequestData(null);
+
+        // Show success toast notification
+        toast.error(`Game request ${gameEvent.game_request_id} cancelled!`, {
+          position: "top-center",
+          autoClose: 3000,
+          hideProgressBar: false,
+          draggable: true,
+          progress: undefined,
+        });
+
+      } else if (gameEvent.type === 'GAME_STARTED') {
+        console.log('GAME_STARTED event received:', gameEvent);
+
+        // Handle game started event
+        // Check if this event is relevant to the current user's team
+        if (gameEvent.team1_id === teamInfo?.id || gameEvent.team2_id === teamInfo?.id) {
+          console.log('Game started for current team:', gameEvent);
+
+          // Close any open modals
+          setIsGameRequestModalOpen(false);
+          setIsSearchOpponentModalOpen(false);
+          setGameRequestData(null);
+
+          // Redirect to the game page
+          const gameUrl = `/game/${gameEvent.game_id}/`;
+          console.log('Redirecting to game:', gameUrl);
+
+          // Use window.location for navigation
+          window.location.href = gameUrl;
+        }
+      }
+    };
+
+    // Add event listener for game events
+    window.addEventListener('game-event', handleGameEvent as EventListener);
+
+    // Cleanup function that runs when the component unmounts or when dependencies change
+    // This removes the event listener to prevent memory leaks and duplicate listeners
+    return () => {
+      window.removeEventListener('game-event', handleGameEvent as EventListener);
+    };
+  }, [teamInfo, username, address, signMessageAsync]);
 
   // Fetch global stats on component mount
   useEffect(() => {
@@ -378,6 +533,30 @@ export default function App() {
 
       {/* Main content */}
       <div className="w-full max-w-md">
+        {/* Active Game Warning */}
+        {teamInfo && teamInfo.active_game_id && (
+          <div className="w-full max-w-md mb-4 bg-yellow-500 text-yellow-900 rounded-lg shadow-sm border border-yellow-600">
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span className="font-medium">
+                    You have an ongoing game! Please return to it immediately.
+                  </span>
+                </div>
+                <a
+                  href={`/game/${teamInfo.active_game_id}/`}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                >
+                  Return
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Team info section */}
         {isConnected ? (
           <div className="w-full max-w-md mb-6 bg-white rounded-lg shadow-sm border border-gray-200">
@@ -432,6 +611,16 @@ export default function App() {
                     <div className="text-sm text-black">
                       {teamInfo.matchesPlayed} matches played · {teamInfo.teamAge === 0 ? "just created" : `${teamInfo.teamAge} days old`}
                     </div>
+
+                    {/* Active game indicator */}
+                    {teamInfo.active_game_id && (
+                      <div className="mt-2">
+                        <div className="inline-flex items-center space-x-2 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-medium">
+                          <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                          <span>Active Game #{teamInfo.active_game_id}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -474,9 +663,21 @@ export default function App() {
         {/* Primary actions next to team block */}
         <div className="w-full max-w-md mt-2 mb-2">
           <div className="flex justify-center mb-6">
-            <button className="px-8 text-base py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium">
-              Play Now
-            </button>
+            {teamInfo && teamInfo.active_game_id ? (
+              <a
+                href={`/game/${teamInfo.active_game_id}/`}
+                className="px-8 text-base py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+              >
+                Return to Game
+              </a>
+            ) : (
+              <button
+                onClick={handlePlayNow}
+                className="px-8 text-base py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                Play Now
+              </button>
+            )}
           </div>
           {/* <div className="flex items-center justify-between mt-2">
             <div className="text-sm text-gray-700">🔥 32 players online now</div>
@@ -488,15 +689,15 @@ export default function App() {
         <div className="w-full max-w-md mb-2 bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="p-4 grid grid-cols-3 gap-3 text-center">
             <div>
-              <div className="text-xl font-bold animate-number">{globalStats ? globalStats.totalTeams : '0'}</div>
+              <div className="text-xl font-bold animate-number">{globalStats?.total_teams}</div>
               <div className="text-xs text-gray-600">Teams</div>
             </div>
             <div>
-              <div className="text-xl font-bold animate-number">{globalStats ? globalStats.totalGames : '0'}</div>
+              <div className="text-xl font-bold animate-number">{globalStats?.total_games}</div>
               <div className="text-xs text-gray-600">Games Played</div>
             </div>
             <div>
-              <div className="text-xl font-bold animate-number">{globalStats ? globalStats.totalTransactions : '0'}</div>
+              <div className="text-xl font-bold animate-number">{globalStats?.total_transactions}</div>
               <div className="text-xs text-gray-600">Transactions</div>
             </div>
           </div>
@@ -613,6 +814,36 @@ export default function App() {
         isLoading={isCreatingTeam}
         defaultTeamName={username ? `${username}'s team` : undefined}
       />
+
+      {/* Search Opponent Modal */}
+      <SearchOpponentModal
+        isOpen={isSearchOpponentModalOpen}
+        onClose={() => setIsSearchOpponentModalOpen(false)}
+        onCancel={handleCancelSearch}
+        userInfo={teamInfo ? {
+          team_name: teamInfo.name,
+          team_id: teamInfo.id,
+          user_wallet_address: address || '',
+          username: username || '',
+          elo_rating: teamInfo.elo_rating
+        } : null}
+      />
+
+      {/* Game Request Modal */}
+      {gameRequestData && (
+        <GameRequestModal
+          isOpen={isGameRequestModalOpen}
+          onClose={() => {
+            setIsGameRequestModalOpen(false);
+            setGameRequestData(null);
+          }}
+          game_request_id={gameRequestData.game_request_id}
+          team1_info={gameRequestData.team1_info}
+          team2_info={gameRequestData.team2_info}
+          current_team_id={teamInfo?.id || null}
+          current_user_wallet={address as `0x${string}`}
+        />
+      )}
       {/* Toast notifications container */}
       <ToastContainer
         position="top-center"

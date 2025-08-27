@@ -12,7 +12,8 @@
     "upgrade:contract": "hardhat run scripts/upgrade-contract.ts",
     "test:upgradeable": "hardhat test test/UpgradeableGame.test.ts",
     "db:migrate": "./migrations/run-migrations.sh",
-    "db:clear": "./migrations/clean-db.sh"
+    "db:clear": "./migrations/clean-db.sh",
+    "fetch:game": "ts-node scripts/fetch-game.ts"
   },
   "dependencies": {
     "@gelatonetwork/web3-functions-sdk": "https://github.com/neverknowerdev/web3-functions-sdk.git#hardfix_local",

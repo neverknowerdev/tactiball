@@ -27,6 +27,7 @@ error GameRequestNotExpired();
 error GameRequestTimeoutNotReached();
 error ActionsNotCommitted();
 error FinishGameByTimeout_NoLastMove();
+error GameHasNotReachedMaxMoves();
 
 contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using GameLib for *;
@@ -55,7 +56,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     mapping(string => bool) public teamNames;
 
-    uint256[200] private __gap;
+    uint256[100] private __gap;
 
     // ========================================
     // EVENTS
@@ -96,7 +97,11 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 time,
         string errorMsg
     );
-    event GameRequestCreated(uint256 gameRequestId);
+    event GameRequestCreated(
+        uint256 gameRequestId,
+        uint256 team1id,
+        uint256 team2id
+    );
     event GameRequestCancelled(
         uint256 gameRequestId,
         uint256 team1id,
@@ -211,7 +216,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         gameRequests[request.gameRequestId] = request;
         teams[team1id].gameRequestId = request.gameRequestId;
 
-        emit GameRequestCreated(request.gameRequestId);
+        emit GameRequestCreated(request.gameRequestId, team1id, team2id);
     }
 
     // Public wrapper that calls internal function with msg.sender
@@ -316,6 +321,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit gameActionCommitted(game.gameId, block.timestamp);
     }
 
+    function testTriggerGameActionCommitted(uint256 gameId) public onlyOwner {
+        emit gameActionCommitted(gameId, block.timestamp);
+    }
+
     // Public wrapper that calls internal function with msg.sender
     function startGame(uint256 gameRequestId) public {
         _startGame(msg.sender, gameRequestId);
@@ -352,13 +361,6 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                 revert GameOwnerShouldCall();
         }
 
-        if (
-            game.lastMoveTeam != team &&
-            game.lastMoveAt + GameLib.MAX_MOVE_TIME < block.timestamp
-        ) {
-            _finishGame(gameId, GameLib.FinishReason.MOVE_TIMEOUT);
-            return;
-        }
         if (game.movesMade >= GameLib.MAX_MOVES) {
             _finishGame(gameId, GameLib.FinishReason.MAX_MOVES_REACHED);
             return;
@@ -380,7 +382,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 gameId,
         GameLib.TeamEnum team,
         GameLib.GameAction[] calldata actions
-    ) public gameExists(gameId) {
+    ) public {
         _commitGameActions(msg.sender, gameId, team, actions);
     }
 
@@ -390,7 +392,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 gameId,
         GameLib.TeamEnum team,
         GameLib.GameAction[] calldata actions
-    ) public onlyRelayer gameExists(gameId) {
+    ) public onlyRelayer {
         _commitGameActions(sender, gameId, team, actions);
     }
 
@@ -437,6 +439,13 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         GameLib.FinishReason finishReason
     ) internal {
         GameLib.Game storage game = games[gameId];
+        if (
+            finishReason == GameLib.FinishReason.MAX_MOVES_REACHED &&
+            game.history.length < GameLib.MAX_MOVES
+        ) {
+            revert GameHasNotReachedMaxMoves();
+        }
+
         GameLib.finishGame(
             game,
             teams[game.team1.teamId],
@@ -502,7 +511,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     function newGameState(
         uint256 gameId,
-        GameLib.GameState calldata gameState
+        GameLib.GameState[] calldata gameStates
     ) public gameExists(gameId) onlyGelato {
         GameLib.Game storage game = games[gameId];
 
@@ -514,13 +523,16 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             ) revert ActionsNotCommitted();
         }
 
-        GameLib.newGameState(game, gameState);
-        emit NewGameState(gameId, block.timestamp, gameState);
+        for (uint256 i = 0; i < gameStates.length; i++) {
+            GameLib.GameState calldata gameState = gameStates[i];
+            GameLib.newGameState(game, gameState);
+            emit NewGameState(gameId, block.timestamp, gameState);
 
-        if (gameState.stateType == GameLib.StateType.GOAL_TEAM1) {
-            emit GoalScored(gameId, GameLib.TeamEnum.TEAM1);
-        } else if (gameState.stateType == GameLib.StateType.GOAL_TEAM2) {
-            emit GoalScored(gameId, GameLib.TeamEnum.TEAM2);
+            if (gameState.stateType == GameLib.StateType.GOAL_TEAM1) {
+                emit GoalScored(gameId, GameLib.TeamEnum.TEAM1);
+            } else if (gameState.stateType == GameLib.StateType.GOAL_TEAM2) {
+                emit GoalScored(gameId, GameLib.TeamEnum.TEAM2);
+            }
         }
 
         if (game.movesMade >= GameLib.MAX_MOVES) {
@@ -537,6 +549,12 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 gameId
     ) public view gameExists(gameId) returns (GameLib.Game memory) {
         return games[gameId];
+    }
+
+    function getGameStatus(
+        uint256 gameId
+    ) public view gameExists(gameId) returns (GameLib.GameStatus) {
+        return games[gameId].status;
     }
 
     function getTeam(uint256 teamId) public view returns (GameLib.Team memory) {

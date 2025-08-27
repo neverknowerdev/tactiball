@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
                 primary_wallet,
                 country,
                 elo_rating,
-                last_games_results
+                last_games_results,
+                active_game_id
             `)
             .eq('primary_wallet', walletAddress)
             .single();
@@ -72,7 +73,8 @@ export async function GET(request: NextRequest) {
             teamAge,
             leaguePosition,
             globalPosition,
-            createdAt: team.created_at
+            createdAt: team.created_at,
+            active_game_id: team.active_game_id
         };
 
         return NextResponse.json({
