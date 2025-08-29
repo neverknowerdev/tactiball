@@ -28,6 +28,7 @@ error GameRequestTimeoutNotReached();
 error ActionsNotCommitted();
 error FinishGameByTimeout_NoLastMove();
 error GameHasNotReachedMaxMoves();
+error OnlyGameEngineServerCanCall();
 
 contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using GameLib for *;
@@ -39,6 +40,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // Gelato address for automation
     address public gelatoAddress;
     address public relayerAddress;
+    address public gameEngineServerAddress;
 
     // State variables
     mapping(uint256 => GameLib.Game) public games;
@@ -84,7 +86,11 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event NewGameState(
         uint256 indexed gameId,
         uint256 time,
-        GameLib.GameState newGameState
+        uint8[] clashRandomNumbers,
+        GameLib.GameAction[] team1Actions,
+        GameLib.GameAction[] team2Actions,
+        GameLib.Position ballPosition,
+        GameLib.TeamEnum ballOwner
     );
     enum ErrorType {
         UNSPECIFIED,
@@ -120,15 +126,20 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      * @dev Initializer function to set the Gelato address
      * @param _gelatoAddress The address of the Gelato automation service
      * @param _relayerAddress The address of the relayer service
+     * @param _gameEngineServerAddress The address of the game engine server
      */
     function initialize(
         address _gelatoAddress,
-        address _relayerAddress
+        address _relayerAddress,
+        address _gameEngineServerAddress
     ) public initializer {
         if (_gelatoAddress == address(0)) revert InitAddressCannotBeZero();
         if (_relayerAddress == address(0)) revert InitAddressCannotBeZero();
+        if (_gameEngineServerAddress == address(0))
+            revert InitAddressCannotBeZero();
         gelatoAddress = _gelatoAddress;
         relayerAddress = _relayerAddress;
+        gameEngineServerAddress = _gameEngineServerAddress;
         __Ownable_init(msg.sender);
     }
 
@@ -361,15 +372,14 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                 revert GameOwnerShouldCall();
         }
 
-        if (game.movesMade >= GameLib.MAX_MOVES) {
+        if (game.gameState.movesMade >= GameLib.MAX_MOVES) {
             _finishGame(gameId, GameLib.FinishReason.MAX_MOVES_REACHED);
             return;
         }
 
         bool bothTeamsCommitted = GameLib.commitGameActions(
-            game,
-            team,
-            actions
+            game.gameState,
+            team
         );
 
         if (bothTeamsCommitted) {
@@ -411,11 +421,14 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             teams[game.team1.teamId].wallet != sender &&
             teams[game.team2.teamId].wallet != sender
         ) revert GameOwnerShouldCall();
-        if (game.team1.actions.length == 0 || game.team2.actions.length == 0)
-            revert ActionsNotCommitted();
-        if (game.lastMoveAt + GameLib.MAX_MOVE_TIME >= block.timestamp)
-            revert GameRequestTimeoutNotReached();
-        if (game.lastMoveTeam == GameLib.TeamEnum.NONE)
+        if (
+            game.gameState.team1MadeMove == false ||
+            game.gameState.team2MadeMove == false
+        ) revert ActionsNotCommitted();
+        if (
+            game.gameState.lastMoveAt + GameLib.MAX_MOVE_TIME >= block.timestamp
+        ) revert GameRequestTimeoutNotReached();
+        if (game.gameState.lastMoveTeam == GameLib.TeamEnum.NONE)
             revert FinishGameByTimeout_NoLastMove();
 
         _finishGame(gameId, GameLib.FinishReason.MOVE_TIMEOUT);
@@ -441,7 +454,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         GameLib.Game storage game = games[gameId];
         if (
             finishReason == GameLib.FinishReason.MAX_MOVES_REACHED &&
-            game.history.length < GameLib.MAX_MOVES
+            game.gameState.movesMade < GameLib.MAX_MOVES
         ) {
             revert GameHasNotReachedMaxMoves();
         }
@@ -486,7 +499,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         GameLib.TeamEnum cauzedByTeam,
         ErrorType errorType,
         string memory errorMsg
-    ) public onlyGelato {
+    ) public onlyGameEngine {
         if (
             errorType == ErrorType.MOVE_VALIDATION_ERROR &&
             cauzedByTeam != GameLib.TeamEnum.NONE
@@ -494,9 +507,9 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             GameLib.Game storage game = games[gameId];
 
             if (cauzedByTeam == GameLib.TeamEnum.TEAM1) {
-                game.lastMoveTeam = GameLib.TeamEnum.TEAM2;
+                game.gameState.lastMoveTeam = GameLib.TeamEnum.TEAM2;
             } else if (cauzedByTeam == GameLib.TeamEnum.TEAM2) {
-                game.lastMoveTeam = GameLib.TeamEnum.TEAM1;
+                game.gameState.lastMoveTeam = GameLib.TeamEnum.TEAM1;
             }
         }
 
@@ -511,31 +524,55 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     function newGameState(
         uint256 gameId,
-        GameLib.GameState[] calldata gameStates
-    ) public gameExists(gameId) onlyGelato {
+        GameLib.StateType stateType,
+        uint8[] calldata clashRandomNumbers,
+        GameLib.GameAction[] calldata team1Actions,
+        GameLib.GameAction[] calldata team2Actions,
+        GameLib.Position calldata ballPosition,
+        GameLib.TeamEnum ballOwner
+    ) public gameExists(gameId) onlyGameEngine {
         GameLib.Game storage game = games[gameId];
 
         if (game.status != GameLib.GameStatus.ACTIVE) revert GameIsNotActive();
 
-        if (game.history.length > 0) {
+        if (game.gameState.movesMade > 0) {
             if (
-                game.team1.actions.length == 0 || game.team2.actions.length == 0
+                game.gameState.team1MadeMove == false ||
+                game.gameState.team2MadeMove == false
             ) revert ActionsNotCommitted();
         }
 
-        for (uint256 i = 0; i < gameStates.length; i++) {
-            GameLib.GameState calldata gameState = gameStates[i];
-            GameLib.newGameState(game, gameState);
-            emit NewGameState(gameId, block.timestamp, gameState);
+        game.gameState = GameLib.GameState({
+            movesMade: game.gameState.movesMade + 1,
+            lastMoveAt: uint64(block.timestamp),
+            team1MadeMove: false,
+            team2MadeMove: false,
+            lastMoveTeam: GameLib.TeamEnum.NONE,
+            team1score: stateType == GameLib.StateType.GOAL_TEAM1
+                ? game.gameState.team1score + 1
+                : game.gameState.team1score,
+            team2score: stateType == GameLib.StateType.GOAL_TEAM2
+                ? game.gameState.team2score + 1
+                : game.gameState.team2score
+        });
 
-            if (gameState.stateType == GameLib.StateType.GOAL_TEAM1) {
-                emit GoalScored(gameId, GameLib.TeamEnum.TEAM1);
-            } else if (gameState.stateType == GameLib.StateType.GOAL_TEAM2) {
-                emit GoalScored(gameId, GameLib.TeamEnum.TEAM2);
-            }
+        if (stateType == GameLib.StateType.GOAL_TEAM1) {
+            emit GoalScored(gameId, GameLib.TeamEnum.TEAM1);
+        } else if (stateType == GameLib.StateType.GOAL_TEAM2) {
+            emit GoalScored(gameId, GameLib.TeamEnum.TEAM2);
         }
 
-        if (game.movesMade >= GameLib.MAX_MOVES) {
+        emit NewGameState(
+            game.gameId,
+            block.timestamp,
+            clashRandomNumbers,
+            team1Actions,
+            team2Actions,
+            ballPosition,
+            ballOwner
+        );
+
+        if (game.gameState.movesMade >= GameLib.MAX_MOVES) {
             _finishGame(gameId, GameLib.FinishReason.MAX_MOVES_REACHED);
         }
     }
@@ -637,8 +674,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             .calculateNewRatings(
                 game.team1.eloRating,
                 game.team2.eloRating,
-                game.team1.score,
-                game.team2.score
+                game.gameState.team1score,
+                game.gameState.team2score
             );
 
         // Update team ratings
@@ -666,6 +703,13 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     modifier onlyGelato() {
         if (msg.sender != gelatoAddress) revert OnlyGelatoCanCall();
+        _;
+    }
+
+    modifier onlyGameEngine() {
+        if (
+            msg.sender != gameEngineServerAddress || msg.sender != gelatoAddress
+        ) revert OnlyGameEngineServerCanCall();
         _;
     }
 
