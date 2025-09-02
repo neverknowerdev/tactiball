@@ -29,7 +29,7 @@ export async function GET() {
       screenshotUrls: [],
       iconUrl: "https://play.chessball.fun/icon.png",
       splashImageUrl: "https://play.chessball.fun/splash.png",
-      splashBackgroundColor: "efe7d4",
+      splashBackgroundColor: "#efe7d4",
       homeUrl: URL,
       webhookUrl: `${URL}/api/webhook`,
       primaryCategory: "games",
