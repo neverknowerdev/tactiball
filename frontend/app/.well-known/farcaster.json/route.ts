@@ -12,33 +12,33 @@ function withValidProperties(
 }
 
 export async function GET() {
-  const URL = process.env.NEXT_PUBLIC_URL;
+  const URL = "https://play.chessball.fun";
 
   return Response.json({
     accountAssociation: {
-      header: process.env.FARCASTER_HEADER,
-      payload: process.env.FARCASTER_PAYLOAD,
-      signature: process.env.FARCASTER_SIGNATURE,
+      header: "eyJmaWQiOjk2OTIwNiwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweEU0ZjE0MWIwRUIxRTYwZkMwMDk1Yjc4N2M0YTM2Njc0QzkyMzY3OTYifQ",
+      payload: "eyJkb21haW4iOiJwbGF5LmNoZXNzYmFsbC5mdW4ifQ",
+      signature: "MHgyMjI5MWVlNzRiNjMyMTQzMDg0ZTlmNjljMjE1MDdiODE3NmI4NTMxMTQ2YjUxMmQyOWQ4MDkwNGU2ZWU5MzgyNDY3NzJiOTFhNWUxNGVjOTM1MTg0ZTVlNTg5ZmNiNTVjZjc0MmZiYzgwNDE0NGJiZGRjMGIxNTJlMTMwZjg4ODFj"
     },
     frame: withValidProperties({
       noindex: "true",
       version: "1",
-      name: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
-      subtitle: process.env.NEXT_PUBLIC_APP_SUBTITLE,
-      description: process.env.NEXT_PUBLIC_APP_DESCRIPTION,
+      name: "ChessBall",
+      subtitle: "Play. Bet. Earn.",
+      description: "Play tactical football - 2D board game, where tactic meets probability. Build your own team, play against friends and earn rewards.",
       screenshotUrls: [],
-      iconUrl: process.env.NEXT_PUBLIC_APP_ICON,
-      splashImageUrl: process.env.NEXT_PUBLIC_APP_SPLASH_IMAGE,
-      splashBackgroundColor: process.env.NEXT_PUBLIC_SPLASH_BACKGROUND_COLOR,
+      iconUrl: "https://play.chessball.fun/icon.png",
+      splashImageUrl: "https://play.chessball.fun/splash.png",
+      splashBackgroundColor: "efe7d4",
       homeUrl: URL,
       webhookUrl: `${URL}/api/webhook`,
-      primaryCategory: process.env.NEXT_PUBLIC_APP_PRIMARY_CATEGORY,
+      primaryCategory: "games",
       tags: ["chess", "football", "chessball", "tactical"],
-      heroImageUrl: process.env.NEXT_PUBLIC_APP_HERO_IMAGE,
-      tagline: process.env.NEXT_PUBLIC_APP_TAGLINE,
-      ogTitle: process.env.NEXT_PUBLIC_APP_OG_TITLE,
-      ogDescription: process.env.NEXT_PUBLIC_APP_OG_DESCRIPTION,
-      ogImageUrl: process.env.NEXT_PUBLIC_APP_OG_IMAGE,
+      heroImageUrl: "https://play.chessball.fun/hero.png",
+      tagline: "Play now",
+      ogTitle: "ChessBall",
+      ogDescription: "Play ChessBall with your friends",
+      ogImageUrl: "https://play.chessball.fun/hero.png",
     }),
     baseBuilder: {
       allowedAddresses: ["0xf831c2F992866D01A2d66dB807adD7EEE8980914", "0xE4f141b0EB1E60fC0095b787c4a36674C9236796"]
