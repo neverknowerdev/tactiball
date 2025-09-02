@@ -137,7 +137,7 @@ BEGIN
     SELECT 
         team1, team2, team1_score, team2_score, winner, status,
         created_at::DATE as game_date,
-        team1Info, team2Info
+        team1_info, team2_info
     INTO game_record
     FROM public.games
     WHERE id = game_id_param AND status = 'finished'::public.game_status;
@@ -158,8 +158,8 @@ BEGIN
     team2_is_draw := (game_record.winner IS NULL);
     
     -- Extract ELO rating differences
-    team1_elo_diff := COALESCE((game_record.team1Info->'team1'->>'eloRatingDiff')::NUMERIC, 0);
-    team2_elo_diff := COALESCE((game_record.team2Info->'team2'->>'eloRatingDiff')::NUMERIC, 0);
+    team1_elo_diff := COALESCE((game_record.team1_info->>'eloRatingDiff')::NUMERIC, 0);
+    team2_elo_diff := COALESCE((game_record.team2_info->>'eloRatingDiff')::NUMERIC, 0);
     
     -- Update weekly statistics for both teams
     PERFORM public.update_team_statistic_for_game_result(

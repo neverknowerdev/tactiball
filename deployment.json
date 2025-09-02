@@ -17,20 +17,17 @@
     "network": "baseMainnet",
     "chainId": "8453",
     "proxyAddress": "0x739b4fc0DD8B592Da1F5216b1DcB19C77EE77dB3",
-    "implementationAddress": "0xefcea2f8173db1c9189a381fb920d246903e27aa",
+    "implementationAddress": "0x0020347d04d50b2ade1d0792541c7c7070986d85",
     "libraries": {
-      "eloCalculationLib": "0xA6963099E574cc9DE211De9126FF7A4374d8B338",
-      "gameLib": "0x92a5266E2f88F084Df8EE6187F51246d7973d885"
+      "gameLib": "0xE423143AC74B0Cf294581c6fA1577387e284F60e"
     },
     "deployer": "0xf831c2F992866D01A2d66dB807adD7EEE8980914",
     "timestamp": "2025-09-01T09:31:58.670Z",
-    "eloCalculationLibHash": "0cfad71c2351dfe78994e83a2d4e0025cbc8fc3e1a7878468ce423fdbb244d7e",
-    "gameLibHash": "4e5b5b950887861f5f39b72d35a8b895b7a07514551d0515bb1860600861ef13",
-    "upgradeTimestamp": "2025-09-01T20:28:12.940Z",
-    "previousImplementation": "0x752297be262fb0e762b7ebc03b5c4ecd22e42f73",
+    "gameLibHash": "5955aae95d7ee0f7548e82d530630a63784d4ab4d5df647a4c3c2129b10e0ee7",
+    "upgradeTimestamp": "2025-09-02T13:47:26.766Z",
+    "previousImplementation": "0xefcea2f8173db1c9189a381fb920d246903e27aa",
     "previousLibraries": {
-      "eloCalculationLib": "0xA6963099E574cc9DE211De9126FF7A4374d8B338",
-      "gameLib": "0x517Dfc882bC29c4405d27C997c4Ac5dF95aB2009"
+      "gameLib": "0x92a5266E2f88F084Df8EE6187F51246d7973d885"
     },
     "librariesUpdated": true
   }

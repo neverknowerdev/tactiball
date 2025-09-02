@@ -61,6 +61,8 @@ export async function POST(request: NextRequest) {
             account: relayerClient.account
         });
 
+
+
         const result = await relayerClient.writeContract(simulation.request);
 
         const receipt = await publicClient.waitForTransactionReceipt({

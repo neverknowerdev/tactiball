@@ -36,18 +36,9 @@ async function main() {
     console.log("Deploying contracts with the account:", deployer.address);
     console.log("Network:", await ethers.provider.getNetwork());
 
-
-
     // Step 1: Deploy libraries first
     console.log("\n=== Deploying Libraries ===");
-
-
-    const eloLibPath = join(__dirname, '../contracts/EloCalculationLib.sol');
     const gameLibPath = join(__dirname, '../contracts/GameLib.sol');
-
-    // Get EloCalculationLib source code hash
-    const eloCalculationLibHash = getSourceCodeHash(eloLibPath);
-    console.log("EloCalculationLib hash:", eloCalculationLibHash);
 
 
     // Read deployment.json to compare hashes
@@ -63,35 +54,6 @@ async function main() {
     // Get network name
     const network = hre.network.name;
     const networkConfig = deploymentConfig[network];
-
-    let eloCalculationLib;
-    let eloCalculationLibAddress;
-
-    if (networkConfig && networkConfig.libraries && networkConfig.libraries.eloCalculationLib &&
-        networkConfig.eloCalculationLibHash === eloCalculationLibHash) {
-        // Use existing deployment if hash matches
-        console.log("EloCalculationLib hash matches deployment.json, using existing deployment");
-        eloCalculationLibAddress = networkConfig.libraries.eloCalculationLib;
-        eloCalculationLib = await ethers.getContractAt("EloCalculationLib", eloCalculationLibAddress);
-        console.log("Using EloCalculationLib at:", eloCalculationLibAddress);
-    } else {
-        // Deploy new instance if hash differs or no previous deployment exists
-        console.log("EloCalculationLib hash differs or no previous deployment found, deploying new instance");
-
-        // Deploy EloCalculationLib
-        console.log("Deploying EloCalculationLib...");
-        const EloCalculationLib = await ethers.getContractFactory("EloCalculationLib");
-        const eloCalculationLib = await EloCalculationLib.deploy();
-        await eloCalculationLib.waitForDeployment();
-        eloCalculationLibAddress = await eloCalculationLib.getAddress();
-        console.log("EloCalculationLib deployed to:", eloCalculationLibAddress);
-
-        // Wait a bit before next deployment
-        console.log("Waiting 5 seconds before next deployment...");
-        await delay(5000);
-    }
-
-
 
     // Get GameLib source code hash
     const gameLibHash = getSourceCodeHash(gameLibPath);
@@ -113,11 +75,7 @@ async function main() {
 
         // Deploy GameLib
         console.log("Deploying GameLib...");
-        const GameLib = await ethers.getContractFactory("GameLib", {
-            libraries: {
-                EloCalculationLib: eloCalculationLibAddress
-            }
-        });
+        const GameLib = await ethers.getContractFactory("GameLib");
         const gameLib = await GameLib.deploy();
         await gameLib.waitForDeployment();
         gameLibAddress = await gameLib.getAddress();
@@ -135,8 +93,7 @@ async function main() {
 
     const ChessBallGame = await ethers.getContractFactory("ChessBallGame", {
         libraries: {
-            GameLib: gameLibAddress,
-            EloCalculationLib: eloCalculationLibAddress
+            GameLib: gameLibAddress
         }
     });
 
@@ -186,14 +143,10 @@ async function main() {
 
     // Verify library addresses are correctly linked
     console.log("\n=== Library Verification ===");
-    console.log("Expected EloCalculationLib address:", eloCalculationLibAddress);
     console.log("Expected GameLib address:", gameLibAddress);
 
     // Step 5: Calculate source code hashes for future comparisons
     console.log("\n=== Calculating Source Code Hashes ===");
-
-
-    console.log("EloCalculationLib source hash:", eloCalculationLibHash.substring(0, 8) + "...");
     console.log("GameLib source hash:", gameLibHash.substring(0, 8) + "...");
 
     // Save deployment info
@@ -203,14 +156,12 @@ async function main() {
         proxyAddress: proxyAddress,
         implementationAddress: currentImplAddress,
         libraries: {
-            eloCalculationLib: eloCalculationLibAddress,
             gameLib: gameLibAddress
         },
         deployer: deployer.address,
 
         timestamp: new Date().toISOString(),
         // Store actual source code hashes for future comparisons
-        eloCalculationLibHash: eloCalculationLibHash,
         gameLibHash: gameLibHash
     };
 

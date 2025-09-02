@@ -47,21 +47,21 @@ async function fetchGameInfo(gameId: string, network: 'baseSepolia' | 'baseMainn
         console.log(`   Created At: ${new Date(Number(gameData.createdAt) * 1000).toISOString()}`);
         console.log(`   Moves Made: ${gameData.gameState.movesMade}`);
         console.log(`   Game State: ${JSON.stringify(gameData.gameState, bigintToNumber)}`);
-        console.log(`   Last Move Time: ${gameData.lastMoveTime ? new Date(Number(gameData.lastMoveTime) * 1000).toISOString() : 'N/A'}`);
+        console.log(`   Last Move Time: ${gameData.gameState.lastMoveAt ? new Date(Number(gameData.gameState.lastMoveAt) * 1000).toISOString() : 'N/A'}`);
 
         // Team 1 info
         console.log('\n🔴 Team 1:');
         console.log(`   ID: ${gameData.team1.teamId}`);
         console.log(`   ELO Rating: ${gameData.team1.eloRating}`);
-        console.log(`   Score: ${gameData.team1.score}`);
-        console.log(`   Move Committed: ${gameData.team1.isCommittedMove ? 'Yes' : 'No'}`);
+        console.log(`   Score: ${gameData.gameState.team1score}`);
+        console.log(`   Move Committed: ${gameData.gameState.team1MadeMove ? 'Yes' : 'No'}`);
 
         // Team 2 info
         console.log('\n🔵 Team 2:');
         console.log(`   ID: ${gameData.team2.teamId}`);
         console.log(`   ELO Rating: ${gameData.team2.eloRating}`);
-        console.log(`   Score: ${gameData.team2.score}`);
-        console.log(`   Move Committed: ${gameData.team2.isCommittedMove ? 'Yes' : 'No'}`);
+        console.log(`   Score: ${gameData.gameState.team2score}`);
+        console.log(`   Move Committed: ${gameData.gameState.team2MadeMove ? 'Yes' : 'No'}`);
 
         // Game history
         if (gameData.history && gameData.history.length > 0) {

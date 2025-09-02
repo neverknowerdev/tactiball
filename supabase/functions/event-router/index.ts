@@ -349,6 +349,13 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
         throw fetchError
     }
 
+    let winnerTeamId = null
+    if (winner == 1) {
+        winnerTeamId = game.team1
+    } else if (winner == 2) {
+        winnerTeamId = game.team2
+    }
+
     // Update active_game_id to null for both teams
     const { error: updateError } = await supabase
         .from('teams')
@@ -363,7 +370,7 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
     // Update game status to finished
     const { error: gameUpdateError } = await supabase
         .from('games')
-        .update({ status: status, winner: winner })
+        .update({ status: status, winner: winnerTeamId })
         .eq('id', gameId)
 
     if (gameUpdateError) {
@@ -376,6 +383,7 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
         type: 'GAME_FINISHED',
         game_id: gameId,
         winner: winner,
+        winner_team_id: winnerTeamId,
         finish_reason: finishReason,
         status: status,
         timestamp: timestamp
