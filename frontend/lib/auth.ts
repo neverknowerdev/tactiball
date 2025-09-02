@@ -1,4 +1,4 @@
-import { type Address, recoverMessageAddress } from 'viem';
+import { type Address } from 'viem';
 import { publicClient } from './providers';
 
 

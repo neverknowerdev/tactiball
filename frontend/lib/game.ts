@@ -478,7 +478,7 @@ export class Game implements GameType {
         this.team1.isCommittedMove = false;
         this.team2.isCommittedMove = false;
 
-        let finalState = rendererStates[rendererStates.length - 1];
+        const finalState = rendererStates[rendererStates.length - 1];
         console.log('finalState', finalState);
         console.log('states', rendererStates);
         finalState.team1Moves = this.playerMoves.filter(move => move.teamEnum === TeamEnum.TEAM1);
