@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "./EloCalculationLib.sol";
-
 library GameLib {
     // Constants
     uint256 public constant MAX_MOVES = 45;
@@ -167,7 +165,7 @@ library GameLib {
                 id: nextTeamId,
                 wallet: wallet,
                 name: name,
-                eloRating: EloCalculationLib.getDefaultRating(),
+                eloRating: 10000, // Default ELO rating
                 registeredAt: createdAt,
                 games: new uint256[](0),
                 country: countryID,
@@ -343,6 +341,7 @@ library GameLib {
             } else {
                 winner = TeamEnum.NONE;
             }
+            game.status = GameStatus.FINISHED;
             // Event will be emitted from the main contract
         }
 

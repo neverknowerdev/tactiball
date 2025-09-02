@@ -5,7 +5,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./GameLib.sol";
-import "./EloCalculationLib.sol";
+import "./vendor/Elo.sol";
 
 // ========================================
 // CUSTOM ERRORS
@@ -670,22 +670,53 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         GameLib.Team storage team1 = teams[game.team1.teamId];
         GameLib.Team storage team2 = teams[game.team2.teamId];
 
-        // Calculate new ELO ratings
-        (uint64 team1EloRatingNew, uint64 team2EloRatingNew) = EloCalculationLib
-            .calculateNewRatings(
-                game.team1.eloRating,
-                game.team2.eloRating,
-                game.gameState.team1score,
-                game.gameState.team2score
-            );
+        uint256 result = 50;
+        if (game.gameState.team1score > game.gameState.team2score) {
+            result = 100;
+        } else if (game.gameState.team1score < game.gameState.team2score) {
+            result = 0;
+        }
 
-        // Update team ratings
-        team1.eloRating = team1EloRatingNew;
-        team2.eloRating = team2EloRatingNew;
+        if (team1.games.length == 0 && team1.eloRating == 100) {
+            team1.eloRating = 10000;
+            if (game.team1.eloRating == 100) {
+                game.team1.eloRating = 10000;
+            }
+        }
+        if (team2.games.length == 0 && team2.eloRating == 100) {
+            team2.eloRating = 10000;
+            if (game.team2.eloRating == 100) {
+                game.team2.eloRating = 10000;
+            }
+        }
+
+        (uint256 change, bool negative) = Elo.ratingChange(
+            game.team1.eloRating,
+            game.team2.eloRating,
+            result,
+            20
+        );
+
+        // team2 win
+        if (negative) {
+            team2.eloRating += uint64(change);
+            team1.eloRating -= uint64(change);
+        } else {
+            team1.eloRating += uint64(change);
+            team2.eloRating -= uint64(change);
+        }
+
+        // Apply minimum ELO limit (50 = 5000 with 2 decimal precision)
+        if (team1.eloRating < 5000) {
+            team1.eloRating = 5000;
+        }
+        if (team2.eloRating < 5000) {
+            team2.eloRating = 5000;
+        }
 
         // Update game team info
-        game.team1.eloRatingNew = team1EloRatingNew;
-        game.team2.eloRatingNew = team2EloRatingNew;
+        game.team1.eloRatingNew = team1.eloRating;
+        game.team2.eloRatingNew = team2.eloRating;
     }
 
     // ========================================

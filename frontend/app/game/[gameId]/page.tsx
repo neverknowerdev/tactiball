@@ -581,7 +581,7 @@ export default function GamePage() {
         if (index === 0) return 'Initial Positions';
         if (state.type === GameStateType.GOAL_TEAM1) return `Goal! ${game.team1.name}`;
         if (state.type === GameStateType.GOAL_TEAM2) return `Goal! ${game.team2.name}`;
-        if (state.type === GameStateType.MOVE) return `Move ${index}`;
+        if (state.type === GameStateType.MOVE) return `Move ${index + 1}`;
         return `State ${index}`;
     }
 
@@ -767,7 +767,7 @@ export default function GamePage() {
 
                                 <div className="text-center">
                                     <div className="text-sm text-gray-600 mb-1">
-                                        {currentHistoryIndex + 1} of {game.history.length}
+                                        {currentHistoryIndex + 1} of 45
                                     </div>
                                     <div className="text-sm font-medium text-gray-800">
                                         {getHistoryDescription(currentHistoryIndex)}
@@ -777,7 +777,7 @@ export default function GamePage() {
                                         <div
                                             className="h-full bg-blue-500 transition-all duration-300 ease-in-out"
                                             style={{
-                                                width: `${((currentHistoryIndex + 1) / game.history.length) * 100}%`
+                                                width: `${((currentHistoryIndex + 1) / 45) * 100}%`
                                             }}
                                         />
                                     </div>

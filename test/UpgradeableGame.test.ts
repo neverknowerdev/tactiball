@@ -20,21 +20,12 @@ describe("ChessBallGame Upgradeable", function () {
     beforeEach(async function () {
         [owner, user1, user2] = await ethers.getSigners();
 
-        // Deploy libraries first
-        eloLib = await ethers.deployContract("EloCalculationLib");
-        await eloLib.waitForDeployment();
-
-        gameLib = await ethers.deployContract("GameLib", {
-            libraries: {
-                EloCalculationLib: await eloLib.getAddress(),
-            },
-        });
+        gameLib = await ethers.deployContract("GameLib");
         await gameLib.waitForDeployment();
 
         // Deploy the initial implementation using the upgradeable pattern
         const ChessBallGame = await ethers.getContractFactory("ChessBallGame", {
             libraries: {
-                EloCalculationLib: await eloLib.getAddress(),
                 GameLib: await gameLib.getAddress(),
             },
         });
@@ -70,7 +61,6 @@ describe("ChessBallGame Upgradeable", function () {
         it("Should allow owner to upgrade implementation", async function () {
             const ChessBallGameV2 = await ethers.getContractFactory("ChessBallGame", {
                 libraries: {
-                    EloCalculationLib: await eloLib.getAddress(),
                     GameLib: await gameLib.getAddress(),
                 },
             });
@@ -94,7 +84,6 @@ describe("ChessBallGame Upgradeable", function () {
             // Upgrade the implementation
             const ChessBallGameV2 = await ethers.getContractFactory("ChessBallGame", {
                 libraries: {
-                    EloCalculationLib: await eloLib.getAddress(),
                     GameLib: await gameLib.getAddress(),
                 },
             });
@@ -113,7 +102,6 @@ describe("ChessBallGame Upgradeable", function () {
         it("Should not allow non-owner to upgrade", async function () {
             const ChessBallGameV2 = await ethers.getContractFactory("ChessBallGame", {
                 libraries: {
-                    EloCalculationLib: await eloLib.getAddress(),
                     GameLib: await gameLib.getAddress(),
                 },
             });
