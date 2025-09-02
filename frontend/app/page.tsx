@@ -520,9 +520,6 @@ export default function App() {
               <WalletDropdownDisconnect />
             </WalletDropdown>
           </Wallet>
-          {saveFrameButton && (
-            <div className="ml-2">{saveFrameButton}</div>
-          )}
         </div>
       </div>
 
