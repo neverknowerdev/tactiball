@@ -403,14 +403,16 @@ export default function App() {
         if (gameEvent.team1_id === teamInfo?.id || gameEvent.team2_id === teamInfo?.id) {
           console.log('Game started for current team:', gameEvent);
 
-          // Close any open modals
-          setIsGameRequestModalOpen(false);
-          setIsSearchOpponentModalOpen(false);
-          setGameRequestData(null);
+
 
           // Redirect to the game page
           const gameUrl = `/game/${gameEvent.game_id}/`;
           console.log('Redirecting to game:', gameUrl);
+
+          // // Close any open modals
+          // setIsGameRequestModalOpen(false);
+          // setIsSearchOpponentModalOpen(false);
+          // setGameRequestData(null);
 
           // Use window.location for navigation
           window.location.href = gameUrl;

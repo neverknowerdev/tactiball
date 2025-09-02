@@ -45,8 +45,8 @@ async function fetchGameInfo(gameId: string, network: 'baseSepolia' | 'baseMainn
         console.log(`   ID: ${gameData.gameId}`);
         console.log(`   Status: ${getGameStatusString(gameData.status)}`);
         console.log(`   Created At: ${new Date(Number(gameData.createdAt) * 1000).toISOString()}`);
-        console.log(`   Moves Made: ${gameData.movesMade}`);
-        console.log(`   History length: ${gameData.history.length}`);
+        console.log(`   Moves Made: ${gameData.gameState.movesMade}`);
+        console.log(`   Game State: ${JSON.stringify(gameData.gameState, bigintToNumber)}`);
         console.log(`   Last Move Time: ${gameData.lastMoveTime ? new Date(Number(gameData.lastMoveTime) * 1000).toISOString() : 'N/A'}`);
 
         // Team 1 info
@@ -166,6 +166,11 @@ async function main() {
 
     await fetchGameInfo(gameId, network);
 }
+
+function bigintToNumber(key: string, value: any) {
+    return typeof value === "bigint" ? Number(value) : value
+}
+
 
 // Run the script
 if (require.main === module) {

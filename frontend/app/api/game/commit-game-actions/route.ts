@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient, createRelayerClient } from '@/lib/providers';
-import { getContract } from 'viem';
+import { parseEventLogs } from 'viem';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '@/lib/contract';
 import { base } from 'viem/chains';
+import { saveMovesToDB } from './db';
+import { GameAction, TeamEnum, MoveType } from '@/lib/game';
 
 /**
  * Game Actions Commit Endpoint
@@ -12,23 +14,6 @@ import { base } from 'viem/chains';
  * using commitGameActions function. It simulates the transaction first
  * to ensure it will succeed, then executes it using the relayer client.
  */
-
-// Get the contract instance for reading
-const readContract = getContract({
-    address: CONTRACT_ADDRESS,
-    abi: CONTRACT_ABI,
-    client: publicClient,
-});
-
-// Get the contract instance for writing (using relayer client)
-function getWriteContract() {
-    const walletClient = createRelayerClient();
-    return getContract({
-        address: CONTRACT_ADDRESS,
-        abi: CONTRACT_ABI,
-        client: walletClient,
-    });
-}
 
 // Interface for the request body
 interface CommitGameActionsRequest {
@@ -46,18 +31,9 @@ interface CommitGameActionsRequest {
     }>;
 }
 
-// Interface for the smart contract move data
-interface ContractMove {
-    playerId: number;
-    moveType: number;
-    oldPosition: { x: number; y: number };
-    newPosition: { x: number; y: number };
-}
-
 export async function POST(request: NextRequest) {
     try {
         const body: CommitGameActionsRequest = await request.json();
-        console.log('body', body);
 
         // Validate required fields
         if (!body.game_id || !body.team_id || !body.team_enum || !body.wallet_address || !body.signature || !body.message || !body.moves) {
@@ -126,21 +102,20 @@ export async function POST(request: NextRequest) {
             );
         }
 
-
-
         console.log('Processing game actions commit for game:', body.game_id);
         console.log('Team:', body.team_enum === 1 ? 'Team 1' : 'Team 2');
         console.log('Number of moves:', body.moves.length);
 
         // Map moves to contract format for relayer
-        const contractMoves: ContractMove[] = body.moves.map(move => ({
+        const contractMoves: GameAction[] = body.moves.map(move => ({
             playerId: move.playerId,
-            moveType: move.moveType == "pass" ? 0 : move.moveType == "tackle" ? 1 : move.moveType == "run" ? 2 : 3,
+            moveType: move.moveType as MoveType,
             oldPosition: { x: move.oldPosition.x, y: move.oldPosition.y },
-            newPosition: { x: move.newPosition.x, y: move.newPosition.y }
+            newPosition: { x: move.newPosition.x, y: move.newPosition.y },
+            teamEnum: body.team_enum === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2,
+            playerKey: () => `${body.team_enum === 1 ? '1_' : '2_'}${move.playerId}`
         }));
 
-        console.log('Contract moves:', contractMoves);
 
         // Simulate the transaction first to ensure it will succeed
         console.log('Simulating commitGameActions transaction...');
@@ -152,7 +127,7 @@ export async function POST(request: NextRequest) {
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'commitGameActionsRelayer',
-            args: [body.wallet_address, body.game_id, body.team_enum, contractMoves],
+            args: [body.wallet_address, body.game_id, body.team_enum],
             chain: base,
             account: relayerClient.account
         });
@@ -160,12 +135,23 @@ export async function POST(request: NextRequest) {
         console.log('Transaction simulation successful, executing...');
 
         // Execute the actual transaction using relayer client
-        const hash = await relayerClient.writeContract(simulationRequest);
+        let hash = await relayerClient.writeContract(simulationRequest);
 
         console.log('Game actions committed successfully. Transaction hash:', hash);
 
         // Wait for transaction confirmation
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+        // save moves to DB
+        await saveMovesToDB(body.game_id, body.team_enum, contractMoves);
+
+        const logs = parseEventLogs({
+            abi: CONTRACT_ABI,
+            logs: receipt.logs,
+        });
+
+        const gameActionCommittedLog = logs.find(log => log.eventName === 'gameActionCommitted');
+        // two players made moves - need to calculate
 
         if (receipt.status === 'success') {
             return NextResponse.json({
@@ -176,7 +162,8 @@ export async function POST(request: NextRequest) {
                 teamEnum: body.team_enum,
                 movesCount: body.moves.length,
                 blockNumber: Number(receipt.blockNumber),
-                gasUsed: Number(receipt.gasUsed)
+                gasUsed: Number(receipt.gasUsed),
+                isTwoTeamCommited: gameActionCommittedLog ? true : false
             });
         } else {
             return NextResponse.json(

@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
 import { AbiDecoder, CONTRACT_ABI, CONTRACT_ADDRESS, DecodedEvent } from './abi-decoder.ts'
 import { WebSocketService, BroadcastMessage } from './websocket-service.ts'
-
+import { TeamEnum, Game } from './game.ts'
 // Event types from smart contract
 
 Deno.serve(async (req: Request) => {
@@ -9,7 +9,7 @@ Deno.serve(async (req: Request) => {
         // Parse the incoming webhook payload directly
         const webhookEvent: WebhookEvent = await req.json()
 
-        console.log('webhookEvent', webhookEvent)
+        console.log('webhookEvent', JSON.stringify(webhookEvent))
 
         // Get environment variables
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -99,6 +99,10 @@ async function processLog(supabase: any, wsService: WebSocketService, eventLog: 
     } catch (error) {
         console.error(`Error processing log with signature ${eventLog.eventName}:`, error)
     }
+
+    console.log('sleeping for 3 seconds to finish all network things..');
+    // Sleep for 3 seconds to allow for any pending operations to complete
+    await new Promise(resolve => setTimeout(resolve, 3000));
 }
 
 async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
@@ -199,6 +203,26 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
         timestamp: timestamp * 1000
     })
 
+    // Get team data from database
+    const { data: teamsData, error: teamsError } = await supabase
+        .from('teams')
+        .select('id, name, elo_rating')
+        .in('id', [team1id, team2id]);
+
+    if (teamsError) {
+        console.error('Error fetching teams:', teamsError);
+        throw teamsError;
+    }
+
+    const team1Data = teamsData.find((team: any) => team.id === team1id);
+    const team2Data = teamsData.find((team: any) => team.id === team2id);
+
+    if (!team1Data || !team2Data) {
+        console.error('Could not find team data');
+        throw new Error('Team data not found');
+    }
+
+    const firstHistoryItem = getFirstHistoryItem("2-2-1", teamWithBall)
 
     // Insert new game into database
     const { data, error } = await supabase
@@ -215,19 +239,21 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
                 elo_rating_old: 0,
                 elo_rating_new: 0,
                 elo_rating_diff: 0,
+                name: team1Data.name,
+                wallet: team1Data.primary_wallet,
                 formation: "2-2-1",
-                score: 0,
-                has_made_move: false
+                country: team1Data.country,
             },
             team2_info: {
                 elo_rating_old: 0,
                 elo_rating_new: 0,
                 elo_rating_diff: 0,
+                name: team2Data.name,
+                wallet: team2Data.primary_wallet,
                 formation: "2-2-1",
-                score: 0,
-                has_made_move: false
+                country: team2Data.country,
             },
-            history: []
+            history: [firstHistoryItem]
         })
         .select()
 
@@ -245,6 +271,13 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
     console.log(`Game started: ${gameId}`)
 }
 
+function getFirstHistoryItem(formation: string, teamWithBall: number) {
+    const game = new Game(0);
+    game.newGame(0, teamWithBall === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2)
+
+    return game.history[0]
+}
+
 async function handleGameActionCommitted(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
     const { gameId, timestamp: gameActionTimestamp } = AbiDecoder.getTypedArgs(decodedData)
 
@@ -259,49 +292,34 @@ async function handleGameActionCommitted(decodedData: DecodedEvent, supabase: an
 }
 
 async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
-    const { gameId, time } = AbiDecoder.getTypedArgs(decodedData)
+    const { gameId, stateType, time, clashRandomNumbers, team1Actions, team2Actions, ballPosition, ballOwner } = AbiDecoder.getTypedArgs(decodedData)
+
+    // Use the updateGame function to fetch from contract and update database
+    // Call newGameState SQL function to reset game state
+    const { data: latestHistoryItem, error: sqlFuncError } = await supabase.rpc('newGameState', { game_id: gameId })
+
+    if (sqlFuncError) {
+        console.error('Error calling newGameState SQL function:', sqlFuncError)
+        throw sqlFuncError
+    }
 
     // Broadcast to game channel
     await wsService.broadcastToGame(gameId, {
-        type: 'NEW_GAME_STATE_NOTIFICATION',
+        type: 'NEW_GAME_STATE',
         game_id: gameId,
         time: time,
+        state_type: stateType,
+        new_state: latestHistoryItem,
+        clash_random_numbers: clashRandomNumbers,
+        team1_actions: team1Actions,
+        team2_actions: team2Actions,
+        ball_position: ballPosition,
+        ball_owner: ballOwner,
         timestamp: timestamp
     })
 
-    // Get game record from database
-    const { data: game, error: fetchError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .single()
-
-    if (fetchError) {
-        console.error('Error fetching game:', fetchError)
-        throw fetchError
-    }
-
-    try {
-        // Use the updateGame function to fetch from contract and update database
-        const smartContractGame = await updateGame(gameId, supabase, timestamp)
-
-        // Get the latest game state from history
-        const latestState = smartContractGame.history[smartContractGame.history.length - 1]
-
-        // Broadcast to game channel
-        await wsService.broadcastToGame(gameId, {
-            type: 'NEW_GAME_STATE',
-            game_id: gameId,
-            time: time,
-            new_state: latestState,
-            timestamp: timestamp
-        })
-
-        console.log(`New game state: ${gameId} at ${time}, moves: ${smartContractGame.movesMade}, scores: ${smartContractGame.team1.score}-${smartContractGame.team2.score}`)
-
-    } catch (contractError) {
-        console.error(`Error getting game state from contract for game ${gameId}:`, contractError)
-    }
+    console.log(`New game state: ${gameId} at ${time}`)
+    console.log(`Latest history item: ${JSON.stringify(latestHistoryItem, bigintToNumber)}`)
 }
 
 async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
@@ -342,8 +360,16 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
         throw updateError
     }
 
-    // Use the updateGame function to fetch from contract and update database
-    const smartContractGame = await updateGame(gameId, supabase, timestamp)
+    // Update game status to finished
+    const { error: gameUpdateError } = await supabase
+        .from('games')
+        .update({ status: status, winner: winner })
+        .eq('id', gameId)
+
+    if (gameUpdateError) {
+        console.error('Error updating game status:', gameUpdateError)
+        throw gameUpdateError
+    }
 
     // Also broadcast to team channels
     await wsService.broadcastToGameTeams(game.team1, game.team2, {
@@ -397,147 +423,8 @@ async function handleGameStateError(decodedData: DecodedEvent, supabase: any, ws
     }
 }
 
-
-/**
- * Maps smart contract Game struct to database-friendly format
- */
-function mapContractGameToDatabase(gameData: any, time: number, timestamp: number) {
-    return {
-        game_id: Number(gameData.gameId),
-        created_at: Number(gameData.createdAt),
-        last_move_at: Number(gameData.lastMoveAt),
-        last_move_team: Number(gameData.lastMoveTeam),
-        team1: {
-            team_id: Number(gameData.team1.teamId),
-            score: Number(gameData.team1.score),
-            elo_rating: Number(gameData.team1.eloRating),
-            elo_rating_new: Number(gameData.team1.eloRatingNew),
-            formation: Number(gameData.team1.formation),
-            actions: gameData.team1.actions.map((action: any) => ({
-                player_id: Number(action.playerId),
-                move_type: Number(action.moveType),
-                old_position: {
-                    x: Number(action.oldPosition.x),
-                    y: Number(action.oldPosition.y)
-                },
-                new_position: {
-                    x: Number(action.newPosition.x),
-                    y: Number(action.newPosition.y)
-                }
-            }))
-        },
-        team2: {
-            team_id: Number(gameData.team2.teamId),
-            score: Number(gameData.team2.score),
-            elo_rating: Number(gameData.team2.eloRating),
-            elo_rating_new: Number(gameData.team2.eloRatingNew),
-            formation: Number(gameData.team2.formation),
-            actions: gameData.team2.actions.map((action: any) => ({
-                player_id: Number(action.playerId),
-                move_type: Number(action.moveType),
-                old_position: {
-                    x: Number(action.oldPosition.x),
-                    y: Number(action.oldPosition.y)
-                },
-                new_position: {
-                    x: Number(action.newPosition.x),
-                    y: Number(action.newPosition.y)
-                }
-            }))
-        },
-        history: gameData.history.map((state: any) => ({
-            team1_positions: state.team1Positions.map((pos: any) => ({
-                x: Number(pos.x),
-                y: Number(pos.y)
-            })),
-            team2_positions: state.team2Positions.map((pos: any) => ({
-                x: Number(pos.x),
-                y: Number(pos.y)
-            })),
-            ball_position: {
-                x: Number(state.ballPosition.x),
-                y: Number(state.ballPosition.y)
-            },
-            ball_owner: Number(state.ballOwner),
-            clash_random_results: state.clashRandomResults.map((result: any) => Number(result)),
-            state_type: Number(state.stateType)
-        })),
-        status: Number(gameData.status),
-        moves_made: Number(gameData.movesMade),
-        winner: gameData.winner ? Number(gameData.winner) : null
-    }
-}
-
-
-/**
- * Fetches game data from smart contract, maps it, and updates the database
- * Returns the mapped game data for further use
- */
-async function updateGame(gameId: number, supabase: any, timestamp: number) {
-    // Create contract instance to call getGame function
-    const { createPublicClient, http, parseAbiItem } = await import('https://esm.sh/viem@2.0.0')
-    const { base } = await import('https://esm.sh/viem@2.0.0/chains')
-
-    // Get RPC URL from environment variable
-    const rpcUrl = Deno.env.get('RPC_URL')
-    if (!rpcUrl) {
-        throw new Error('Missing RPC_URL environment variable')
-    }
-
-    const publicClient = createPublicClient({
-        chain: base,
-        transport: http(rpcUrl)
-    })
-
-    // Call getGame function on smart contract
-    const gameData = await publicClient.readContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: [CONTRACT_ABI],
-        functionName: 'getGame',
-        args: [BigInt(gameId)]
-    })
-
-    if (!gameData) {
-        throw new Error(`Failed to get game data from contract for game ${gameId}`)
-    }
-
-    // Map smart contract game state to database structure
-    const smartContractGame = mapContractGameToDatabase(gameData, timestamp, timestamp)
-
-    // Get current game record from database
-    const { data: game, error: fetchError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .single()
-
-    if (fetchError) {
-        console.error('Error fetching game:', fetchError)
-        throw fetchError
-    }
-
-    // Update game record with new state and scores
-    const { error: updateError } = await supabase
-        .from('games')
-        .update({
-            moves_made: smartContractGame.movesMade,
-            team1_score: smartContractGame.team1.score,
-            team2_score: smartContractGame.team2.score,
-            winner: smartContractGame.winner,
-            status: smartContractGame.status === 1 ? 'active' :
-                smartContractGame.status === 2 ? 'finished' :
-                    smartContractGame.status === 3 ? 'finished_by_timeout' : 'active',
-            history: smartContractGame.history,
-            last_move_at: new Date(timestamp * 1000).toISOString()
-        })
-        .eq('id', gameId)
-
-    if (updateError) {
-        console.error('Error updating game:', updateError)
-        throw updateError
-    }
-
-    return smartContractGame
+function bigintToNumber(key: string, value: any) {
+    return typeof value === "bigint" ? Number(value) : value
 }
 
 // Event types from smart contract

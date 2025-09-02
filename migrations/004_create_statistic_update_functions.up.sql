@@ -135,7 +135,7 @@ DECLARE
 BEGIN
     -- Get the game details
     SELECT 
-        team1, team2, team1score, team2score, winner, status,
+        team1, team2, team1_score, team2_score, winner, status,
         created_at::DATE as game_date,
         team1Info, team2Info
     INTO game_record
@@ -165,14 +165,14 @@ BEGIN
     PERFORM public.update_team_statistic_for_game_result(
         game_record.team1, 'week', week_start,
         team1_is_win, team1_is_draw,
-        game_record.team1score, game_record.team2score,
+        game_record.team1_score, game_record.team2_score,
         team1_elo_diff
     );
     
     PERFORM public.update_team_statistic_for_game_result(
         game_record.team2, 'week', week_start,
         team2_is_win, team2_is_draw,
-        game_record.team2score, game_record.team1score,
+        game_record.team2_score, game_record.team1_score,
         team2_elo_diff
     );
     
@@ -180,14 +180,14 @@ BEGIN
     PERFORM public.update_team_statistic_for_game_result(
         game_record.team1, 'month', month_start,
         team1_is_win, team1_is_draw,
-        game_record.team1score, game_record.team2score,
+        game_record.team1_score, game_record.team2_score,
         team1_elo_diff
     );
     
     PERFORM public.update_team_statistic_for_game_result(
         game_record.team2, 'month', month_start,
         team2_is_win, team2_is_draw,
-        game_record.team2score, game_record.team1score,
+        game_record.team2_score, game_record.team1_score,
         team2_elo_diff
     );
     
@@ -195,14 +195,14 @@ BEGIN
     PERFORM public.update_team_statistic_for_game_result(
         game_record.team1, 'alltime', alltime_start,
         team1_is_win, team1_is_draw,
-        game_record.team1score, game_record.team2score,
+        game_record.team1_score, game_record.team2_score,
         team1_elo_diff
     );
     
     PERFORM public.update_team_statistic_for_game_result(
         game_record.team2, 'alltime', alltime_start,
         team2_is_win, team2_is_draw,
-        game_record.team2score, game_record.team1score,
+        game_record.team2_score, game_record.team1_score,
         team2_elo_diff
     );
 END;

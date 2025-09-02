@@ -18,10 +18,10 @@ BEGIN
         -- Game status changed to finished or winner changed
         IF (OLD.status != NEW.status AND NEW.status = 'finished'::public.game_status) OR
            (OLD.winner != NEW.winner AND NEW.status = 'finished'::public.game_status) OR
-           (OLD.team1score != NEW.team1score AND NEW.status = 'finished'::public.game_status) OR
-           (OLD.team2score != NEW.team2score AND NEW.status = 'finished'::public.game_status) OR
-           (OLD.team1Info != NEW.team1Info AND NEW.status = 'finished'::public.game_status) OR
-           (OLD.team2Info != NEW.team2Info AND NEW.status = 'finished'::public.game_status) THEN
+           (OLD.team1_score != NEW.team1_score AND NEW.status = 'finished'::public.game_status) OR
+           (OLD.team2_score != NEW.team2_score AND NEW.status = 'finished'::public.game_status) OR
+           (OLD.team1_info != NEW.team1_info AND NEW.status = 'finished'::public.game_status) OR
+           (OLD.team2_info != NEW.team2_info AND NEW.status = 'finished'::public.game_status) THEN
             PERFORM public.update_team_statistics_for_game(NEW.id);
         END IF;
     ELSIF TG_OP = 'DELETE' THEN

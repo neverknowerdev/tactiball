@@ -89,15 +89,17 @@ export class WebSocketService {
                 message.timestamp = Date.now()
             }
 
+            // Convert BigInt values to Number for JSON serialization
+            const convertedMessage = this.convertBigIntToNumber(message)
+
             // Get the channel from Ably
             const ablyChannel = this.ably.channels.get(channel)
 
             // Publish the message
-            await ablyChannel.publish('game-event', message)
+            await ablyChannel.publish('game-event', convertedMessage)
 
         } catch (error) {
             console.error(`Error broadcasting to channel ${channel}:`, error)
-            throw error
         }
     }
 
@@ -118,6 +120,41 @@ export class WebSocketService {
         } catch (error) {
             console.error(`Error sending system notification to channel ${channel}:`, error)
         }
+    }
+
+    /**
+     * Convert BigInt values to Number recursively
+     * This is necessary for JSON serialization as BigInt is not JSON serializable
+     */
+    private convertBigIntToNumber(obj: any): any {
+        if (obj === null || obj === undefined) {
+            return obj
+        }
+
+        if (typeof obj === 'bigint') {
+            // Convert BigInt to Number, but check if it's within safe integer range
+            const num = Number(obj)
+            if (Number.isSafeInteger(num)) {
+                return num
+            } else {
+                console.warn(`BigInt value ${obj} is too large for safe integer conversion, converting to string`)
+                return obj.toString()
+            }
+        }
+
+        if (Array.isArray(obj)) {
+            return obj.map(item => this.convertBigIntToNumber(item))
+        }
+
+        if (typeof obj === 'object') {
+            const converted: any = {}
+            for (const [key, value] of Object.entries(obj)) {
+                converted[key] = this.convertBigIntToNumber(value)
+            }
+            return converted
+        }
+
+        return obj
     }
 
     /**

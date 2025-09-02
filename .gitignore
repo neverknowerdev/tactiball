@@ -153,3 +153,6 @@ web3-functions/.web3-functions-cache/
 .tailwindcss-manifest.css
 
 supabase/.temp
+
+.tmp
+.openzeppelin

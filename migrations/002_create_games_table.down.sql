@@ -11,6 +11,9 @@ ALTER TABLE public.games DROP CONSTRAINT IF EXISTS games_last_move_team_fkey;
 -- Drop enum type
 DROP TYPE IF EXISTS public.game_status;
 
+-- Drop function
+DROP FUNCTION IF EXISTS public.newGameState(BIGINT);
+
 -- Drop indexes
 DROP INDEX IF EXISTS idx_games_team2info_gin;
 DROP INDEX IF EXISTS idx_games_team1info_gin;

@@ -7,6 +7,7 @@ import hre from "hardhat";
 
 const GELATO_ADDRESS = "0x12ebb8c121b706ae6368147afc5b54702cb26637";
 const RELAYER_ADDRESS = "0xc510350904b2fD01D9af92342f49a3c7aEC47739";
+const GAME_ENGINE_ADDRESS = "0xc510350904b2fD01D9af92342f49a3c7aEC47739";
 
 // Helper function to add delay between transactions
 function delay(ms: number): Promise<void> {
@@ -144,7 +145,8 @@ async function main() {
 
     const constructorArgs = [
         GELATO_ADDRESS,
-        RELAYER_ADDRESS
+        RELAYER_ADDRESS,
+        GAME_ENGINE_ADDRESS
     ];
 
     // Deploy using UUPS proxy pattern
@@ -157,9 +159,12 @@ async function main() {
     await chessBallGame.waitForDeployment();
 
     const proxyAddress = await chessBallGame.getAddress();
+    console.log("ChessBallGame deployed to:", proxyAddress);
+
+    console.log("Waiting 5 seconds before getting implementation address...");
+    await delay(5000);
 
     const currentImplAddress = await getImplementationAddress(ethers.provider, proxyAddress);
-    console.log("ChessBallGame deployed to:", proxyAddress);
     console.log("Implementation deployed to:", currentImplAddress);
     console.log("Proxy deployed to:", proxyAddress);
 

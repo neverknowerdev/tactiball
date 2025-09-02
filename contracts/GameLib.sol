@@ -78,6 +78,8 @@ library GameLib {
         bool hasActiveGame;
         uint256 gameRequestId;
         uint64 totalGames;
+        //
+        uint256[10] __gap;
     }
 
     struct TeamInfo {
@@ -85,6 +87,8 @@ library GameLib {
         uint64 eloRating;
         uint64 eloRatingNew;
         TeamFormation formation;
+        //
+        uint256[5] __gap;
     }
 
     struct Game {
@@ -103,6 +107,10 @@ library GameLib {
         //
         bytes32 historyIPFS;
         bool isVerified;
+        //
+        uint8 gameEngineVersion;
+        //
+        uint256[10] __gap;
     }
 
     struct GameRequest {
@@ -165,7 +173,19 @@ library GameLib {
                 country: countryID,
                 hasActiveGame: false,
                 gameRequestId: 0,
-                totalGames: 0
+                totalGames: 0,
+                __gap: [
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0)
+                ]
             });
     }
     // Game Management Functions
@@ -180,14 +200,16 @@ library GameLib {
             teamId: team1id,
             eloRating: team1EloRating,
             eloRatingNew: 0,
-            formation: TeamFormation.FORMATION_2_2_1
+            formation: TeamFormation.FORMATION_2_2_1,
+            __gap: [uint256(0), uint256(0), uint256(0), uint256(0), uint256(0)]
         });
 
         TeamInfo memory team2Info = TeamInfo({
             teamId: team2id,
             eloRating: team2EloRating,
             eloRatingNew: 0,
-            formation: TeamFormation.FORMATION_2_2_1
+            formation: TeamFormation.FORMATION_2_2_1,
+            __gap: [uint256(0), uint256(0), uint256(0), uint256(0), uint256(0)]
         });
 
         return
@@ -208,7 +230,20 @@ library GameLib {
                 status: GameStatus.ACTIVE,
                 winner: TeamEnum.NONE,
                 isVerified: false,
-                historyIPFS: ""
+                historyIPFS: "",
+                gameEngineVersion: 1,
+                __gap: [
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0),
+                    uint256(0)
+                ]
             });
     }
 
@@ -258,13 +293,6 @@ library GameLib {
         GameState storage gameState,
         TeamEnum team
     ) external returns (bool) {
-        require(
-            !gameState.team1MadeMove,
-            team == TeamEnum.TEAM1
-                ? "Team 1 already made move"
-                : "Team 2 already made move"
-        );
-
         if (team == TeamEnum.TEAM1) {
             gameState.team1MadeMove = true;
         } else {

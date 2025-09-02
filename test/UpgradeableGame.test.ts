@@ -15,6 +15,7 @@ describe("ChessBallGame Upgradeable", function () {
 
     const GELATO_ADDRESS = "0x1234567890123456789012345678901234567890";
     const RELAYER_ADDRESS = "0x0987654321098765432109876543210987654321";
+    const GAME_ENGINE_SERVER_ADDRESS = "0x1234567890123456789012345678901234567890";
 
     beforeEach(async function () {
         [owner, user1, user2] = await ethers.getSigners();
@@ -40,7 +41,8 @@ describe("ChessBallGame Upgradeable", function () {
 
         chessBallGame = await upgrades.deployProxy(ChessBallGame, [
             GELATO_ADDRESS,
-            RELAYER_ADDRESS
+            RELAYER_ADDRESS,
+            GAME_ENGINE_SERVER_ADDRESS
         ], {
             kind: 'uups',
             initializer: 'initialize',
@@ -59,7 +61,7 @@ describe("ChessBallGame Upgradeable", function () {
 
         it("Should not allow re-initialization", async function () {
             await expect(
-                chessBallGame.initialize(GELATO_ADDRESS, RELAYER_ADDRESS)
+                chessBallGame.initialize(GELATO_ADDRESS, RELAYER_ADDRESS, GAME_ENGINE_SERVER_ADDRESS)
             ).to.be.reverted;
         });
     });

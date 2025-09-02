@@ -1,5 +1,3 @@
-import { throws } from "assert";
-
 export enum TeamEnum {
     TEAM1 = 'team1',
     TEAM2 = 'team2'
@@ -10,6 +8,26 @@ export enum MoveType {
     TACKLE = 'tackle',
     RUN = 'run',
     SHOT = 'shot'
+}
+
+export enum GameStateType {
+    START_POSITIONS = 'startPositions',
+    MOVE = 'move',
+    GOAL_TEAM1 = 'goal_team1',
+    GOAL_TEAM2 = 'goal_team2'
+}
+
+export enum GameStatus {
+    ACTIVE = 'ACTIVE',
+    FINISHED = 'FINISHED',
+    FINISHED_BY_TIMEOUT = 'FINISHED_BY_TIMEOUT'
+}
+
+export enum PlayerType {
+    GOALKEEPER = 'goalkeeper',
+    DEFENDER = 'defender',
+    MIDFIELDER = 'midfielder',
+    FORWARD = 'forward'
 }
 
 const FIELD_WIDTH = 15;
@@ -63,7 +81,7 @@ export interface TeamPlayer {
     position: Position;
     oldPosition: Position | null;
     ball: Ball | null;
-    playerType: 'goalkeeper' | 'defender' | 'midfielder' | 'forward';
+    playerType: PlayerType;
     key(): string;
 }
 
@@ -85,7 +103,7 @@ export interface GameState {
     team2PlayerPositions: Position[];
     ballPosition: Position;
     ballOwner: string | null;
-    type: 'startPositions' | 'move' | 'goal';
+    type: GameStateType;
     clashRandomResults: number[];
 }
 
@@ -111,7 +129,7 @@ export interface GameType {
 
     playerMoves: GameAction[];
 
-    status: 'ACTIVE' | 'FINISHED' | 'FINISHED_BY_TIMEOUT';
+    status: GameStatus;
 }
 
 export class Game implements GameType {
@@ -124,7 +142,7 @@ export class Game implements GameType {
     public ball: Ball;
 
     public createdAt: number;
-    public status: 'ACTIVE' | 'FINISHED' | 'FINISHED_BY_TIMEOUT';
+    public status: GameStatus;
 
     constructor(gameId: number) {
         this.gameId = gameId;
@@ -134,22 +152,22 @@ export class Game implements GameType {
         this.team2 = { id: 2, teamId: 0, enum: TeamEnum.TEAM2, name: 'Team 2', color: 'blue', score: 0, players: [], isCommittedMove: false };
         this.ball = { position: { x: 0, y: 0 }, oldPosition: null, ownerTeam: null };
         this.createdAt = Date.now();
-        this.status = 'ACTIVE';
+        this.status = GameStatus.ACTIVE;
         this.playerMoves = [];
         const playerTypeByIndex = function (index: number) {
             if (index == 0) {
-                return 'goalkeeper';
+                return PlayerType.GOALKEEPER;
             }
             if (index == 1 || index == 2) {
-                return 'defender';
+                return PlayerType.DEFENDER;
             }
             if (index == 3 || index == 4) {
-                return 'midfielder';
+                return PlayerType.MIDFIELDER;
             }
             if (index == 5) {
-                return 'forward';
+                return PlayerType.FORWARD;
             }
-            return "defender";
+            return PlayerType.DEFENDER;
         }
 
         for (let i = 0; i < 6; i++) {
@@ -181,12 +199,12 @@ export class Game implements GameType {
 
     newGame(gameId: number, teamWithBall: TeamEnum) {
         this.gameId = gameId;
-        this.status = 'ACTIVE';
+        this.status = GameStatus.ACTIVE;
 
         this.ball.position = { x: 8, y: 5 };
 
         fillStartPositions(this.team1, this.team2, this.ball, teamWithBall);
-        this.saveState(fillState(this.team1, this.team2, this.ball, 'startPositions'));
+        this.saveState(fillState(this.team1, this.team2, this.ball, GameStateType.START_POSITIONS));
     }
 
     doPlayerMove(player: TeamPlayer, type: MoveType, oldPosition: Position, newPosition: Position, render: boolean = true) {
@@ -298,6 +316,9 @@ export class Game implements GameType {
         if (!this.team1.isCommittedMove || !this.team2.isCommittedMove) {
             throw new Error('Not all team committed their moves');
         }
+        if (this.playerMoves.length == 0) {
+            throw new Error('No moves to calculate new state');
+        }
 
         // restore last state
         this.restoreState(this.history[this.history.length - 1]);
@@ -351,6 +372,7 @@ export class Game implements GameType {
             }
         }
 
+        let randomNumberIndex = 0;
         const rendererStates: GameState[] = [];
         for (let i = 0; i < maxPathSize; i++) {
             let isBallChangedPosition = false;
@@ -372,16 +394,19 @@ export class Game implements GameType {
                 // check if goal
                 const goalForTeam = isGoalForTeam(this.ball.position);
                 if (goalForTeam) {
+                    const stateType = goalForTeam == TeamEnum.TEAM1 ? GameStateType.GOAL_TEAM2 : GameStateType.GOAL_TEAM1;
                     if (goalForTeam == TeamEnum.TEAM1) {
                         this.team2.score++;
                     } else {
                         this.team1.score++;
                     }
 
-                    rendererStates.push(fillState(this.team1, this.team2, this.ball, 'goal'));
+                    const goalState = fillState(this.team1, this.team2, this.ball, stateType);
+                    rendererStates.push(goalState);
+                    this.saveState(goalState);
 
                     fillStartPositions(this.team1, this.team2, this.ball, goalForTeam);
-                    rendererStates.push(fillState(this.team1, this.team2, this.ball, 'startPositions'));
+                    rendererStates.push(fillState(this.team1, this.team2, this.ball, GameStateType.START_POSITIONS));
                     break;
                 }
             }
@@ -398,7 +423,11 @@ export class Game implements GameType {
                     // for now it will resolve simple - ball win a team who not owner ball previously.
                     const player1MoveType = playerMoveType[team1Player.key()];
                     const player2MoveType = playerMoveType[team2Player.key()];
-                    const { winner: newBallOwner, randomNumber } = resolveClash(team1Player, player1MoveType, team2Player, player2MoveType, randomNumbers);
+                    const predefinedRandomNumber = randomNumbers.length > 0 ? randomNumbers[randomNumberIndex] : null;
+                    if (predefinedRandomNumber) {
+                        randomNumberIndex++;
+                    }
+                    const { winner: newBallOwner, randomNumber } = resolveClash(team1Player, player1MoveType, team2Player, player2MoveType, predefinedRandomNumber);
 
                     console.log('resolveClash newBallOwner', newBallOwner);
 
@@ -431,7 +460,7 @@ export class Game implements GameType {
                 }
             }
 
-            rendererStates.push(fillState(this.team1, this.team2, this.ball, 'move'));
+            rendererStates.push(fillState(this.team1, this.team2, this.ball, GameStateType.MOVE));
 
 
             // TODO: check if penalty
@@ -450,6 +479,8 @@ export class Game implements GameType {
         this.team2.isCommittedMove = false;
 
         let finalState = rendererStates[rendererStates.length - 1];
+        console.log('finalState', finalState);
+        console.log('states', rendererStates);
         finalState.team1Moves = this.playerMoves.filter(move => move.teamEnum === TeamEnum.TEAM1);
         finalState.team2Moves = this.playerMoves.filter(move => move.teamEnum === TeamEnum.TEAM2);
 
@@ -461,7 +492,6 @@ export class Game implements GameType {
 
         this.playerMoves = [];
 
-        console.log('finalState', finalState);
         return { newState: finalState, rendererStates: rendererStates };
     }
 
@@ -475,6 +505,7 @@ export class Game implements GameType {
 
         this.team1.players.forEach(player => {
             player.position = state.team1PlayerPositions[player.id];
+            player.oldPosition = null;
 
             if (state.ballPosition && isPosEquals(state.ballPosition, player.position)) {
                 this.changeBallOwner(player);
@@ -483,13 +514,14 @@ export class Game implements GameType {
 
         this.team2.players.forEach(player => {
             player.position = state.team2PlayerPositions[player.id];
+            player.oldPosition = null;
             if (state.ballPosition && isPosEquals(state.ballPosition, player.position)) {
                 this.changeBallOwner(player);
             }
         });
 
         this.ball.position = state.ballPosition;
-
+        this.ball.oldPosition = null;
     }
 
     // Calculate available cells for player movement
@@ -597,7 +629,7 @@ export class Game implements GameType {
 }
 
 function resolveClash(team1Player: TeamPlayer, team1MoveType: MoveType, team2Player: TeamPlayer, team2MoveType: MoveType, predefinedRandomNumber: number | null): { winner: TeamEnum, randomNumber: number | null } {
-    console.log('resolveClash', team1Player, team1MoveType, team2Player, team2MoveType);
+    console.log('resolveClash', team1Player.key(), team1MoveType, team2Player.key(), team2MoveType);
     if (team1Player.ball && team2MoveType == MoveType.TACKLE) {
         console.log('team2Player win cauze of tackle');
         return { winner: TeamEnum.TEAM2, randomNumber: 0 };
@@ -628,7 +660,7 @@ function isGoalForTeam(position: Position): TeamEnum | null {
     return null;
 }
 
-function fillState(team1: Team, team2: Team, ball: Ball, type: 'startPositions' | 'move' | 'goal' = 'move'): GameState {
+function fillState(team1: Team, team2: Team, ball: Ball, type: GameStateType = GameStateType.MOVE): GameState {
     const state: GameState = {
         team1PlayerPositions: team1.players.map(player => player.position),
         team2PlayerPositions: team2.players.map(player => player.position),
@@ -658,15 +690,15 @@ function fillStartPositions(team1: Team, team2: Team, ball: Ball, teamWithBall: 
         ball.ownerTeam = team1.players[5].team.enum;
 
         team1.players[0].position = { x: 1, y: 5 }; // goalkeeper
-        team1.players[1].playerType = 'defender';
+        team1.players[1].playerType = PlayerType.DEFENDER;
         team1.players[1].position = { x: 4, y: 2 };
-        team1.players[2].playerType = 'defender';
+        team1.players[2].playerType = PlayerType.DEFENDER;
         team1.players[2].position = { x: 4, y: 8 };
-        team1.players[3].playerType = 'midfielder';
+        team1.players[3].playerType = PlayerType.MIDFIELDER;
         team1.players[3].position = { x: 6, y: 3 };
-        team1.players[4].playerType = 'midfielder';
+        team1.players[4].playerType = PlayerType.MIDFIELDER;
         team1.players[4].position = { x: 6, y: 7 };
-        team1.players[5].playerType = 'forward';
+        team1.players[5].playerType = PlayerType.FORWARD;
         team1.players[5].position = { x: 8, y: 5 };
         team1.players[5].ball = ball;
 

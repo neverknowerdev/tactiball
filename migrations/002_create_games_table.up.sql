@@ -15,12 +15,16 @@ CREATE TABLE IF NOT EXISTS public.games (
     team2 BIGINT,
     status public.game_status DEFAULT 'active',
     moves_made INTEGER DEFAULT 0,
+    team1_moves JSONB DEFAULT '[]'::JSONB,
+    team2_moves JSONB DEFAULT '[]'::JSONB,
     winner BIGINT,
     history JSONB,
     team1_info JSONB DEFAULT '{}'::JSONB,
     team2_info JSONB DEFAULT '{}'::JSONB,
     team1_score SMALLINT DEFAULT '0'::SMALLINT,
-    team2_score SMALLINT DEFAULT '0'::SMALLINT
+    team2_score SMALLINT DEFAULT '0'::SMALLINT,
+    history_ipfs_cid VARCHAR,
+    is_verified BOOLEAN DEFAULT FALSE
 );
 
 -- Create foreign key constraints
@@ -66,15 +70,53 @@ COMMENT ON COLUMN public.games.team1 IS 'ID of the first team';
 COMMENT ON COLUMN public.games.team2 IS 'ID of the second team';
 COMMENT ON COLUMN public.games.status IS 'Current status of the game';
 COMMENT ON COLUMN public.games.moves_made IS 'Number of moves made in the game';
+COMMENT ON COLUMN public.games.team1_moves IS 'JSON containing team1 moves';
+COMMENT ON COLUMN public.games.team2_moves IS 'JSON containing team2 moves';
 COMMENT ON COLUMN public.games.winner IS 'ID of the winning team';
 COMMENT ON COLUMN public.games.history IS 'JSON containing game move history';
 COMMENT ON COLUMN public.games.team1_info IS 'JSON containing additional team1 information';
 COMMENT ON COLUMN public.games.team2_info IS 'JSON containing additional team2 information';
 COMMENT ON COLUMN public.games.team1_score IS 'Current score of team1';
 COMMENT ON COLUMN public.games.team2_score IS 'Current score of team2';
+COMMENT ON COLUMN public.games.history_ipfs_cid IS 'IPFS CID of the game history';
+COMMENT ON COLUMN public.games.is_verified IS 'Whether the game history is verified';
 
 -- Create index on active_game_id for better performance
 CREATE INDEX IF NOT EXISTS idx_teams_active_game_id ON public.teams(active_game_id);
 
 -- Add comment for the new column
 COMMENT ON COLUMN public.teams.active_game_id IS 'Active game identifier for the team';
+
+-- Create function to handle new game state updates
+CREATE OR REPLACE FUNCTION public.newGameState(game_id BIGINT)
+RETURNS JSONB AS $$
+DECLARE
+    latest_history_item JSONB;
+BEGIN
+    -- Update the game record to clear team moves and increment moves counter
+    UPDATE public.games 
+    SET 
+        team1_moves = '[]'::JSONB,
+        team2_moves = '[]'::JSONB,
+        moves_made = moves_made + 1,
+        last_move_at = NULL
+    WHERE id = game_id;
+    
+    -- Raise an error if no rows were updated (game not found)
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Game with ID % not found', game_id;
+    END IF;
+    
+    -- Get the latest history item
+    SELECT history->-1 INTO latest_history_item
+    FROM public.games 
+    WHERE id = game_id;
+    
+    -- Return the latest history item (or null if no history)
+    RETURN COALESCE(latest_history_item, '{}'::JSONB);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Add comment for the function
+COMMENT ON FUNCTION public.newGameState(BIGINT) IS 'Updates game state by clearing team moves and incrementing moves counter, returns the latest history item';
+

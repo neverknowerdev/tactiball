@@ -20,7 +20,7 @@ error TeamsCannotBeSame();
 error GameOwnerShouldCall();
 error TeamAlreadyHasActiveGame();
 error GameIsNotActive();
-error NoActionsToCommit();
+error MovesAlreadyCommitted();
 error OnlyRelayerCanCall();
 error OnlyGelatoCanCall();
 error GameRequestNotExpired();
@@ -29,6 +29,7 @@ error ActionsNotCommitted();
 error FinishGameByTimeout_NoLastMove();
 error GameHasNotReachedMaxMoves();
 error OnlyGameEngineServerCanCall();
+error InvalidTeam();
 
 contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using GameLib for *;
@@ -85,6 +86,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event gameActionCommitted(uint256 indexed gameId, uint256 timestamp);
     event NewGameState(
         uint256 indexed gameId,
+        GameLib.StateType stateType,
         uint256 time,
         uint8[] clashRandomNumbers,
         GameLib.GameAction[] team1Actions,
@@ -357,12 +359,15 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function _commitGameActions(
         address sender,
         uint256 gameId,
-        GameLib.TeamEnum team,
-        GameLib.GameAction[] calldata actions
+        GameLib.TeamEnum team
     ) internal gameExists(gameId) {
         GameLib.Game storage game = games[gameId];
         if (game.status != GameLib.GameStatus.ACTIVE) revert GameIsNotActive();
-        if (actions.length == 0) revert NoActionsToCommit();
+        if (team == GameLib.TeamEnum.NONE) revert InvalidTeam();
+        if (team == GameLib.TeamEnum.TEAM1 && game.gameState.team1MadeMove)
+            revert MovesAlreadyCommitted();
+        if (team == GameLib.TeamEnum.TEAM2 && game.gameState.team2MadeMove)
+            revert MovesAlreadyCommitted();
 
         if (team == GameLib.TeamEnum.TEAM1) {
             if (teams[game.team1.teamId].wallet != sender)
@@ -388,22 +393,17 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     // Public wrapper that calls internal function with msg.sender
-    function commitGameActions(
-        uint256 gameId,
-        GameLib.TeamEnum team,
-        GameLib.GameAction[] calldata actions
-    ) public {
-        _commitGameActions(msg.sender, gameId, team, actions);
-    }
+    // function commitGameActions(uint256 gameId, GameLib.TeamEnum team) public {
+    //     _commitGameActions(msg.sender, gameId, team);
+    // }
 
     // Relayer version that can commit game actions for any address
     function commitGameActionsRelayer(
         address sender,
         uint256 gameId,
-        GameLib.TeamEnum team,
-        GameLib.GameAction[] calldata actions
+        GameLib.TeamEnum team
     ) public onlyRelayer {
-        _commitGameActions(sender, gameId, team, actions);
+        _commitGameActions(sender, gameId, team);
     }
 
     // ========================================
@@ -564,6 +564,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         emit NewGameState(
             game.gameId,
+            stateType,
             block.timestamp,
             clashRandomNumbers,
             team1Actions,
@@ -708,7 +709,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     modifier onlyGameEngine() {
         if (
-            msg.sender != gameEngineServerAddress || msg.sender != gelatoAddress
+            msg.sender != gameEngineServerAddress && msg.sender != gelatoAddress
         ) revert OnlyGameEngineServerCanCall();
         _;
     }

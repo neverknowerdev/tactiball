@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Game, TeamEnum, TeamPlayer, MoveType, isPosEquals, Team } from '@/lib/game';
-import { getGameFromContract } from '@/lib/contract';
+import { Game, TeamEnum, TeamPlayer, MoveType, isPosEquals, Team, GameStatus, GameStateType } from '@/lib/game';
+import { getGameFromDB } from '@/lib/db';
 import '../game.css';
 import { authUserWithSignature } from '@/lib/auth';
 import { useAccount, useSignMessage } from "wagmi";
 import { toast, ToastContainer } from "react-toastify";
 import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import 'react-toastify/dist/ReactToastify.css';
-import { ably } from '@/lib/ably';
+import { gameChannelManager, subscribeToGame, unsubscribeFromGame } from '@/lib/ably';
 
 // Cell type enum
 enum CellType {
@@ -29,6 +29,7 @@ type CellState = {
 enum GameSubmissionState {
     IDLE = 'idle',
     COMMITTING = 'committing',
+    WAITING_FOR_OPPONENT = 'waiting_for_opponent',
     WAITING_FOR_CALCULATION = 'waiting_for_calculation'
 }
 
@@ -53,6 +54,9 @@ export default function GamePage() {
     const [isDebugMode, setIsDebugMode] = useState(false);
     const { address, isConnected } = useAccount();
     const { signMessageAsync } = useSignMessage();
+    const [isTwoTeamCommitted, setIsTwoTeamCommitted] = useState(false);
+
+    const isNewStateRecalculatedRef = useRef<boolean | null>(false);
 
     // Function to fetch game data from smart contract
     const fetchGameData = async () => {
@@ -68,36 +72,36 @@ export default function GamePage() {
             console.log('Fetching game data for game ID:', gameId);
 
             // Fetch game data from smart contract
-            const contractGameData = await getGameFromContract(gameId);
+            const dbGameData = await getGameFromDB(gameId);
 
-            if (!contractGameData.success) {
-                if (contractGameData.error === 'GAME_NOT_FOUND') {
+            if (!dbGameData.success) {
+                if (dbGameData.error === 'GAME_NOT_FOUND') {
                     throw new Error('Game not found');
-                } else if (contractGameData.error === 'NETWORK_ERROR') {
+                } else if (dbGameData.error === 'DB_ERROR') {
                     throw new Error('Network error occurred while fetching game data');
                 } else {
-                    throw new Error(contractGameData.message);
+                    throw new Error(dbGameData.message);
                 }
             }
 
-            console.log('Contract game data:', contractGameData.data);
+            console.log('Contract game data:', dbGameData.data);
 
             // Create a new Game instance with the fetched data
             const newGame = new Game(parseInt(gameId));
-            newGame.status = contractGameData.data.status == 1 ? 'ACTIVE' : contractGameData.data.status == 2 ? 'FINISHED' : contractGameData.data.status == 3 ? 'FINISHED_BY_TIMEOUT' : 'ACTIVE';
+            newGame.status = dbGameData.data.status == 'active' ? GameStatus.ACTIVE : dbGameData.data.status == 'finished' ? GameStatus.FINISHED : dbGameData.data.status == 'finished_by_timeout' ? GameStatus.FINISHED_BY_TIMEOUT : GameStatus.ACTIVE;
 
-            newGame.team1.name = contractGameData.data.team1.name;
-            newGame.team2.name = contractGameData.data.team2.name;
-            newGame.team1.teamId = contractGameData.data.team1.teamId;
-            newGame.team2.teamId = contractGameData.data.team2.teamId;
+            newGame.team1.name = dbGameData.data.team1_info.name;
+            newGame.team2.name = dbGameData.data.team2_info.name;
+            newGame.team1.teamId = dbGameData.data.team1;
+            newGame.team2.teamId = dbGameData.data.team2;
 
-            for (const state of contractGameData.data.history) {
+            for (const state of dbGameData.data.history) {
                 const gameState = {
-                    team1PlayerPositions: state.team1Positions,
-                    team2PlayerPositions: state.team2Positions,
+                    team1PlayerPositions: state.team1PlayerPositions,
+                    team2PlayerPositions: state.team2PlayerPositions,
                     ballPosition: state.ballPosition,
                     ballOwner: state.ballOwner,
-                    type: (state.type == 1 ? 'startPositions' : state.type == 2 ? 'move' : 'goal') as 'startPositions' | 'move' | 'goal',
+                    type: (state.type == 'startPositions' ? GameStateType.START_POSITIONS : state.type == 'move' ? GameStateType.MOVE : state.type == 'goal_team1' ? GameStateType.GOAL_TEAM1 : GameStateType.GOAL_TEAM2) as GameStateType,
                     clashRandomResults: state.clashRandomResults,
                     team1Moves: state.team1Moves || [],
                     team2Moves: state.team2Moves || []
@@ -107,19 +111,42 @@ export default function GamePage() {
             }
 
             newGame.restoreState(newGame.history[newGame.history.length - 1]);
-            newGame.team1.score = contractGameData.data.team1.score;
-            newGame.team2.score = contractGameData.data.team2.score;
+            newGame.team1.score = dbGameData.data.team1_score;
+            newGame.team2.score = dbGameData.data.team2_score;
 
             if (userTeamId) {
                 const gameTeamInfo = Number(newGame.team1.teamId) === userTeamId ? newGame.team1 :
                     Number(newGame.team2.teamId) === userTeamId ? newGame.team2 : null;
-                setCurrentTeam(gameTeamInfo);
+
                 console.log('currentTeam', gameTeamInfo);
+                setCurrentTeam(gameTeamInfo);
+
+                if (gameTeamInfo!.enum == TeamEnum.TEAM1) {
+                    if (dbGameData.data.team1_moves.length > 0) {
+                        for (const move of dbGameData.data.team1_moves) {
+                            newGame.doPlayerMove(newGame.team1.players[move.playerId], move.moveType, move.oldPosition, move.newPosition);
+                        }
+                        newGame.commitMove(TeamEnum.TEAM1);
+                    }
+                } else if (gameTeamInfo!.enum == TeamEnum.TEAM2) {
+                    if (dbGameData.data.team2_moves.length > 0) {
+                        for (const move of dbGameData.data.team2_moves) {
+                            newGame.doPlayerMove(newGame.team2.players[move.playerId], move.moveType, move.oldPosition, move.newPosition);
+                        }
+                        newGame.commitMove(TeamEnum.TEAM2);
+                    }
+                }
             }
 
             setGame(newGame);
             // Set current history index to the latest state
             setCurrentHistoryIndex(newGame.history.length - 1);
+
+            // calculating new game state
+            if (dbGameData.data.team1_moves.length > 0 && dbGameData.data.team2_moves.length > 0) {
+                console.log('exist team1_moves and team2_moves!');
+                setIsTwoTeamCommitted(true);
+            }
 
         } catch (err) {
             console.error('Error fetching game data:', err);
@@ -129,50 +156,80 @@ export default function GamePage() {
         }
     };
 
-    // useEffect(() => {
-    //     if (!address) return;
-
-    //     const gameTeamInfo = Number(contractGameData.team1.teamId) === userTeamId ? newGame.team1 : newGame.team2;
-
-    //     console.log('userTeamId', userTeamId);
-    //     console.log('gameTeamInfo', gameTeamInfo);
-    //     setCurrentTeam(gameTeamInfo);
-    // }, [address]);
-
     // WebSocket subscription effect
     useEffect(() => {
         if (!gameId) return;
 
         fetchGameData();
 
-        // Subscribe to game channel
-        const gameChannel = ably.channels.get(`game_${gameId}`);
-
-        // Subscribe to game events
-        gameChannel.subscribe('game-event', (message) => {
-            console.log('WebSocket message received:', message);
-
-            // Handle NEW_GAME_STATE_NOTIFICATION
-            if (message.data.type === 'NEW_GAME_STATE_NOTIFICATION') {
-                console.log('New game state notification received, re-fetching game data...');
-                fetchGameData();
-                // Reset submission state when new game state is received
-                setGameSubmissionState(GameSubmissionState.IDLE);
-                // Reset history index to latest state
-                setCurrentHistoryIndex(0); // Will be updated after fetchGameData completes
+        // Subscribe to game channel using GameChannelManager
+        const connectToGame = async () => {
+            try {
+                await subscribeToGame(gameId);
+                console.log(`Connected to game ${gameId} channel`);
+            } catch (error) {
+                console.error('Failed to connect to game channel:', error);
             }
-        });
+        };
 
-        console.log(`Subscribed to game channel: game_${gameId}`);
+        connectToGame();
 
-        // Cleanup subscription on unmount
+        // Cleanup function to disconnect when component unmounts or game changes
         return () => {
-            console.log(`Unsubscribing from game channel: game_${gameId}`);
-            gameChannel.unsubscribe();
+            unsubscribeFromGame();
             // Reset submission state on cleanup
             setGameSubmissionState(GameSubmissionState.IDLE);
         };
     }, [gameId]);
+
+    // Listen for game events from game channel
+    useEffect(() => {
+        const handleGameEvent = (event: CustomEvent) => {
+            const gameEvent = event.detail;
+            console.log('Received game event on game page:', gameEvent);
+
+            // Handle NEW_GAME_STATE_NOTIFICATION
+            if (gameEvent.type === 'NEW_GAME_STATE') {
+                console.log('New game state notification received, re-fetching game data...');
+
+                console.log('gameEvent', gameEvent);
+                console.log('gameEvent.new_state', gameEvent.new_state);
+
+                game!.playerMoves = [];
+
+                game!.saveState(gameEvent.new_state);
+                game!.restoreState(gameEvent.new_state);
+
+
+                isNewStateRecalculatedRef.current = true;
+
+                setGame(game!);
+                // Reset submission state when new game state is received
+                setGameSubmissionState(GameSubmissionState.IDLE);
+                // Reset history index to latest state
+                setCurrentHistoryIndex(game!.history.length - 1);
+            }
+            if (gameEvent.type === 'GAME_ACTION_COMMITTED') {
+                console.log('Game action committed notification received, re-fetching game data...');
+                // Reset submission state when game finished is received
+                setGameSubmissionState(GameSubmissionState.WAITING_FOR_CALCULATION);
+                isNewStateRecalculatedRef.current = false;
+            }
+        };
+
+        if (!game) {
+            return;
+        }
+
+        // Add event listener for game events
+        window.addEventListener('game-event', handleGameEvent as EventListener);
+
+        // Cleanup function that runs when the component unmounts or when dependencies change
+        // This removes the event listener to prevent memory leaks and duplicate listeners
+        return () => {
+            window.removeEventListener('game-event', handleGameEvent as EventListener);
+        };
+    }, [game]);
 
     // Debug mode detection effect
     useEffect(() => {
@@ -281,10 +338,57 @@ export default function GamePage() {
         switchToMode(0, player, modes);
     }
 
+    useEffect(() => {
+        console.log('isTwoTeamCommitted, isConnected', isTwoTeamCommitted, isConnected);
+        if (!isConnected) return;
+
+        const calculateNewGameState = async () => {
+            console.log('Calculating new game state');
+            const signature = await authUserWithSignature(address!, signMessageAsync);
+            const response = await fetch('/api/game/calculate-new-game-state', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_id: Number(game!.gameId),
+                    team_enum: currentTeam?.enum == TeamEnum.TEAM1 ? 1 : 2,
+                    team_id: Number(currentTeam?.teamId),
+                    wallet_address: address,
+                    signature: signature.signature,
+                    message: signature.message
+                })
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                console.log('Failed to calculate new game state', data);
+                throw new Error('Failed to calculate new game state');
+            }
+
+            if (!isNewStateRecalculatedRef.current) {
+                setGameSubmissionState(GameSubmissionState.WAITING_FOR_CALCULATION);
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                if (!isNewStateRecalculatedRef.current) {
+                    fetchGameData();
+                }
+            }
+
+            setIsTwoTeamCommitted(false);
+        }
+
+        if (isTwoTeamCommitted) {
+            setGameSubmissionState(GameSubmissionState.WAITING_FOR_CALCULATION);
+            calculateNewGameState();
+        }
+    }, [isTwoTeamCommitted, isConnected]);
+
     const handleReady = () => {
         const sendMoves = async () => {
             // Set state to committing
             setGameSubmissionState(GameSubmissionState.COMMITTING);
+
+            isNewStateRecalculatedRef.current = false;
 
             const signature = await authUserWithSignature(address!, signMessageAsync);
 
@@ -295,8 +399,8 @@ export default function GamePage() {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        game_id: Number(game.gameId),
-                        moves: game.playerMoves,
+                        game_id: Number(game!.gameId),
+                        moves: game!.playerMoves,
                         team_enum: currentTeam?.enum == TeamEnum.TEAM1 ? 1 : 2,
                         team_id: Number(currentTeam?.teamId),
                         wallet_address: address,
@@ -315,16 +419,18 @@ export default function GamePage() {
 
                 console.log('Move committed successfully:', data);
 
-                // Set state to waiting for calculation
-                setGameSubmissionState(GameSubmissionState.WAITING_FOR_CALCULATION);
+                if (data.isTwoTeamCommited) {
+                    console.log('Two team commited, calculating new game state...');
+                    setGameSubmissionState(GameSubmissionState.WAITING_FOR_CALCULATION);
+                    clearSelection();
+                    setIsTwoTeamCommitted(true);
+                } else {
+                    setGameSubmissionState(GameSubmissionState.WAITING_FOR_OPPONENT);
 
-                // Set a timeout to reset state if no response is received within 30 seconds
-                setTimeout(() => {
-                    setGameSubmissionState(GameSubmissionState.IDLE);
-                }, 30000);
+                    clearSelection();
+                    game!.commitMove(currentTeam!.enum);
+                }
 
-                game.commitMove(currentTeam!.enum);
-                clearSelection();
 
             } catch (error) {
                 console.error('Error committing move:', error);
@@ -335,8 +441,8 @@ export default function GamePage() {
             }
         }
 
-        console.log('game.playerMoves', game.playerMoves);
-        if (game.playerMoves.length == 0) {
+        console.log('game.playerMoves', game!.playerMoves);
+        if (game!.playerMoves.length == 0) {
             console.log('No moves to commit');
             toast.error('No moves to commit');
             return;
@@ -349,7 +455,7 @@ export default function GamePage() {
         const playerTeam = player.team;
         // Determine which team the player belongs to
         const playerTeamEnum = playerTeam.id === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2;
-        const teamHasBall = game.ball.ownerTeam === playerTeamEnum;
+        const teamHasBall = game!.ball.ownerTeam === playerTeamEnum;
         const playerHasBall = player.ball !== null;
 
         let modes: MoveType[] = [];
@@ -382,14 +488,14 @@ export default function GamePage() {
         setModeIndex(index);
 
         // Calculate available cells based on the mode
-        const available = game.calculateAvailableCells(player!, mode);
+        const available = game!.calculateAvailableCells(player!, mode);
         updateCellHighlights(available);
     }
 
     const handleEmptyCellClick = (cell: CellState) => {
         // Check if this is an available cell for the selected player
         if (selectedPlayer && cellStates[cell.position.x][cell.position.y].highlighted) {
-            game.doPlayerMove(selectedPlayer, currentMode!, selectedPlayer.position, { x: cell.position.x, y: cell.position.y });
+            game!.doPlayerMove(selectedPlayer, currentMode!, selectedPlayer.position, { x: cell.position.x, y: cell.position.y });
         } else {
             // Clicked on an invalid cell, clear selection
         }
@@ -397,7 +503,7 @@ export default function GamePage() {
     }
 
     const restorePlayerState = (player: TeamPlayer) => {
-        game.undoPlayerMove(player);
+        game!.undoPlayerMove(player);
 
         // Clear selection
         clearSelection();
@@ -436,15 +542,15 @@ export default function GamePage() {
     }
 
     const isHasOldStateBall = () => {
-        return game.ball.oldPosition != null;
+        return game!.ball.oldPosition != null;
     }
 
     // History navigation functions
     const goToHistoryIndex = (index: number) => {
-        if (!game || index < 0 || index >= game.history.length) return;
+        if (!game || index < 0 || index >= game!.history.length) return;
 
         setCurrentHistoryIndex(index);
-        game.restoreState(game.history[index]);
+        game!.restoreState(game!.history[index]);
 
         // Clear any current selection when navigating history
         clearSelection();
@@ -457,24 +563,25 @@ export default function GamePage() {
     }
 
     const goToNextState = () => {
-        if (currentHistoryIndex < game.history.length - 1) {
+        if (currentHistoryIndex < game!.history.length - 1) {
             goToHistoryIndex(currentHistoryIndex + 1);
         }
     }
 
     const goToLatestState = () => {
         if (game) {
-            goToHistoryIndex(game.history.length - 1);
+            goToHistoryIndex(game!.history.length - 1);
         }
     }
 
     const getHistoryDescription = (index: number) => {
-        if (!game || index >= game.history.length) return '';
+        if (!game || index >= game!.history.length) return '';
 
         const state = game.history[index];
         if (index === 0) return 'Initial Positions';
-        if (state.type === 'goal') return `Goal! ${state.ballOwner === TeamEnum.TEAM1 ? game.team1.name : game.team2.name}`;
-        if (state.type === 'move') return `Move ${index}`;
+        if (state.type === GameStateType.GOAL_TEAM1) return `Goal! ${game.team1.name}`;
+        if (state.type === GameStateType.GOAL_TEAM2) return `Goal! ${game.team2.name}`;
+        if (state.type === GameStateType.MOVE) return `Move ${index}`;
         return `State ${index}`;
     }
 
@@ -631,7 +738,7 @@ export default function GamePage() {
                         ) : (
                             <button
                                 onClick={handleReady}
-                                disabled={game.playerMoves.length === 0}
+                                disabled={game.playerMoves.length === 0 || gameSubmissionState !== GameSubmissionState.IDLE}
                                 className={`px-8 py-3 font-semibold rounded-lg transition-colors shadow-lg ${game.playerMoves.length === 0
                                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                                     : 'bg-green-600 text-white hover:bg-green-700'
@@ -734,11 +841,18 @@ export default function GamePage() {
                                     <p className="text-gray-600">Committing your moves to smart-contract...</p>
                                 </>
                             )}
+                            {gameSubmissionState === GameSubmissionState.WAITING_FOR_OPPONENT && (
+                                <>
+                                    <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-yellow-600 mx-auto mb-4"></div>
+                                    <h3 className="text-xl font-semibold text-gray-800 mb-2">Your Moves Submitted!</h3>
+                                    <p className="text-gray-600">Your moves are written. Waiting for yout opponent to make moves...</p>
+                                </>
+                            )}
                             {gameSubmissionState === GameSubmissionState.WAITING_FOR_CALCULATION && (
                                 <>
                                     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-yellow-600 mx-auto mb-4"></div>
-                                    <h3 className="text-xl font-semibold text-gray-800 mb-2">Moves Submitted!</h3>
-                                    <p className="text-gray-600">Your moves are written. Waiting for a game to calculate new state...</p>
+                                    <h3 className="text-xl font-semibold text-gray-800 mb-2">Calculating New Board Positions</h3>
+                                    <p className="text-gray-600">All moves are made. Waiting for a game to calculate new state...</p>
                                 </>
                             )}
                         </div>

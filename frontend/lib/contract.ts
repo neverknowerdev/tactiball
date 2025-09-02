@@ -1,20 +1,49 @@
 import { type Address } from 'viem';
 import gameArtifact from '../../artifacts/contracts/Game.sol/ChessBallGame.json';
 import { publicClient } from './providers';
+import { createAnonClient } from './supabase';
 
-export const CONTRACT_ADDRESS = '0x4d9FFa66dfb960571013e17096690EE0b13555c4' as Address;
+export const CONTRACT_ADDRESS = '0x739b4fc0DD8B592Da1F5216b1DcB19C77EE77dB3' as Address;
 // Import the ABI from the web3-functions directory
 export const CONTRACT_ABI = gameArtifact.abi as any[];
+
+// GameInfo structure that describes Game in DB
+
 
 // Custom error types for better error handling
 export type GameFetchResult = {
     success: true;
-    data: any;
+    data: GameInfo | any; // Can be GameInfo (from DB) or contract data
 } | {
     success: false;
     error: 'GAME_NOT_FOUND' | 'CONTRACT_ERROR' | 'NETWORK_ERROR';
     message: string;
 };
+
+export async function getGameFromDB(gameId: string): Promise<GameFetchResult> {
+    const supabase = createAnonClient();
+    const { data, error } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', gameId)
+        .single();
+
+    if (error) {
+        console.error('Error fetching game from DB:', error);
+        return {
+            success: false,
+            error: 'GAME_NOT_FOUND',
+            message: 'Failed to fetch game data from DB'
+        };
+    }
+
+    return {
+        success: true,
+        data: data as GameInfo
+    };
+}
+
+
 
 /**
  * Fetch game data from the smart contract
