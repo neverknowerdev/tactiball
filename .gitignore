@@ -18,7 +18,8 @@ node_modules/
 /bundle
 
 # Hardhat
-/artifacts
+/artifacts/**/*
+!/artifacts/contracts/Game.sol/ChessBallGame.json
 /cache
 /typechain-types
 /types
