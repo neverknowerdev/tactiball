@@ -85,6 +85,7 @@
     /* green-600 */
     position: relative;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
 }
 
 .field .grid {
@@ -538,21 +539,42 @@ field lines
         max-width: 100%;
     }
 
-    .team1,
-    .team2 {
+    .player {
         width: 30px;
         height: 30px;
         font-size: 10px;
     }
 
-    .ball {
-        width: 24px;
-        height: 24px;
+    .ball::after {
+        width: 12px;
+        height: 12px;
+        bottom: 2px;
     }
 
     .goal-area {
         width: 120px;
         height: 60px;
+    }
+}
+
+@media (max-width: 480px) {
+    .field {
+        height: 350px;
+        max-width: 100%;
+        overflow-y: hidden;
+        overflow-x: scroll;
+    }
+
+    .player {
+        width: 25px;
+        height: 25px;
+        font-size: 8px;
+    }
+
+    .ball::after {
+        width: 10px;
+        height: 10px;
+        bottom: 1px;
     }
 }
 
