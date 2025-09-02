@@ -41,7 +41,7 @@ export async function GET() {
       ogImageUrl: "https://play.chessball.fun/hero.png",
     }),
     baseBuilder: {
-      allowedAddresses: ["0xf831c2F992866D01A2d66dB807adD7EEE8980914", "0xE4f141b0EB1E60fC0095b787c4a36674C9236796"]
+      allowedAddresses: ["0xf831c2F992866D01A2d66dB807adD7EEE8980914", "0xE4f141b0EB1E60fC0095b787c4a36674C9236796", "0x810E57D64D4Bd3D92560dF5E82f01f654359F89B"]
     }
   });
 }
