@@ -14,9 +14,9 @@ import { sendWebhookMessage } from '@/lib/webhook';
  * ensure it will succeed, then executes it using the relayer client.
  */
 
-BigInt.prototype.toJSON = function () {
-    return Number(this);
-};
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString()
+}
 
 // Interface for the request body
 interface FinishGameByTimeoutRequest {

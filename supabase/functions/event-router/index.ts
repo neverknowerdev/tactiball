@@ -5,9 +5,9 @@ import { WebSocketService, BroadcastMessage } from './websocket-service.ts'
 import { TeamEnum, Game } from './game.ts'
 // Event types from smart contract
 
-BigInt.prototype.toJSON = function () {
-    return Number(this);
-};
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString()
+}
 
 Deno.serve(async (req: Request) => {
     try {

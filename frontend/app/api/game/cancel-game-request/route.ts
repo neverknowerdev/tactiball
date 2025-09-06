@@ -13,6 +13,10 @@ interface CancelGameRequestRequest {
     gameRequestId: number;
 }
 
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString()
+}
+
 export async function POST(request: NextRequest) {
     try {
         const { game_request_id, signature, message, wallet_address } = await request.json();

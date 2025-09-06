@@ -19,9 +19,9 @@ interface CommitGameActionsRequest {
     message: string;
 }
 
-BigInt.prototype.toJSON = function () {
-    return Number(this);
-};
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString()
+}
 
 export async function POST(request: NextRequest) {
     try {

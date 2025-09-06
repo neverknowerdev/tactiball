@@ -15,6 +15,10 @@ interface CreateTeamRequest {
     countryId: number;
 }
 
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString()
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
         const body: CreateTeamRequest = await req.json();
