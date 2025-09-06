@@ -233,12 +233,37 @@ export default function GamePage() {
                 // Show game result modal
                 setGameResultModal({
                     isOpen: true,
-                    winner: gameEvent.data.winner,
-                    finishReason: gameEvent.data.finish_reason,
-                    gameId: gameEvent.data.game_id,
-                    timestamp: gameEvent.data.timestamp
+                    winner: gameEvent.winner,
+                    finishReason: gameEvent.finish_reason,
+                    gameId: gameEvent.game_id,
+                    timestamp: gameEvent.timestamp
                 });
                 // Reset submission state when game finished is received
+                setGameSubmissionState(GameSubmissionState.IDLE);
+            }
+            if (gameEvent.type === 'GOAL_SCORED') {
+                console.log('Goal scored notification received:', gameEvent);
+
+                // Update the appropriate team's score
+                if (gameEvent.teamEnum == 1) {
+                    game!.team1.score += 1;
+                    toast.success(`🎉 ${game!.team1.name} scored a goal!`);
+                } else if (gameEvent.teamEnum == 2) {
+                    game!.team2.score += 1;
+                    toast.success(`🎉 ${game!.team2.name} scored a goal!`);
+                }
+
+                // Update the game state to trigger re-render by creating a new Game instance
+                const updatedGame = Object.assign(Object.create(Object.getPrototypeOf(game!)), game!);
+                setGame(updatedGame);
+            }
+            if (gameEvent.type === 'GAME_STATE_ERROR') {
+                console.log('Game state error notification received:', gameEvent);
+
+                // Show error toast notification
+                toast.error(`Game Error: ${gameEvent.error_msg || 'Unknown error occurred'}`);
+
+                // Reset submission state on error
                 setGameSubmissionState(GameSubmissionState.IDLE);
             }
         };

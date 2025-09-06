@@ -17,18 +17,18 @@
     "network": "baseMainnet",
     "chainId": "8453",
     "proxyAddress": "0x739b4fc0DD8B592Da1F5216b1DcB19C77EE77dB3",
-    "implementationAddress": "0x0020347d04d50b2ade1d0792541c7c7070986d85",
+    "implementationAddress": "0x63D1f10bC2539553E3F2491c7Db62dd86A9c4c1c",
     "libraries": {
       "gameLib": "0xE423143AC74B0Cf294581c6fA1577387e284F60e"
     },
     "deployer": "0xf831c2F992866D01A2d66dB807adD7EEE8980914",
     "timestamp": "2025-09-01T09:31:58.670Z",
     "gameLibHash": "5955aae95d7ee0f7548e82d530630a63784d4ab4d5df647a4c3c2129b10e0ee7",
-    "upgradeTimestamp": "2025-09-02T13:47:26.766Z",
-    "previousImplementation": "0xefcea2f8173db1c9189a381fb920d246903e27aa",
+    "upgradeTimestamp": "2025-09-06T22:04:24.168Z",
+    "previousImplementation": "0x0020347d04d50b2ade1d0792541c7c7070986d85",
     "previousLibraries": {
-      "gameLib": "0x92a5266E2f88F084Df8EE6187F51246d7973d885"
+      "gameLib": "0xE423143AC74B0Cf294581c6fA1577387e284F60e"
     },
-    "librariesUpdated": true
+    "librariesUpdated": false
   }
 }

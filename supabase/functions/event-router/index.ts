@@ -1,13 +1,46 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
+const { createHmac } = await import('node:crypto');
 import { AbiDecoder, CONTRACT_ABI, CONTRACT_ADDRESS, DecodedEvent } from './abi-decoder.ts'
 import { WebSocketService, BroadcastMessage } from './websocket-service.ts'
 import { TeamEnum, Game } from './game.ts'
 // Event types from smart contract
 
+BigInt.prototype.toJSON = function () {
+    return Number(this);
+};
+
 Deno.serve(async (req: Request) => {
     try {
-        // Parse the incoming webhook payload directly
-        const webhookEvent: WebhookEvent = await req.json()
+        const signature = req.headers.get('X-Alchemy-Signature')
+        const apiKey = req.headers.get('X-Api-Key');
+        if (!signature && !apiKey) {
+            return new Response(JSON.stringify({ error: 'Missing X-Alchemy-Signature header' }), {
+                headers: { 'Content-Type': 'application/json' },
+                status: 400,
+            })
+        }
+
+        // Read the body as text first for signature validation
+        const bodyText = await req.text();
+
+        if (signature) {
+            if (!isValidSignatureForStringBody(bodyText, signature)) {
+                return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                    status: 400,
+                })
+            }
+        } else {
+            if (apiKey !== process.env.RELAYER_API_KEY) {
+                return new Response(JSON.stringify({ error: 'Invalid API key' }), {
+                    headers: { 'Content-Type': 'application/json' },
+                    status: 400,
+                })
+            }
+        }
+
+        // Parse the incoming webhook payload from the text we already read
+        const webhookEvent: WebhookEvent = JSON.parse(bodyText)
 
         console.log('webhookEvent', JSON.stringify(webhookEvent))
 
@@ -42,7 +75,19 @@ Deno.serve(async (req: Request) => {
 
                 console.log('decodedData', decodedData)
 
+                // Save event to messages table - only process if this is the first time
+                const messageRecord = await saveEventToMessages(supabase, decodedData, webhookEvent.event.data.block.timestamp, Number(webhookEvent.event.data.block.number), log.transaction.hash, Number(log.index))
+
+                // Only process the event if the message was successfully inserted (first time processing)
+                if (!messageRecord) {
+                    console.log(`Event already processed, skipping: ${decodedData.eventName}`)
+                    return
+                }
+
                 await processLog(supabase, wsService, decodedData, webhookEvent.event.data.block.timestamp)
+
+                // Mark the message as processed
+                await markMessageAsProcessed(supabase, messageRecord.id)
             }
 
             return new Response(JSON.stringify({ success: true }), {
@@ -67,6 +112,12 @@ Deno.serve(async (req: Request) => {
 
 async function processLog(supabase: any, wsService: WebSocketService, eventLog: DecodedEvent, timestamp: number) {
     try {
+
+        console.log('eventLog', eventLog)
+
+
+
+        console.log(`Processing event for the first time: ${eventLog.eventName}`)
 
         switch (eventLog.eventName) {
             case 'TeamCreated':
@@ -93,6 +144,12 @@ async function processLog(supabase: any, wsService: WebSocketService, eventLog: 
             case 'GameStateError':
                 await handleGameStateError(eventLog, supabase, wsService, timestamp)
                 break
+            case 'GoalScored':
+                await handleGoalScored(eventLog, supabase, wsService, timestamp)
+                break
+            case 'EloUpdated':
+                await handleEloUpdated(eventLog, supabase, wsService, timestamp)
+                break
             default:
                 console.log(`Unknown event: ${eventLog.eventName}`)
         }
@@ -103,6 +160,71 @@ async function processLog(supabase: any, wsService: WebSocketService, eventLog: 
     console.log('sleeping for 3 seconds to finish all network things..');
     // Sleep for 3 seconds to allow for any pending operations to complete
     await new Promise(resolve => setTimeout(resolve, 3000));
+}
+
+async function saveEventToMessages(supabase: any, eventLog: DecodedEvent, timestamp: number, blockNumber: number, transactionHash: string, logIndex: number) {
+    if (!blockNumber || !transactionHash || !logIndex) {
+        console.error('Missing required arguments to save event to messages')
+        throw new Error('Missing required arguments to save event to messages')
+    }
+
+
+
+    const msg = {
+        block_number: Number(blockNumber),
+        transaction_hash: transactionHash,
+        log_index: Number(logIndex),
+        timestamp: new Date(timestamp * 1000).toISOString(),
+        event_name: eventLog.eventName,
+        args: eventLog.args || {}
+    };
+
+    console.log('msg', msg)
+    try {
+        const { data, error } = await supabase
+            .from('messages')
+            .insert(msg)
+            .select()
+            .single();
+
+        if (error) {
+            if (error.code === '23505') {
+                console.log('Message is skipped due to constraint - already processed');
+                return null; // Return null to indicate this message was already processed
+            }
+            console.error('Error saving event to messages:', error);
+            throw error;
+        }
+
+        console.log(`Event saved to messages: ${eventLog.eventName} (ID: ${data.id})`);
+        return data; // Return the inserted record
+    } catch (error) {
+        console.error('Error in saveEventToMessages:', error);
+        // Don't throw here to avoid breaking the main event processing
+        return null;
+    }
+}
+
+async function markMessageAsProcessed(supabase: any, messageId: number) {
+    try {
+        const { error } = await supabase
+            .from('messages')
+            .update({
+                is_processed: true,
+                processed_at: new Date().toISOString()
+            })
+            .eq('id', messageId);
+
+        if (error) {
+            console.error('Error marking message as processed:', error);
+            throw error;
+        }
+
+        console.log(`Message ${messageId} marked as processed at ${new Date().toISOString()}`);
+    } catch (error) {
+        console.error('Error in markMessageAsProcessed:', error);
+        // Don't throw here to avoid breaking the main event processing
+    }
 }
 
 async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
@@ -126,6 +248,10 @@ async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsSer
         .select()
 
     if (error) {
+        if (error.code === '23505') {
+            console.log('Team already exists')
+            return
+        }
         console.error('Error inserting team:', error)
         throw error
     }
@@ -258,6 +384,10 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
         .select()
 
     if (error) {
+        if (error.code === '23505') {
+            console.log('Game already exists')
+            return
+        }
         console.error('Error inserting game:', error)
         throw error
     }
@@ -319,7 +449,7 @@ async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsSe
     })
 
     console.log(`New game state: ${gameId} at ${time}`)
-    console.log(`Latest history item: ${JSON.stringify(latestHistoryItem, bigintToNumber)}`)
+    console.log(`Latest history item: ${JSON.stringify(latestHistoryItem)}`)
 }
 
 async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
@@ -361,6 +491,7 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
         .from('teams')
         .update({ active_game_id: null })
         .in('id', [game.team1, game.team2])
+        .eq('active_game_id', gameId)
 
     if (updateError) {
         console.error('Error updating teams active_game_id:', updateError)
@@ -431,6 +562,88 @@ async function handleGameStateError(decodedData: DecodedEvent, supabase: any, ws
     }
 }
 
+async function handleGoalScored(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
+    const { gameId, scoringTeam } = AbiDecoder.getTypedArgs(decodedData)
+
+    console.log(`Goal scored: ${gameId} by team ${scoringTeam}`)
+
+    if (!scoringTeam) {
+        console.error('Invalid team:', scoringTeam)
+        return
+    }
+
+    if (!gameId) {
+        console.error('Invalid gameId:', gameId)
+        return
+    }
+
+    // Get game info to find team channels
+    const { data: gameInfo, error } = await supabase
+        .from('games')
+        .select('team1, team2, team1_score, team2_score')
+        .eq('id', gameId)
+        .single()
+
+    if (error) {
+        console.error('Error fetching game info:', error)
+        return
+    }
+
+
+
+    let updateData;
+    if (scoringTeam === 1) {
+        if (gameInfo.team1_score === null) {
+            gameInfo.team1_score = 0
+        }
+        updateData = { team1_score: Number(gameInfo.team1_score) + 1 }
+    } else if (scoringTeam === 2) {
+        if (gameInfo.team2_score === null) {
+            gameInfo.team2_score = 0
+        }
+        updateData = { team2_score: Number(gameInfo.team2_score) + 1 }
+    }
+
+    // Update score in database based on which team scored
+    const { data: gameInfoUpdate, error: gameInfoUpdateError } = await supabase
+        .from('games')
+        .update(updateData)
+        .eq('id', gameId)
+        .select()
+
+    if (gameInfoUpdateError) {
+        console.error('Error updating game score:', gameInfoUpdateError)
+        return
+    }
+
+    console.log(`Updated score for game ${gameId}`)
+
+    // Broadcast to game channel
+    await wsService.broadcastToGame(gameId, {
+        type: 'GOAL_SCORED',
+        game_id: gameId,
+        teamEnum: scoringTeam,
+        timestamp: timestamp
+    })
+}
+
+async function handleEloUpdated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketService, timestamp: number) {
+    const { teamId, eloRating } = AbiDecoder.getTypedArgs(decodedData)
+
+    console.log(`Elo updated: ${teamId} to ${eloRating}`)
+
+
+    const { error } = await supabase
+        .from('teams')
+        .update({ elo_rating: eloRating })
+        .eq('id', teamId)
+
+    if (error) {
+        console.error('Error updating elo rating:', error)
+        throw error
+    }
+}
+
 function bigintToNumber(key: string, value: any) {
     return typeof value === "bigint" ? Number(value) : value
 }
@@ -481,4 +694,19 @@ interface WebhookEvent {
         sequenceNumber: string
         network: string
     }
+}
+
+function isValidSignatureForStringBody(
+    body: string, // must be raw string body, not json transformed version of the body
+    signature: string, // your "X-Alchemy-Signature" from header
+): boolean {
+    const signingKey = Deno.env.get('ALCHEMY_SIGNING_KEY') || '';
+
+    if (signingKey === '') {
+        throw new Error('Missing ALCHEMY_SIGNING_KEY environment variable')
+    }
+    const hmac = createHmac("sha256", signingKey); // Create a HMAC SHA256 hash using the signing key
+    hmac.update(body, "utf8"); // Update the token hash with the request body using utf8
+    const digest = hmac.digest("hex");
+    return signature === digest;
 }

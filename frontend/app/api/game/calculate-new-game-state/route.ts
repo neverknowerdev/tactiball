@@ -7,6 +7,8 @@ import { addToGameHistory, getGame } from './db';
 import { processGameMoves } from './process-game-moves';
 import { toContractStateType, toContractMove, toTeamEnum } from './types';
 import { GameAction } from '@/lib/game';
+import { sendWebhookMessage } from '@/lib/webhook';
+import { parseEventLogs } from 'viem';
 
 interface CommitGameActionsRequest {
     game_id: string;
@@ -16,6 +18,10 @@ interface CommitGameActionsRequest {
     signature: string;
     message: string;
 }
+
+BigInt.prototype.toJSON = function () {
+    return Number(this);
+};
 
 export async function POST(request: NextRequest) {
     try {
@@ -99,14 +105,21 @@ export async function POST(request: NextRequest) {
             account: relayerClient.account
         });
 
-        await addToGameHistory(body.game_id, gameInfo.history, gameResult.statesToSend);
-
         // Execute newGameState transaction
         const hash = await relayerClient.writeContract(newGameStateRequest);
         console.log('New game state committed. Transaction hash:', hash);
 
+        addToGameHistory(body.game_id, gameInfo.history, gameResult.statesToSend);
+
         // Wait for transaction confirmation
         const receipt = await publicClient.waitForTransactionReceipt({ hash: hash });
+
+        const logs = parseEventLogs({
+            abi: CONTRACT_ABI,
+            logs: receipt.logs,
+        });
+
+        await sendWebhookMessage(logs);
 
         return NextResponse.json({
             success: true,

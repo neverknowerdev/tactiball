@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient, createRelayerClient } from '@/lib/providers';
-import { parseEventLogs } from 'viem';
+import { parseEventLogs, Log } from 'viem';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { saveMovesToDB } from './db';
 import { GameAction, TeamEnum, MoveType } from '@/lib/game';
+import { sendWebhookMessage } from '@/lib/webhook';
 
 /**
  * Game Actions Commit Endpoint
@@ -14,6 +15,9 @@ import { GameAction, TeamEnum, MoveType } from '@/lib/game';
  * using commitGameActions function. It simulates the transaction first
  * to ensure it will succeed, then executes it using the relayer client.
  */
+BigInt.prototype.toJSON = function () {
+    return Number(this);
+};
 
 // Interface for the request body
 interface CommitGameActionsRequest {
@@ -150,7 +154,9 @@ export async function POST(request: NextRequest) {
             logs: receipt.logs,
         });
 
-        const gameActionCommittedLog = logs.find(log => log.eventName === 'gameActionCommitted');
+        const gameActionCommittedLog: Log = logs.find(log => log.eventName === 'gameActionCommitted') as Log;
+
+        await sendWebhookMessage(logs);
         // two players made moves - need to calculate
 
         if (receipt.status === 'success') {

@@ -83,6 +83,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         GameLib.TeamEnum winner,
         GameLib.FinishReason finishReason
     );
+    event EloUpdated(uint256 indexed teamId, uint64 eloRating);
     event gameActionCommitted(uint256 indexed gameId, uint256 timestamp);
     event NewGameState(
         uint256 indexed gameId,
@@ -717,6 +718,9 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // Update game team info
         game.team1.eloRatingNew = team1.eloRating;
         game.team2.eloRatingNew = team2.eloRating;
+
+        emit EloUpdated(team1.id, team1.eloRating);
+        emit EloUpdated(team2.id, team2.eloRating);
     }
 
     // ========================================

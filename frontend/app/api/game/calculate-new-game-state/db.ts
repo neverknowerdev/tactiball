@@ -18,12 +18,12 @@ export async function getGame(gameId: string): Promise<DBGame | null> {
 }
 
 export async function addToGameHistory(gameId: string, history: GameState[], newStates: GameState[]) {
-    const newHistory = [...history, ...newStates];
+    history.push(...newStates);
     const supabase = createWriteClient();
     const { data, error } = await supabase
         .from('games')
         .update({
-            history: newHistory
+            history: history
         })
         .eq('id', gameId)
         .select();

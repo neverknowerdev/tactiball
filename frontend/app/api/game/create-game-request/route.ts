@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { type Address, BaseError, ContractFunctionRevertedError } from 'viem';
+import { type Address, BaseError, ContractFunctionRevertedError, parseEventLogs } from 'viem';
 import { createRelayerClient, publicClient } from '@/lib/providers';
 import { CONTRACT_ABI, CONTRACT_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
+import { sendWebhookMessage } from '@/lib/webhook';
 
 interface CreateGameRequestRequest {
     wallet_address: string;
@@ -12,6 +13,10 @@ interface CreateGameRequestRequest {
     team1_id: number;
     team2_id: number;
 }
+
+BigInt.prototype.toJSON = function () {
+    return Number(this);
+};
 
 export async function POST(request: NextRequest) {
     try {
@@ -74,6 +79,13 @@ export async function POST(request: NextRequest) {
         const receipt = await publicClient.waitForTransactionReceipt({
             hash: result
         });
+
+        const logs = parseEventLogs({
+            abi: CONTRACT_ABI,
+            logs: receipt.logs,
+        });
+
+        await sendWebhookMessage(logs);
 
         console.log('Creating game request with relayer:', {
             wallet_address,

@@ -731,3 +731,30 @@ function fillStartPositions(team1: Team, team2: Team, ball: Ball, teamWithBall: 
         ball.position = team2.players[5].position;
     }
 }
+
+export function toMoveType(moveType: number): MoveType {
+    if (moveType === 0) return MoveType.PASS;
+    if (moveType === 1) return MoveType.TACKLE;
+    if (moveType === 2) return MoveType.RUN;
+    if (moveType === 3) return MoveType.SHOT;
+    return MoveType.PASS;
+}
+
+export function toPosition(x: number, y: number): Position {
+    return { x: x, y: y };
+}
+
+export function toGameStatus(status: number): GameStatus {
+    if (status === 0) return GameStatus.ACTIVE;
+    if (status === 1) return GameStatus.FINISHED;
+    if (status === 2) return GameStatus.FINISHED_BY_TIMEOUT;
+    throw new Error(`Invalid game status: ${status}`);
+}
+
+export function toTeamEnum(team: number): TeamEnum | null {
+    if (!team) return null;
+    if (team === 0) return null;
+    if (team === 1) return TeamEnum.TEAM1;
+    if (team === 2) return TeamEnum.TEAM2;
+    throw new Error(`Invalid team: ${team}`);
+}

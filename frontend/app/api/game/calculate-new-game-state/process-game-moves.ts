@@ -62,7 +62,7 @@ export function processGameMoves(gameInfo: DBGame) {
         ballPosition: game.ball.position,
         ballOwner: game.ball.ownerTeam,
         history: gameInfo.history,
-        clashRandomResults: rendererStates.map(state => state.clashRandomResults)
+        clashRandomResults: newState.clashRandomResults
     }
 
     return gameResult;

@@ -3,6 +3,8 @@ import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient, createRelayerClient } from '@/lib/providers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '@/lib/contract';
 import { base } from 'viem/chains';
+import { parseEventLogs } from 'viem';
+import { sendWebhookMessage } from '@/lib/webhook';
 
 /**
  * Finish Game By Timeout Endpoint
@@ -11,6 +13,10 @@ import { base } from 'viem/chains';
  * finishGameByTimeoutRelayer function. It simulates the transaction first to
  * ensure it will succeed, then executes it using the relayer client.
  */
+
+BigInt.prototype.toJSON = function () {
+    return Number(this);
+};
 
 // Interface for the request body
 interface FinishGameByTimeoutRequest {
@@ -78,6 +84,13 @@ export async function POST(request: NextRequest) {
 
         // Wait for transaction confirmation
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+        const logs = parseEventLogs({
+            abi: CONTRACT_ABI,
+            logs: receipt.logs,
+        });
+
+        await sendWebhookMessage(logs);
 
         if (receipt.status === 'success') {
             return NextResponse.json({
