@@ -38,23 +38,21 @@ BEGIN
         END;
 
         UPDATE public.teams
-        SET last_games_results = array_append(
-        CASE
-            WHEN cardinality(last_games_results) <= 10 THEN last_games_results
-            ELSE last_games_results[cardinality(last_games_results)-9:cardinality(last_games_results)]
-        END,
-        team1_result
-        )::public.game_result[]
+        SET last_games_results = CASE
+            WHEN cardinality(last_games_results) >= 10 THEN
+                array_append(last_games_results[1:], team1_result)
+            ELSE
+                array_append(last_games_results, team1_result)
+        END
         WHERE id = NEW.team1; 
 
         UPDATE public.teams
-        SET last_games_results = array_append(
-        CASE
-            WHEN cardinality(last_games_results) <= 10 THEN last_games_results
-            ELSE last_games_results[cardinality(last_games_results)-9:cardinality(last_games_results)]
-        END,
-        team2_result
-        )::public.game_result[]
+        SET last_games_results = CASE
+            WHEN cardinality(last_games_results) >= 10 THEN
+                array_append(last_games_results[1:], team2_result)
+            ELSE
+                array_append(last_games_results, team2_result)
+        END
         WHERE id = NEW.team2;
     END IF;
     
@@ -81,7 +79,7 @@ BEGIN
     SET last_games_results = array_append(
         CASE
             WHEN cardinality(last_games_results) <= 10 THEN last_games_results
-            ELSE last_games_results[cardinality(last_games_results)-9:cardinality(last_games_results)]
+            ELSE last_games_results[1:]
         END,
         new_result
     )::public.game_result[]

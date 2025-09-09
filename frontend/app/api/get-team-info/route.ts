@@ -44,19 +44,24 @@ export async function GET(request: NextRequest) {
         // Calculate team age in days
         const teamAge = Math.floor((Date.now() - new Date(team.created_at).getTime()) / (1000 * 60 * 60 * 24));
 
-        // Calculate statistics from last_games_results array
-        const lastGamesResults = team.last_games_results || [];
-        const wins = lastGamesResults.filter((result: string) => result === 'VICTORY').length;
-        const draws = lastGamesResults.filter((result: string) => result === 'DRAW').length;
-        const losses = lastGamesResults.filter((result: string) => result === 'DEFEAT' || result === 'DEFEAT_BY_TIMEOUT').length;
-        const totalMatches = lastGamesResults.length;
+        // Calculate league and global positions using efficient SQL query
+        let leaguePosition = null;
+        let globalPosition = null;
 
-        // Calculate win rate
-        const winRate = totalMatches > 0 ? (wins / totalMatches * 100) : 0;
+        console.log('team.elo_rating', team.elo_rating);
 
-        // Get league position (placeholder - you might want to implement this based on your ranking logic)
-        const leaguePosition = team.elo_rating ? Math.floor(Math.random() * 50) + 1 : null;
-        const globalPosition = team.elo_rating ? Math.floor(Math.random() * 200) + 1 : null;
+        if (team.elo_rating) {
+            const { data: rankData, error: rankError } = await supabase
+                .rpc('get_team_rankings', { team_id_param: team.id });
+
+            console.log('rankData', rankData);
+
+            if (!rankError && rankData && rankData.length > 0) {
+                const rankings = rankData[0];
+                globalPosition = rankings.global_rank;
+                leaguePosition = rankings.country_rank;
+            }
+        }
 
         const teamInfo = {
             id: team.id,
@@ -65,16 +70,12 @@ export async function GET(request: NextRequest) {
             countryIndex: team.country,
             walletAddress: team.primary_wallet,
             elo_rating: team.elo_rating,
-            matchesPlayed: totalMatches,
-            wins,
-            losses,
-            draws,
-            winRate,
             teamAge,
             leaguePosition,
             globalPosition,
             createdAt: team.created_at,
-            active_game_id: team.active_game_id
+            active_game_id: team.active_game_id,
+            lastGames: team.last_games_results || []
         };
 
         return NextResponse.json({

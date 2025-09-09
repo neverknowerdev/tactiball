@@ -1,5 +1,8 @@
 import Ably from 'ably';
 
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString()
+}
 // Initialize Ably client
 // You'll need to add ABLY_API_KEY to your environment variables
 export const ably = new Ably.Realtime({
@@ -198,7 +201,7 @@ export class GameChannelManager {
             this.isConnected = true;
             console.log(`[Game ${gameId}] Successfully subscribed to game channel: ${channelName}`);
         } catch (error) {
-            console.error(`[Game ${gameId}] Error subscribing to game channel:`, error);
+            console.error(`[Game ${gameId}] Error suscribing to game channel:`, error);
             throw error;
         }
     }
@@ -274,3 +277,102 @@ export const subscribeToGame = async (gameId: string): Promise<void> => {
 export const unsubscribeFromGame = async (): Promise<void> => {
     return gameChannelManager.unsubscribeFromGame();
 };
+
+// WebSocket service for event broadcasting
+export interface BroadcastMessage {
+    type: string;
+    timestamp: number;
+    [key: string]: any;
+}
+
+export class WebSocketBroadcastingService {
+    private ably: Ably.Realtime
+
+    constructor(ablyApiKey: string) {
+        this.ably = new Ably.Realtime(ablyApiKey)
+    }
+
+    /**
+     * Broadcast a message to a specific team channel
+     */
+    async broadcastToTeam(teamId: number, message: BroadcastMessage): Promise<void> {
+        try {
+            const channel = `team_${teamId}`;
+            await this.broadcastToChannel(channel, message);
+            console.log(`Broadcasted to team channel ${channel}:`, message);
+        } catch (error) {
+            console.error(`Error broadcasting to team ${teamId}:`, error);
+        }
+    }
+
+    /**
+     * Broadcast a message to a specific game channel
+     */
+    async broadcastToGame(gameId: number, message: BroadcastMessage): Promise<void> {
+        try {
+            const channel = `game_${gameId}`;
+            await this.broadcastToChannel(channel, message);
+            console.log(`Broadcasted to game channel ${channel}:`, message);
+        } catch (error) {
+            console.error(`Error broadcasting to game ${gameId}:`, error);
+        }
+    }
+
+    /**
+     * Broadcast a message to multiple channels
+     */
+    async broadcastToMultiple(channels: string[], message: BroadcastMessage): Promise<void> {
+        try {
+            const promises = channels.map(channel => this.broadcastToChannel(channel, message));
+            await Promise.all(promises);
+            console.log(`Broadcasted to multiple channels:`, channels);
+        } catch (error) {
+            console.error(`Error broadcasting to multiple channels:`, error);
+        }
+    }
+
+    /**
+     * Broadcast to both team channels for a game
+     */
+    async broadcastToGameTeams(team1Id: number, team2Id: number, message: BroadcastMessage): Promise<void> {
+        try {
+            await this.broadcastToMultiple([`team_${team1Id}`, `team_${team2Id}`], message);
+            console.log(`Broadcasted to both team channels for teams ${team1Id} and ${team2Id}`);
+        } catch (error) {
+            console.error(`Error broadcasting to game teams:`, error);
+        }
+    }
+
+    /**
+     * Core broadcasting function using Ably
+     */
+    private async broadcastToChannel(channel: string, message: BroadcastMessage): Promise<void> {
+        try {
+            // Add timestamp if not present
+            if (!message.timestamp) {
+                message.timestamp = Date.now();
+            }
+
+
+            // Get the channel from Ably
+            const ablyChannel = this.ably.channels.get(channel);
+
+            // Publish the message
+            await ablyChannel.publish('game-event', message);
+
+        } catch (error) {
+            console.error(`Error broadcasting to channel ${channel}:`, error);
+        }
+    }
+    /**
+     * Close the Ably connection
+     */
+    async close(): Promise<void> {
+        try {
+            await this.ably.close();
+            console.log('Ably connection closed');
+        } catch (error) {
+            console.error('Error closing Ably connection:', error);
+        }
+    }
+}

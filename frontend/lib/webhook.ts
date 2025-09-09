@@ -1,32 +1,58 @@
-'use server'
-
 import { Log } from 'viem';
+import { processEventRouter } from './event-router';
 
+export interface WebhookEvent {
+    webhookId: string;
+    id: string;
+    createdAt: string;
+    type: string;
+    event: {
+        data: {
+            block: {
+                hash: string;
+                number: number;
+                timestamp: number;
+                logs: Array<{
+                    data: string;
+                    topics: string[];
+                    index: number;
+                    transaction: {
+                        hash: string;
+                        nonce: number;
+                        index: number;
+                        from: {
+                            address: string;
+                        };
+                        to: {
+                            address: string;
+                        };
+                        value: string;
+                        gasPrice: string;
+                        maxFeePerGas: string;
+                        maxPriorityFeePerGas: string;
+                        gas: number;
+                        status: number;
+                        gasUsed: number;
+                        cumulativeGasUsed: number;
+                        effectiveGasPrice: string;
+                        createdContract: string | null;
+                    };
+                }>;
+            };
+        };
+        sequenceNumber: string;
+        network: string;
+    };
+}
 /**
- * Sends webhook message to Supabase event-router function
+ * Processes webhook events directly using the event-router function
  * This triggers the gameActionCommitted event processing
  */
-export async function sendWebhookMessage(logs: Log[]) {
+export async function sendWebhookMessage(logs: Log[]): Promise<{ success: boolean; error?: string }> {
     try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-        if (!supabaseUrl) {
-            console.error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
-            return;
-        }
-
-        const webhookApiKey = process.env.WEBHOOK_API_KEY;
-        if (!webhookApiKey) {
-            console.error('Missing WEBHOOK_API_KEY environment variable');
-            return;
-        }
-
         if (logs.length == 0) {
-            return;
+            return { success: false, error: 'No logs provided' };
         }
-
-        // Construct the event-router function URL
-        const eventRouterUrl = `${supabaseUrl}/functions/v1/event-router`;
 
         // Create webhook event structure that matches what the event-router expects
         // The gameActionCommitted event signature is: gameActionCommitted(uint256 indexed gameId, uint256 timestamp)
@@ -34,51 +60,66 @@ export async function sendWebhookMessage(logs: Log[]) {
         const webhookEvent = {
             webhookId: `game-action-${logs[0].transactionHash}-${Date.now()}`,
             id: `game-action-${logs[0].transactionHash}-${Date.now()}`,
-            createdAt: currentTimestamp,
+            createdAt: currentTimestamp.toString(),
             type: 'blockchain.logs',
             event: {
                 data: {
                     block: {
-                        hash: logs[0].blockHash,
-                        number: logs[0].blockNumber,
+                        hash: logs[0].blockHash || '',
+                        number: Number(logs[0].blockNumber),
                         timestamp: currentTimestamp,
                         logs: logs.map(log => ({
                             data: log.data, // Empty data for gameActionCommitted event
                             topics: log.topics,
-                            index: log.logIndex,
+                            index: Number(log.logIndex),
+                            account: {
+                                address: ''
+                            },
                             transaction: {
-                                hash: log.transactionHash,
-                                index: log.transactionIndex,
+                                hash: log.transactionHash || '',
+                                nonce: 0,
+                                index: Number(log.transactionIndex),
+                                from: {
+                                    address: ''
+                                },
+                                to: {
+                                    address: ''
+                                },
+                                value: '0',
+                                gasPrice: '0',
+                                maxFeePerGas: '0',
+                                maxPriorityFeePerGas: '0',
+                                gas: 0,
+                                status: 1,
+                                gasUsed: 0,
+                                cumulativeGasUsed: 0,
+                                effectiveGasPrice: '0',
+                                createdContract: null
                             }
                         }))
                     }
                 },
+                sequenceNumber: '1',
                 network: 'base'
             }
         };
 
-        console.log('Sending webhook message to event-router:', eventRouterUrl);
+        console.log('Processing webhook event directly:', webhookEvent.webhookId);
         console.log('Webhook event:', JSON.stringify(webhookEvent, null, 2));
 
-        const response = await fetch(eventRouterUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Api-Key': webhookApiKey,
-            },
-            body: JSON.stringify(webhookEvent)
-        });
+        // Process the event directly using the event-router function
+        const result = await processEventRouter(webhookEvent);
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`Webhook request failed with status ${response.status}:`, errorText);
-            return;
+        if (result.success) {
+            console.log('Webhook event processed successfully');
+        } else {
+            console.error('Error processing webhook event:', result.error);
         }
 
-        const result = await response.json();
-        console.log('Webhook message sent successfully:', result);
+        return result;
 
     } catch (error) {
-        console.error('Error sending webhook message:', error);
+        console.error('Error processing webhook message:', error);
+        return { success: false, error: 'Error processing webhook message' };
     }
 }

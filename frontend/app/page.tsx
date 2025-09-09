@@ -32,6 +32,7 @@ import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import countryList from '../public/countryList.json';
 import React from "react";
+import { LastGameResults } from './components/LastGameResults';
 
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
@@ -705,7 +706,10 @@ export default function App() {
         {/* Leaderboard preview */}
         <div className="w-full max-w-md bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="p-4">
-            <h3 className="text-lg font-semibold mb-2">Leaderboard · August</h3>
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-semibold">Leaderboard 🌍</h3>
+              <span className="text-lg text-gray-500">{new Date().toLocaleDateString('en-US', { month: 'long' })}</span>
+            </div>
             <table className="w-full text-sm text-left">
               <thead className="text-gray-600">
                 <tr className="border-b">
@@ -721,24 +725,20 @@ export default function App() {
               </thead>
               <tbody>
                 {/* User team pinned */}
-                <tr className="bg-green-50">
-                  <td className="py-2 pr-2">—</td>
-                  <td className="py-2 pr-2 font-medium">Your Team</td>
-                  <td className="py-2 pr-2 text-center">14</td>
-                  <td className="py-2 pr-2 text-center">7</td>
-                  <td className="py-2 pr-2 text-center">2</td>
-                  <td className="py-2 pr-2 text-center">5</td>
-                  <td className="py-2 pr-2">
-                    <div className="flex gap-1 items-center">
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-                      <span className="h-2 w-2 rounded-full bg-red-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                    </div>
-                  </td>
-                  <td className="py-2 pr-2 text-right font-medium">+60</td>
-                </tr>
+                {teamInfo && (
+                  <tr className="bg-green-50">
+                    <td className="py-2 pr-2">—</td>
+                    <td className="py-2 pr-2 font-medium">{teamInfo.name}</td>
+                    <td className="py-2 pr-2 text-center">{teamInfo.matchesPlayed}</td>
+                    <td className="py-2 pr-2 text-center">{teamInfo.wins}</td>
+                    <td className="py-2 pr-2 text-center">{teamInfo.draws}</td>
+                    <td className="py-2 pr-2 text-center">{teamInfo.losses}</td>
+                    <td className="py-2 pr-2">
+                      <LastGameResults lastGames={teamInfo.lastGames || []} />
+                    </td>
+                    <td className="py-2 pr-2 text-right font-medium">+{Math.floor(Math.random() * 100) + 20}</td>
+                  </tr>
+                )}
                 {/* Top 3 */}
                 <tr className="border-t">
                   <td className="py-2 pr-2">1</td>
