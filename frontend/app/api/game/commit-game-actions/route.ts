@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient, createRelayerClient } from '@/lib/providers';
 import { parseEventLogs, Log } from 'viem';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from '@/lib/contract';
+import { CONTRACT_ADDRESS, CONTRACT_ABI, getGameFromContract } from '@/lib/contract';
 import { base } from 'viem/chains';
-import { saveMovesToDB } from './db';
-import { GameAction, TeamEnum, MoveType } from '@/lib/game';
+import { decodeSymmetricKey, encodeData, bigintToBuffer } from '@/lib/encrypting';
 import { sendWebhookMessage } from '@/lib/webhook';
+import { FIELD_HEIGHT, FIELD_WIDTH, MoveType, serializeMoves, TeamEnum } from '@/lib/game';
 
 /**
  * Game Actions Commit Endpoint
@@ -83,8 +83,8 @@ export async function POST(request: NextRequest) {
             }
 
             // Validate positions (assuming field dimensions)
-            if (move.oldPosition.x < 0 || move.oldPosition.x > 16 || move.oldPosition.y < 0 || move.oldPosition.y > 10 ||
-                move.newPosition.x < 0 || move.newPosition.x > 16 || move.newPosition.y < 0 || move.newPosition.y > 10) {
+            if (move.oldPosition.x < 0 || move.oldPosition.x > FIELD_WIDTH + 1 || move.oldPosition.y < 0 || move.oldPosition.y > FIELD_HEIGHT ||
+                move.newPosition.x < 0 || move.newPosition.x > FIELD_WIDTH + 1 || move.newPosition.y < 0 || move.newPosition.y > FIELD_HEIGHT) {
                 return NextResponse.json(
                     { error: 'Invalid position coordinates', errorName: 'INVALID_POSITION' },
                     { status: 400 }
@@ -106,12 +106,24 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const gameInfo = await getGameFromContract(body.game_id);
+        if (!gameInfo.success) {
+            return NextResponse.json(
+                { error: 'Game not found', errorName: 'GAME_NOT_FOUND' },
+                { status: 404 }
+            );
+        }
+
         console.log('Processing game actions commit for game:', body.game_id);
         console.log('Team:', body.team_enum === 1 ? 'Team 1' : 'Team 2');
         console.log('Number of moves:', body.moves.length);
 
-        // Map moves to contract format for relayer
-        const contractMoves: GameAction[] = body.moves.map(move => ({
+        const gameEnginePrivateKey = process.env.GAME_ENGINE_PRIVATE_KEY;
+        if (!gameEnginePrivateKey) {
+            throw new Error('GAME_ENGINE_PRIVATE_KEY is not set');
+        }
+
+        const contractMoves = body.moves.map(move => ({
             playerId: move.playerId,
             moveType: move.moveType as MoveType,
             oldPosition: { x: move.oldPosition.x, y: move.oldPosition.y },
@@ -120,23 +132,39 @@ export async function POST(request: NextRequest) {
             playerKey: () => `${body.team_enum === 1 ? '1_' : '2_'}${move.playerId}`
         }));
 
+        // Decrypt the symmetric key using the game engine's private key
+        // Convert hex string (from contract bytes) to Buffer for decryption
+        const encryptedKeyBuffer = Buffer.from(gameInfo.data.encryptedKey.slice(2), 'hex'); // Remove '0x' prefix
+        const symmetricKey = decodeSymmetricKey(encryptedKeyBuffer, gameEnginePrivateKey);
+
+        // Serialize moves to BigInt and encrypt them
+        const serializedMoves = serializeMoves(contractMoves);
+        const movesBigInt = BigInt(serializedMoves);
+        const movesBuffer = bigintToBuffer(movesBigInt);
+        const encryptedMovesBuffer = encodeData(movesBuffer, gameInfo.data.gameState.movesMade, symmetricKey);
+
+        // Convert to hex string for contract
+        const encryptedMoves = '0x' + encryptedMovesBuffer.toString('hex').padStart(64, '0');
+
 
         // Simulate the transaction first to ensure it will succeed
         console.log('Simulating commitGameActions transaction...');
         console.log('body.wallet_address', body.wallet_address);
         console.log('body.game_id', body.game_id);
         console.log('body.team_enum', body.team_enum);
+        console.log('encryptedMoves', encryptedMoves);
         const relayerClient = createRelayerClient();
         const { request: simulationRequest } = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'commitGameActionsRelayer',
-            args: [body.wallet_address, body.game_id, body.team_enum],
+            args: [body.wallet_address, body.game_id, body.team_enum, encryptedMoves],
             chain: base,
             account: relayerClient.account
         });
 
         console.log('Transaction simulation successful, executing...');
+        console.log('simulationRequest', simulationRequest)
 
         // Execute the actual transaction using relayer client
         let hash = await relayerClient.writeContract(simulationRequest);
@@ -146,8 +174,6 @@ export async function POST(request: NextRequest) {
         // Wait for transaction confirmation
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-        // save moves to DB
-        await saveMovesToDB(body.game_id, body.team_enum, contractMoves);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
@@ -180,12 +206,22 @@ export async function POST(request: NextRequest) {
 
     } catch (error: any) {
         console.error('Error committing game actions:', error);
+        console.error('Error details:', error.details);
+        console.error('Error message:', error.message);
 
         // Handle specific contract errors
         if (error.message?.includes('GameDoesNotExist')) {
             return NextResponse.json(
                 { error: 'Game does not exist', errorName: 'GAME_DOES_NOT_EXIST' },
                 { status: 400 }
+            );
+        }
+
+        // Handle gas/transaction errors
+        if (error.message?.includes('transaction underpriced') || error.message?.includes('gas')) {
+            return NextResponse.json(
+                { error: 'Transaction failed due to gas issues. Please try again.', errorName: 'GAS_ERROR' },
+                { status: 500 }
             );
         }
 

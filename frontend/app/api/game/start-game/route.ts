@@ -5,6 +5,7 @@ import { CONTRACT_ABI, CONTRACT_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
+import { generateSymmetricKey, encodeSymmetricKey, generateECIESKeyPair } from '@/lib/encrypting';
 
 interface StartGameRequest {
     walletAddress: string;
@@ -55,17 +56,30 @@ export async function POST(request: NextRequest) {
 
         const relayerClient = createRelayerClient();
 
+        // Generate encryption keys for the game
+        const symmetricKey = generateSymmetricKey();
+
+        const publicKey = process.env.NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY;
+        if (!publicKey) {
+            throw new Error('NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY is not set');
+        }
+
+        // Encrypt the symmetric key using the game engine's public key
+        const encryptedSymmetricKey = encodeSymmetricKey(symmetricKey, publicKey);
+
+        // Convert to hex string for contract (viem expects hex string for bytes)
+        const encryptedKeyBytes = Buffer.from(encryptedSymmetricKey, 'base64');
+        const encryptedKeyHex = '0x' + encryptedKeyBytes.toString('hex');
+
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'startGameRelayer',
-            args: [wallet_address as Address, game_request_id],
+            args: [wallet_address as Address, game_request_id, encryptedKeyHex],
             chain: base,
             account: relayerClient.account
         });
-
-
 
         const result = await relayerClient.writeContract(simulation.request);
 

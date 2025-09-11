@@ -373,11 +373,24 @@ async function handleGameActionCommitted(decodedData: DecodedEvent, supabase: an
 }
 
 async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
-    const { gameId, stateType, time, clashRandomNumbers, team1Actions, team2Actions, ballPosition, ballOwner } = AbiDecoder.getTypedArgs(decodedData);
+    const { gameId, stateType, time, clashRandomNumbers, team1Actions, team2Actions, boardState } = AbiDecoder.getTypedArgs(decodedData);
+    const ballPosition = boardState.ballPosition;
+    const ballOwner = boardState.ballOwner;
 
+
+    const historyItem = {
+        team1_positions: boardState.team1PlayerPositions,
+        team2_positions: boardState.team2PlayerPositions,
+        ball_position: ballPosition,
+        ball_owner: ballOwner,
+        clash_random_numbers: clashRandomNumbers,
+        team1_moves: team1Actions,
+        team2_moves: team2Actions,
+        type: stateType,
+    };
     // Use the updateGame function to fetch from contract and update database
     // Call newGameState SQL function to reset game state
-    const { data: latestHistoryItem, error: sqlFuncError } = await supabase.rpc('newGameState', { game_id: gameId });
+    const { data, error: sqlFuncError } = await supabase.rpc('new_game_state', { game_id: gameId, history_item: historyItem });
 
     if (sqlFuncError) {
         console.error('Error calling newGameState SQL function:', sqlFuncError);
@@ -390,17 +403,18 @@ async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsSe
         game_id: gameId,
         time: time,
         state_type: stateType,
-        new_state: latestHistoryItem,
+        new_state: historyItem,
         clash_random_numbers: clashRandomNumbers,
         team1_actions: team1Actions,
         team2_actions: team2Actions,
+        board_state: boardState,
         ball_position: ballPosition,
         ball_owner: ballOwner,
         timestamp: timestamp
     });
 
     console.log(`New game state: ${gameId} at ${time}`);
-    console.log(`Latest history item: ${JSON.stringify(latestHistoryItem)}`);
+    console.log(`Latest history item: ${JSON.stringify(historyItem)}`);
 }
 
 async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {

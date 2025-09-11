@@ -33,7 +33,8 @@ describe("ChessBallGame Upgradeable", function () {
         chessBallGame = await upgrades.deployProxy(ChessBallGame, [
             GELATO_ADDRESS,
             RELAYER_ADDRESS,
-            GAME_ENGINE_SERVER_ADDRESS
+            GAME_ENGINE_SERVER_ADDRESS,
+            "test-public-key" // publicKey - using test key for testing
         ], {
             kind: 'uups',
             initializer: 'initialize',
@@ -52,7 +53,7 @@ describe("ChessBallGame Upgradeable", function () {
 
         it("Should not allow re-initialization", async function () {
             await expect(
-                chessBallGame.initialize(GELATO_ADDRESS, RELAYER_ADDRESS, GAME_ENGINE_SERVER_ADDRESS)
+                chessBallGame.initialize(GELATO_ADDRESS, RELAYER_ADDRESS, GAME_ENGINE_SERVER_ADDRESS, "test-public-key")
             ).to.be.reverted;
         });
     });

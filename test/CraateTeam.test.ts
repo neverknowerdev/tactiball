@@ -25,6 +25,7 @@ describe("Game Contract - Team Management", function () {
             owner.address, // gelatoAddress - using owner for testing
             owner.address,  // relayerAddress - using owner for testing
             owner.address,  // gameEngineAddress - using owner for testing
+            "test-public-key" // publicKey - using test key for testing
         ], {
             kind: 'uups',
             initializer: 'initialize',

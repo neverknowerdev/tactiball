@@ -8,6 +8,7 @@ import hre from "hardhat";
 const GELATO_ADDRESS = "0x12ebb8c121b706ae6368147afc5b54702cb26637";
 const RELAYER_ADDRESS = "0xc510350904b2fD01D9af92342f49a3c7aEC47739";
 const GAME_ENGINE_ADDRESS = "0xc510350904b2fD01D9af92342f49a3c7aEC47739";
+const PUBLIC_KEY = "0324212540398fa636fecdb08aa0d3bb5b676a6a4bae130fb7c9ec47c495a1dcdb";
 
 // Helper function to add delay between transactions
 function delay(ms: number): Promise<void> {
@@ -32,9 +33,10 @@ function getSourceCodeHash(filePath: string): string {
 }
 
 async function main() {
+    console.log("Network:", await ethers.provider.getNetwork());
     const [deployer] = await ethers.getSigners();
     console.log("Deploying contracts with the account:", deployer.address);
-    console.log("Network:", await ethers.provider.getNetwork());
+
 
     // Step 1: Deploy libraries first
     console.log("\n=== Deploying Libraries ===");
@@ -103,7 +105,8 @@ async function main() {
     const constructorArgs = [
         GELATO_ADDRESS,
         RELAYER_ADDRESS,
-        GAME_ENGINE_ADDRESS
+        GAME_ENGINE_ADDRESS,
+        PUBLIC_KEY
     ];
 
     // Deploy using UUPS proxy pattern

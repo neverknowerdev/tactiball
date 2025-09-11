@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { type Address, Abi, recoverMessageAddress, createPublicClient, http } from 'viem';
+import { type Address, parseEventLogs, Log } from 'viem';
 import { createRelayerClient, publicClient } from '@/lib/providers';
 import { CONTRACT_ABI, CONTRACT_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { BaseError, ContractFunctionRevertedError } from 'viem';
+import { sendWebhookMessage } from '@/lib/webhook';
 
 
 interface CreateTeamRequest {
@@ -99,6 +100,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         const receipt = await publicClient.waitForTransactionReceipt({
             hash: result
         });
+
+        const logs = parseEventLogs({
+            abi: CONTRACT_ABI,
+            logs: receipt.logs,
+        });
+
+        await sendWebhookMessage(logs);
 
         console.log('Creating team with relayer:', {
             walletAddress,

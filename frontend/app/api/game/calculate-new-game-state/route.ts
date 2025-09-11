@@ -3,12 +3,12 @@ import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient, createRelayerClient } from '@/lib/providers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '@/lib/contract';
 import { base } from 'viem/chains';
-import { addToGameHistory, getGame } from './db';
 import { processGameMoves } from './process-game-moves';
 import { toContractStateType, toContractMove, toTeamEnum } from './types';
 import { GameAction } from '@/lib/game';
 import { sendWebhookMessage } from '@/lib/webhook';
 import { parseEventLogs } from 'viem';
+import { getGameFromContract } from '@/lib/contract';
 
 interface CommitGameActionsRequest {
     game_id: string;
@@ -60,15 +60,15 @@ export async function POST(request: NextRequest) {
         console.log('Processing game actions commit for game:', body.game_id);
         console.log('Team:', body.team_enum === 1 ? 'Team 1' : 'Team 2');
 
-        const gameInfo = await getGame(body.game_id);
-        if (!gameInfo) {
+        const gameInfo = await getGameFromContract(body.game_id);
+        if (!gameInfo.success) {
             return NextResponse.json(
                 { error: 'Game not found', errorName: 'GAME_NOT_FOUND' },
                 { status: 404 }
             );
         }
 
-        if (gameInfo.team1_moves.length === 0 || gameInfo.team2_moves.length === 0) {
+        if (gameInfo.data.gameState.team1MovesEncrypted === BigInt(0) || gameInfo.data.gameState.team2MovesEncrypted === BigInt(0)) {
             return NextResponse.json(
                 { error: 'Game state cannot be calculated', errorName: 'GAME_STATE_CANNOT_BE_CALCULATED' },
                 { status: 400 }
@@ -77,7 +77,25 @@ export async function POST(request: NextRequest) {
 
         const relayerClient = createRelayerClient();
 
-        const gameResult = processGameMoves(gameInfo);
+        // Check if both teams have submitted moves
+        if (BigInt(gameInfo.data.gameState.team1MovesEncrypted) === BigInt(0)) {
+            return NextResponse.json(
+                { error: 'Moves for team1 is not commited', errorName: 'MOVES_NOT_COMMITTED' },
+                { status: 400 }
+            );
+        }
+
+        if (BigInt(gameInfo.data.gameState.team2MovesEncrypted) === BigInt(0)) {
+            return NextResponse.json(
+                { error: 'Moves for team2 is not committed', errorName: 'MOVES_NOT_COMMITTED' },
+                { status: 400 }
+            );
+        }
+
+        console.log('team1MovesEncrypted', gameInfo.data.gameState.team1MovesEncrypted, typeof gameInfo.data.gameState.team1MovesEncrypted, gameInfo.data.gameState.team1MovesEncrypted === BigInt(0));
+        console.log('team2MovesEncrypted', gameInfo.data.gameState.team2MovesEncrypted, typeof gameInfo.data.gameState.team2MovesEncrypted, gameInfo.data.gameState.team2MovesEncrypted === BigInt(0));
+
+        const gameResult = processGameMoves(gameInfo.data);
 
         const contractStateType = toContractStateType(gameResult.stateType)
         const contractTeam1Actions = gameResult.team1Actions.map((action: GameAction) => ({
@@ -100,7 +118,7 @@ export async function POST(request: NextRequest) {
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'newGameState',
-            args: [gameInfo.id, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.ballPosition, toTeamEnum(gameResult.ballOwner)],
+            args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
             chain: base,
             account: relayerClient.account
         });
@@ -108,8 +126,6 @@ export async function POST(request: NextRequest) {
         // Execute newGameState transaction
         const hash = await relayerClient.writeContract(newGameStateRequest);
         console.log('New game state committed. Transaction hash:', hash);
-
-        addToGameHistory(body.game_id, gameInfo.history, gameResult.statesToSend);
 
         // Wait for transaction confirmation
         const receipt = await publicClient.waitForTransactionReceipt({ hash: hash });

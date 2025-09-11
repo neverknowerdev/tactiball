@@ -26,6 +26,7 @@ describe("ELO Rating System", function () {
             owner.address, // gelatoAddress - using owner for testing
             owner.address,  // relayerAddress - using owner for testing
             owner.address,  // gameEngineAddress - using owner for testing
+            "test-public-key" // publicKey - using test key for testing
         ], {
             kind: 'uups',
             initializer: 'initialize',
@@ -61,8 +62,9 @@ describe("ELO Rating System", function () {
             await game.connect(team1Owner).createGameRequest(team1Id, team2Id);
             const gameRequestId = await game.getTeam(team1Id).then((t: any) => t.gameRequestId);
 
-            // Start game
-            await game.connect(team2Owner).startGame(gameRequestId);
+            // Start game with ephemeral public key
+            const ephemeralPublicKey = "0x02" + "1234567890123456789012345678901234567890123456789012345678901234";
+            await game.connect(team2Owner).startGame(gameRequestId, ephemeralPublicKey);
         });
 
         it("Should store ELO ratings at game start", async function () {
@@ -92,7 +94,8 @@ describe("ELO Rating System", function () {
             // Create and start game
             await game.connect(team1Owner).createGameRequest(team1Id, team2Id);
             const gameRequestId = await game.getTeam(team1Id).then((t: any) => t.gameRequestId);
-            await game.connect(team2Owner).startGame(gameRequestId);
+            const ephemeralPublicKey = "0x02" + "1234567890123456789012345678901234567890123456789012345678901234";
+            await game.connect(team2Owner).startGame(gameRequestId, ephemeralPublicKey);
 
             const gameId = 1; // First game
             let gameData = await game.getGame(gameId);
@@ -105,18 +108,30 @@ describe("ELO Rating System", function () {
             // We need to simulate moves to reach the maximum moves limit
             for (let move = 1; move <= 45; move++) {
                 // Commit moves for both teams (simulating via relayer since we're testing)
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1); // TEAM1
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2); // TEAM2
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
 
                 // Update game state with no goals (maintaining 0:0 score)
+                const boardState = {
+                    team1PlayerPositions: [
+                        { x: 1, y: 5 }, { x: 4, y: 2 }, { x: 4, y: 8 },
+                        { x: 6, y: 3 }, { x: 6, y: 7 }, { x: 5, y: 5 }
+                    ],
+                    team2PlayerPositions: [
+                        { x: 15, y: 5 }, { x: 12, y: 2 }, { x: 12, y: 8 },
+                        { x: 10, y: 2 }, { x: 10, y: 8 }, { x: 10, y: 5 }
+                    ],
+                    ballPosition: { x: 5, y: 5 },
+                    ballOwner: 1 // TEAM1
+                };
+
                 await game.connect(owner).newGameState(
                     gameId,
                     1, // StateType.MOVE (no goal)
                     [], // clashRandomNumbers
                     [], // team1Actions
                     [], // team2Actions
-                    { x: 5, y: 5 }, // ballPosition
-                    1 // ballOwner (TEAM1)
+                    boardState
                 );
             }
 
@@ -129,8 +144,8 @@ describe("ELO Rating System", function () {
             // If the game hasn't finished yet, we need to trigger one more state update
             if (gameData.status === 1) {
                 console.log("Game not finished yet, triggering one more state update...");
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1); // TEAM1
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2); // TEAM2
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
                 await game.connect(owner).newGameState(
                     gameId,
                     1, // StateType.MOVE (no goal)
@@ -195,7 +210,8 @@ describe("ELO Rating System", function () {
             // Create and start game
             await game.connect(team1Owner).createGameRequest(team1Id, team2Id);
             const gameRequestId = await game.getTeam(team1Id).then((t: any) => t.gameRequestId);
-            await game.connect(team2Owner).startGame(gameRequestId);
+            const ephemeralPublicKey = "0x02" + "1234567890123456789012345678901234567890123456789012345678901234";
+            await game.connect(team2Owner).startGame(gameRequestId, ephemeralPublicKey);
 
             const gameId = 1; // First game (fresh start)
             let gameData = await game.getGame(gameId);
@@ -207,44 +223,83 @@ describe("ELO Rating System", function () {
             // Simulate game progression with team1 scoring a goal
             // First, make some moves to set up the game
             for (let move = 1; move <= 10; move++) {
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1); // TEAM1
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2); // TEAM2
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
+
+                const boardState = {
+                    team1PlayerPositions: [
+                        { x: 1, y: 5 }, { x: 4, y: 2 }, { x: 4, y: 8 },
+                        { x: 6, y: 3 }, { x: 6, y: 7 }, { x: 5, y: 5 }
+                    ],
+                    team2PlayerPositions: [
+                        { x: 15, y: 5 }, { x: 12, y: 2 }, { x: 12, y: 8 },
+                        { x: 10, y: 2 }, { x: 10, y: 8 }, { x: 10, y: 5 }
+                    ],
+                    ballPosition: { x: 5, y: 5 },
+                    ballOwner: 1 // TEAM1
+                };
+
                 await game.connect(owner).newGameState(
                     gameId,
                     1, // StateType.MOVE (no goal)
                     [], // clashRandomNumbers
                     [], // team1Actions
                     [], // team2Actions
-                    { x: 5, y: 5 }, // ballPosition
-                    1 // ballOwner (TEAM1)
+                    boardState
                 );
             }
 
             // Now simulate team1 scoring a goal
-            await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1); // TEAM1
-            await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2); // TEAM2
+            await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
+            await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
+
+            const goalBoardState = {
+                team1PlayerPositions: [
+                    { x: 1, y: 5 }, { x: 4, y: 2 }, { x: 4, y: 8 },
+                    { x: 6, y: 3 }, { x: 6, y: 7 }, { x: 5, y: 5 }
+                ],
+                team2PlayerPositions: [
+                    { x: 15, y: 5 }, { x: 12, y: 2 }, { x: 12, y: 8 },
+                    { x: 10, y: 2 }, { x: 10, y: 8 }, { x: 10, y: 5 }
+                ],
+                ballPosition: { x: 5, y: 5 },
+                ballOwner: 1 // TEAM1
+            };
+
             await game.connect(owner).newGameState(
                 gameId,
                 2, // StateType.GOAL_TEAM1
                 [], // clashRandomNumbers
                 [], // team1Actions
                 [], // team2Actions
-                { x: 5, y: 5 }, // ballPosition
-                1 // ballOwner (TEAM1)
+                goalBoardState
             );
 
             // Continue the game to reach MAX_MOVES
             for (let move = 12; move <= 45; move++) {
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1); // TEAM1
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2); // TEAM2
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
+
+                const finalBoardState = {
+                    team1PlayerPositions: [
+                        { x: 1, y: 5 }, { x: 4, y: 2 }, { x: 4, y: 8 },
+                        { x: 6, y: 3 }, { x: 6, y: 7 }, { x: 5, y: 5 }
+                    ],
+                    team2PlayerPositions: [
+                        { x: 15, y: 5 }, { x: 12, y: 2 }, { x: 12, y: 8 },
+                        { x: 10, y: 2 }, { x: 10, y: 8 }, { x: 10, y: 5 }
+                    ],
+                    ballPosition: { x: 5, y: 5 },
+                    ballOwner: 1 // TEAM1
+                };
+
                 await game.connect(owner).newGameState(
                     gameId,
                     1, // StateType.MOVE (no goal)
                     [], // clashRandomNumbers
                     [], // team1Actions
                     [], // team2Actions
-                    { x: 5, y: 5 }, // ballPosition
-                    1 // ballOwner (TEAM1)
+                    finalBoardState
                 );
             }
 

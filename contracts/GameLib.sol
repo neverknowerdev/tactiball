@@ -55,11 +55,18 @@ library GameLib {
         Position newPosition;
     }
 
+    struct BoardState {
+        Position[6] team1PlayerPositions;
+        Position[6] team2PlayerPositions;
+        Position ballPosition;
+        TeamEnum ballOwner;
+    }
+
     struct GameState {
         uint8 movesMade;
         uint64 lastMoveAt;
-        bool team1MadeMove;
-        bool team2MadeMove;
+        bytes32 team1MovesEncrypted;
+        bytes32 team2MovesEncrypted;
         TeamEnum lastMoveTeam;
         uint8 team1score;
         uint8 team2score;
@@ -103,8 +110,13 @@ library GameLib {
         //
         TeamEnum winner;
         //
+        BoardState lastBoardState;
+        //
         bytes32 historyIPFS;
         bool isVerified;
+        // should be generated on game start, using game public key from smart-contract.
+        // then game engine can decrypt it and decrypt all moves
+        bytes encryptedKey;
         //
         uint8 gameEngineVersion;
         //
@@ -186,13 +198,46 @@ library GameLib {
                 ]
             });
     }
+
+    /**
+     * @dev Gets the starting positions for players based on team.
+     * @param team The team enum (TEAM1 or TEAM2).
+     * @return An array of 6 Position structs representing player starting positions.
+     */
+    function getStartPositions(
+        TeamEnum team
+    ) internal pure returns (Position[6] memory) {
+        Position[6] memory positions;
+
+        if (team == TeamEnum.TEAM1) {
+            // Team 1 formation: 2-2-2 (2 defenders, 2 midfielders, 2 forwards)
+            positions[0] = Position(1, 5); // Goalkeeper
+            positions[1] = Position(4, 2); // Defender 1
+            positions[2] = Position(4, 8); // Defender 2
+            positions[3] = Position(6, 3); // Midfielder 1
+            positions[4] = Position(6, 7); // Midfielder 2
+            positions[5] = Position(8, 5); // Forward 1
+        } else {
+            // Team 2 formation: 2-2-2 (2 defenders, 2 midfielders, 2 forwards) - mirrored
+            positions[0] = Position(15, 5); // Goalkeeper
+            positions[1] = Position(12, 2); // Defender 1
+            positions[2] = Position(12, 8); // Defender 2
+            positions[3] = Position(10, 2); // Midfielder 2
+            positions[4] = Position(10, 8); // Midfielder 1
+            positions[5] = Position(10, 5); // Forward 2
+        }
+
+        return positions;
+    }
+
     // Game Management Functions
     function createGame(
         uint256 team1id,
         uint256 team2id,
         uint256 nextGameId,
         uint64 team1EloRating,
-        uint64 team2EloRating
+        uint64 team2EloRating,
+        bytes memory _encryptedKey
     ) internal view returns (Game memory) {
         TeamInfo memory team1Info = TeamInfo({
             teamId: team1id,
@@ -210,6 +255,10 @@ library GameLib {
             __gap: [uint256(0), uint256(0), uint256(0), uint256(0), uint256(0)]
         });
 
+        // Get starting positions for both teams
+        Position[6] memory team1Positions = getStartPositions(TeamEnum.TEAM1);
+        Position[6] memory team2Positions = getStartPositions(TeamEnum.TEAM2);
+
         return
             Game({
                 gameId: nextGameId,
@@ -217,8 +266,8 @@ library GameLib {
                 gameState: GameState({
                     movesMade: 0,
                     lastMoveAt: 0,
-                    team1MadeMove: false,
-                    team2MadeMove: false,
+                    team1MovesEncrypted: bytes32(0),
+                    team2MovesEncrypted: bytes32(0),
                     lastMoveTeam: TeamEnum.NONE,
                     team1score: 0,
                     team2score: 0
@@ -226,9 +275,16 @@ library GameLib {
                 team1: team1Info,
                 team2: team2Info,
                 status: GameStatus.ACTIVE,
+                encryptedKey: _encryptedKey,
                 winner: TeamEnum.NONE,
-                isVerified: false,
+                lastBoardState: BoardState({
+                    team1PlayerPositions: team1Positions,
+                    team2PlayerPositions: team2Positions,
+                    ballPosition: Position(8, 5), // Center of the field
+                    ballOwner: TeamEnum.TEAM1
+                }),
                 historyIPFS: "",
+                isVerified: false,
                 gameEngineVersion: 1,
                 __gap: [
                     uint256(0),
@@ -289,18 +345,21 @@ library GameLib {
 
     function commitGameActions(
         GameState storage gameState,
-        TeamEnum team
+        TeamEnum team,
+        bytes32 movesEncrypted
     ) external returns (bool) {
         if (team == TeamEnum.TEAM1) {
-            gameState.team1MadeMove = true;
+            gameState.team1MovesEncrypted = movesEncrypted;
         } else {
-            gameState.team2MadeMove = true;
+            gameState.team2MovesEncrypted = movesEncrypted;
         }
 
         gameState.lastMoveTeam = team;
         gameState.lastMoveAt = uint64(block.timestamp);
 
-        return gameState.team1MadeMove && gameState.team2MadeMove;
+        return
+            gameState.team1MovesEncrypted != bytes32(0) &&
+            gameState.team2MovesEncrypted != bytes32(0);
     }
 
     function finishGame(

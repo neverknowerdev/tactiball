@@ -15,8 +15,6 @@ CREATE TABLE IF NOT EXISTS public.games (
     team2 BIGINT,
     status public.game_status DEFAULT 'active',
     moves_made INTEGER DEFAULT 0,
-    team1_moves JSONB DEFAULT '[]'::JSONB,
-    team2_moves JSONB DEFAULT '[]'::JSONB,
     winner BIGINT,
     history JSONB,
     team1_info JSONB DEFAULT '{}'::JSONB,
@@ -70,8 +68,6 @@ COMMENT ON COLUMN public.games.team1 IS 'ID of the first team';
 COMMENT ON COLUMN public.games.team2 IS 'ID of the second team';
 COMMENT ON COLUMN public.games.status IS 'Current status of the game';
 COMMENT ON COLUMN public.games.moves_made IS 'Number of moves made in the game';
-COMMENT ON COLUMN public.games.team1_moves IS 'JSON containing team1 moves';
-COMMENT ON COLUMN public.games.team2_moves IS 'JSON containing team2 moves';
 COMMENT ON COLUMN public.games.winner IS 'ID of the winning team';
 COMMENT ON COLUMN public.games.history IS 'JSON containing game move history';
 COMMENT ON COLUMN public.games.team1_info IS 'JSON containing additional team1 information';
@@ -88,35 +84,23 @@ CREATE INDEX IF NOT EXISTS idx_teams_active_game_id ON public.teams(active_game_
 COMMENT ON COLUMN public.teams.active_game_id IS 'Active game identifier for the team';
 
 -- Create function to handle new game state updates
-CREATE OR REPLACE FUNCTION public.newGameState(game_id BIGINT)
-RETURNS JSONB AS $$
-DECLARE
-    latest_history_item JSONB;
+CREATE OR REPLACE FUNCTION public.new_game_state(game_id BIGINT, history_item JSONB)
+RETURNS void AS $$
 BEGIN
     -- Update the game record to clear team moves and increment moves counter
     UPDATE public.games 
     SET 
-        team1_moves = '[]'::JSONB,
-        team2_moves = '[]'::JSONB,
         moves_made = moves_made + 1,
-        last_move_at = NULL
+        last_move_at = NULL,
+        history = COALESCE(history, '[]'::jsonb) || jsonb_build_array(history_item)
     WHERE id = game_id;
     
     -- Raise an error if no rows were updated (game not found)
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Game with ID % not found', game_id;
     END IF;
-    
-    -- Get the latest history item
-    SELECT history->-1 INTO latest_history_item
-    FROM public.games 
-    WHERE id = game_id;
-    
-    -- Return the latest history item (or null if no history)
-    RETURN COALESCE(latest_history_item, '{}'::JSONB);
 END;
 $$ LANGUAGE plpgsql;
 
 -- Add comment for the function
-COMMENT ON FUNCTION public.newGameState(BIGINT) IS 'Updates game state by clearing team moves and incrementing moves counter, returns the latest history item';
-
+COMMENT ON FUNCTION public.new_game_state(BIGINT,JSONB) IS 'Updates game state by clearing team moves and incrementing moves counter, returns the latest history item';

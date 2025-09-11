@@ -30,8 +30,8 @@ export enum PlayerType {
     FORWARD = 'forward'
 }
 
-const FIELD_WIDTH = 15;
-const FIELD_HEIGHT = 11;
+export const FIELD_WIDTH = 15;
+export const FIELD_HEIGHT = 11;
 
 export const DISTANCE_PASS = 3;
 export const DISTANCE_SHOT = 4;
@@ -102,7 +102,7 @@ export interface GameState {
     team1PlayerPositions: Position[];
     team2PlayerPositions: Position[];
     ballPosition: Position;
-    ballOwner: string | null;
+    ballOwner: TeamEnum | null;
     type: GameStateType;
     clashRandomResults: number[];
 }
@@ -745,9 +745,9 @@ export function toPosition(x: number, y: number): Position {
 }
 
 export function toGameStatus(status: number): GameStatus {
-    if (status === 0) return GameStatus.ACTIVE;
-    if (status === 1) return GameStatus.FINISHED;
-    if (status === 2) return GameStatus.FINISHED_BY_TIMEOUT;
+    if (status === 1) return GameStatus.ACTIVE;
+    if (status === 2) return GameStatus.FINISHED;
+    if (status === 3) return GameStatus.FINISHED_BY_TIMEOUT;
     throw new Error(`Invalid game status: ${status}`);
 }
 
@@ -757,4 +757,132 @@ export function toTeamEnum(team: number): TeamEnum | null {
     if (team === 1) return TeamEnum.TEAM1;
     if (team === 2) return TeamEnum.TEAM2;
     throw new Error(`Invalid team: ${team}`);
+}
+
+// Convert MoveType to a single digit for serialization
+function moveTypeToNumber(moveType: MoveType): number {
+    switch (moveType) {
+        case MoveType.PASS:
+            return 0;
+        case MoveType.TACKLE:
+            return 1;
+        case MoveType.RUN:
+            return 2;
+        case MoveType.SHOT:
+            return 3;
+        default:
+            return 0; // Default to PASS if unknown
+    }
+}
+
+// Serialize an array of GameAction objects to a uint256-compatible string
+// Format: Starts with '1', followed by 10 digits per move (playerId, moveType, oldPos.x, oldPos.y, newPos.x, newPos.y)
+export function serializeMoves(gameActions: GameAction[]): string {
+    if (gameActions.length < 1 || gameActions.length > 6) {
+        throw new Error('Number of moves must be between 1 and 6');
+    }
+
+    let result = '1'; // Leading 1 to indicate start of data
+
+    for (const action of gameActions) {
+        // Ensure values are within expected ranges
+        if (action.playerId < 0 || action.playerId > 9) {
+            throw new Error(`Invalid playerId: ${action.playerId}`);
+        }
+        const moveTypeDigit = moveTypeToNumber(action.moveType);
+        if (action.oldPosition.x < 0 || action.oldPosition.x > 99 ||
+            action.oldPosition.y < 0 || action.oldPosition.y > 99 ||
+            action.newPosition.x < 0 || action.newPosition.x > 99 ||
+            action.newPosition.y < 0 || action.newPosition.y > 99) {
+            throw new Error(`Position values out of range for move by player ${action.playerId}`);
+        }
+
+        // Format each position component to two digits
+        const oldX = Math.floor(action.oldPosition.x).toString().padStart(2, '0');
+        const oldY = Math.floor(action.oldPosition.y).toString().padStart(2, '0');
+        const newX = Math.floor(action.newPosition.x).toString().padStart(2, '0');
+        const newY = Math.floor(action.newPosition.y).toString().padStart(2, '0');
+
+        // Combine into 10-digit sequence
+        result += `${action.playerId}${moveTypeDigit}${oldX}${oldY}${newX}${newY}`;
+    }
+
+    return result;
+}
+
+// Deserialize a uint256-compatible string back to an array of GameAction objects
+export function deserializeMoves(serializedMoves: string): GameAction[] {
+    // Check if the string starts with '1' and has valid length (11 to 61 digits)
+    if (!serializedMoves.startsWith('1') || serializedMoves.length < 11 || serializedMoves.length > 61) {
+        throw new Error('Invalid serialized moves format: must start with 1 and have 11 to 61 digits');
+    }
+
+    // Extract the moves data after the leading '1'
+    const movesData = serializedMoves.slice(1);
+    const numMoves = Math.floor(movesData.length / 10);
+    if (movesData.length % 10 !== 0) {
+        throw new Error('Invalid serialized moves length: must be divisible by 10 after leading 1');
+    }
+
+    const gameActions: GameAction[] = [];
+    for (let i = 0; i < numMoves; i++) {
+        const moveChunk = movesData.slice(i * 10, (i + 1) * 10);
+        if (moveChunk.length !== 10) {
+            throw new Error(`Invalid move data at index ${i}: incomplete chunk`);
+        }
+
+        // Parse each part of the 10-digit chunk
+        const playerId = parseInt(moveChunk[0], 10);
+        const moveTypeDigit = parseInt(moveChunk[1], 10);
+        const oldX = parseInt(moveChunk.slice(2, 4), 10);
+        const oldY = parseInt(moveChunk.slice(4, 6), 10);
+        const newX = parseInt(moveChunk.slice(6, 8), 10);
+        const newY = parseInt(moveChunk.slice(8, 10), 10);
+
+        // Reconstruct GameAction
+        const moveType = toMoveType(moveTypeDigit);
+        const action: GameAction = {
+            playerId,
+            teamEnum: TeamEnum.TEAM1, // Placeholder; teamEnum needs to be determined from context or additional data
+            moveType,
+            oldPosition: { x: oldX, y: oldY },
+            newPosition: { x: newX, y: newY },
+            playerKey: () => `${playerId}` // Placeholder; adjust based on actual key format
+        };
+
+        gameActions.push(action);
+    }
+
+    return gameActions;
+}
+
+// Convert gameEvent.new_state to GameState format
+export function convertEventStateToGameState(eventState: any): GameState {
+    // Convert moves to GameAction format
+    const convertMoves = (moves: any[]): GameAction[] => {
+        if (!moves || !Array.isArray(moves)) return [];
+        return moves.map((move: any) => ({
+            playerId: move.playerId || move.player_id || 0,
+            teamEnum: move.teamEnum || (move.team_enum === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2),
+            moveType: move.moveType || move.move_type || MoveType.MOVE,
+            oldPosition: move.oldPosition || move.old_position || { x: 0, y: 0 },
+            newPosition: move.newPosition || move.new_position || { x: 0, y: 0 },
+            playerKey: () => `${move.playerId || move.player_id || 0}`
+        }));
+    };
+
+    return {
+        team1Moves: convertMoves(eventState.team1_moves),
+        team2Moves: convertMoves(eventState.team2_moves),
+        team1PlayerPositions: eventState.team1_positions || [],
+        team2PlayerPositions: eventState.team2_positions || [],
+        ballPosition: eventState.ball_position || { x: 0, y: 0 },
+        ballOwner: eventState.ball_owner === 1 ? TeamEnum.TEAM1 :
+            eventState.ball_owner === 2 ? TeamEnum.TEAM2 : null,
+        type: eventState.type === 1 ? GameStateType.MOVE :
+            eventState.type === 0 ? GameStateType.START_POSITIONS :
+                eventState.type === 2 ? GameStateType.GOAL_TEAM1 :
+                    eventState.type === 3 ? GameStateType.GOAL_TEAM2 : GameStateType.MOVE,
+        clashRandomResults: eventState.clash_random_numbers || []
+    };
 }

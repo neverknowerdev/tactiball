@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Game, TeamEnum, TeamPlayer, MoveType, isPosEquals, Team, GameStatus, GameStateType } from '@/lib/game';
+import { Game, TeamEnum, TeamPlayer, MoveType, isPosEquals, Team, GameStatus, GameStateType, toGameStatus, GameState, convertEventStateToGameState } from '@/lib/game';
 import { getGameFromDB } from '@/lib/db';
 import '../game.css';
 import { authUserWithSignature } from '@/lib/auth';
@@ -11,6 +11,7 @@ import { toast, ToastContainer } from "react-toastify";
 import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import 'react-toastify/dist/ReactToastify.css';
 import { gameChannelManager, subscribeToGame, unsubscribeFromGame } from '@/lib/ably';
+import { getGameFromContract } from '@/lib/contract';
 
 // Cell type enum
 enum CellType {
@@ -71,6 +72,81 @@ export default function GamePage() {
 
     const isNewStateRecalculatedRef = useRef<boolean | null>(false);
 
+    const fetchGameFromSmartContract = async (game: Game): Promise<Game> => {
+        const contractGameData = await getGameFromContract(gameId);
+        if (!contractGameData.success) {
+            throw new Error('Game not found');
+        }
+
+        game.status = toGameStatus(contractGameData.data.status);
+
+        game.team1.name = "Team Blue";
+        game.team2.name = "Team Red";
+        game.team1.teamId = contractGameData.data.team1.teamId;
+        game.team2.teamId = contractGameData.data.team2.teamId;
+
+        const gameState: GameState = {
+            team1PlayerPositions: contractGameData.data.lastBoardState.team1PlayerPositions,
+            team2PlayerPositions: contractGameData.data.lastBoardState.team2PlayerPositions,
+            ballPosition: contractGameData.data.lastBoardState.ballPosition,
+            ballOwner: contractGameData.data.lastBoardState.ballOwner === 1 ? TeamEnum.TEAM1 : contractGameData.data.lastBoardState.ballOwner === 2 ? TeamEnum.TEAM2 : null,
+            type: GameStateType.MOVE,
+            clashRandomResults: [],
+            team1Moves: [],
+            team2Moves: []
+        }
+
+        game.restoreState(gameState);
+
+        console.log('contractGameData.data.gameState.team1MovesEncrypted', contractGameData.data.gameState.team1MovesEncrypted);
+        console.log('contractGameData.data.gameState.team2MovesEncrypted', contractGameData.data.gameState.team2MovesEncrypted);
+        if (BigInt(contractGameData.data.gameState.team1MovesEncrypted) !== BigInt(0)) {
+            console.log('team1MovesCommited');
+            game.team1.isCommittedMove = true;
+        }
+        if (BigInt(contractGameData.data.gameState.team2MovesEncrypted) !== BigInt(0)) {
+            console.log('team2MovesCommited');
+            game.team2.isCommittedMove = true;
+        }
+
+        return game;
+    }
+
+    const fetchGameFromDatabase = async (game: Game): Promise<Game> => {
+        const dbGameData = await getGameFromDB(gameId);
+        if (!dbGameData.success) {
+            console.error('Error fetching game from database:', dbGameData.error);
+            return game;
+
+        }
+        console.log('Contract game data:', dbGameData.data);
+
+
+        game.team1.name = dbGameData.data.team1_info.name;
+        game.team2.name = dbGameData.data.team2_info.name;
+
+        const history: GameState[] = [];
+
+        for (const state of dbGameData.data.history) {
+            const gameState = {
+                team1PlayerPositions: state.team1_positions,
+                team2PlayerPositions: state.team2_positions,
+                ballPosition: state.ball_position,
+                ballOwner: state.ball_owner,
+                type: (state.type == 'startPositions' ? GameStateType.START_POSITIONS : state.type == 'move' ? GameStateType.MOVE : state.type == 'goal_team1' ? GameStateType.GOAL_TEAM1 : GameStateType.GOAL_TEAM2) as GameStateType,
+                clashRandomResults: state.clashRandomResults,
+                team1Moves: state.team1_moves || [],
+                team2Moves: state.team2_moves || []
+            }
+
+            history.push(gameState);
+        }
+
+        game.history = history;
+
+        return game;
+    }
+
     // Function to fetch game data from smart contract
     const fetchGameData = async () => {
         if (!gameId) return;
@@ -84,48 +160,17 @@ export default function GamePage() {
 
             console.log('Fetching game data for game ID:', gameId);
 
-            // Fetch game data from smart contract
-            const dbGameData = await getGameFromDB(gameId);
+            let newGame = new Game(parseInt(gameId));
+            newGame = await fetchGameFromSmartContract(newGame);
+            console.log('newGame isCommitedMove 0', newGame.team1.isCommittedMove, newGame.team2.isCommittedMove);
 
-            if (!dbGameData.success) {
-                if (dbGameData.error === 'GAME_NOT_FOUND') {
-                    throw new Error('Game not found');
-                } else if (dbGameData.error === 'DB_ERROR') {
-                    throw new Error('Network error occurred while fetching game data');
-                } else {
-                    throw new Error(dbGameData.message);
-                }
+            try {
+                newGame = await fetchGameFromDatabase(newGame);
+            } catch (err) {
+                console.error('Error fetching game data from database:', err);
             }
 
-            console.log('Contract game data:', dbGameData.data);
-
-            // Create a new Game instance with the fetched data
-            const newGame = new Game(parseInt(gameId));
-            newGame.status = dbGameData.data.status == 'active' ? GameStatus.ACTIVE : dbGameData.data.status == 'finished' ? GameStatus.FINISHED : dbGameData.data.status == 'finished_by_timeout' ? GameStatus.FINISHED_BY_TIMEOUT : GameStatus.ACTIVE;
-
-            newGame.team1.name = dbGameData.data.team1_info.name;
-            newGame.team2.name = dbGameData.data.team2_info.name;
-            newGame.team1.teamId = dbGameData.data.team1;
-            newGame.team2.teamId = dbGameData.data.team2;
-
-            for (const state of dbGameData.data.history) {
-                const gameState = {
-                    team1PlayerPositions: state.team1PlayerPositions,
-                    team2PlayerPositions: state.team2PlayerPositions,
-                    ballPosition: state.ballPosition,
-                    ballOwner: state.ballOwner,
-                    type: (state.type == 'startPositions' ? GameStateType.START_POSITIONS : state.type == 'move' ? GameStateType.MOVE : state.type == 'goal_team1' ? GameStateType.GOAL_TEAM1 : GameStateType.GOAL_TEAM2) as GameStateType,
-                    clashRandomResults: state.clashRandomResults,
-                    team1Moves: state.team1Moves || [],
-                    team2Moves: state.team2Moves || []
-                }
-
-                newGame.saveState(gameState);
-            }
-
-            newGame.restoreState(newGame.history[newGame.history.length - 1]);
-            newGame.team1.score = dbGameData.data.team1_score;
-            newGame.team2.score = dbGameData.data.team2_score;
+            console.log('newGame isCommitedMove 1', newGame.team1.isCommittedMove, newGame.team2.isCommittedMove);
 
             if (userTeamId) {
                 const gameTeamInfo = Number(newGame.team1.teamId) === userTeamId ? newGame.team1 :
@@ -134,30 +179,38 @@ export default function GamePage() {
                 console.log('currentTeam', gameTeamInfo);
                 setCurrentTeam(gameTeamInfo);
 
-                if (gameTeamInfo!.enum == TeamEnum.TEAM1) {
-                    if (dbGameData.data.team1_moves.length > 0) {
-                        for (const move of dbGameData.data.team1_moves) {
-                            newGame.doPlayerMove(newGame.team1.players[move.playerId], move.moveType, move.oldPosition, move.newPosition);
+                const storedActions = localStorage.getItem('commitedActions');
+                if (gameTeamInfo!.isCommittedMove && storedActions) {
+                    const commitedActionsData = JSON.parse(storedActions);
+
+                    if (gameTeamInfo!.enum == TeamEnum.TEAM1) {
+                        if (commitedActionsData.length > 0) {
+                            newGame.team1.isCommittedMove = false;
+                            for (const move of commitedActionsData) {
+                                newGame.doPlayerMove(newGame.team1.players[move.playerId], move.moveType, move.oldPosition, move.newPosition);
+                            }
+                            newGame.commitMove(TeamEnum.TEAM1);
                         }
-                        newGame.commitMove(TeamEnum.TEAM1);
-                    }
-                } else if (gameTeamInfo!.enum == TeamEnum.TEAM2) {
-                    if (dbGameData.data.team2_moves.length > 0) {
-                        for (const move of dbGameData.data.team2_moves) {
-                            newGame.doPlayerMove(newGame.team2.players[move.playerId], move.moveType, move.oldPosition, move.newPosition);
+                    } else if (gameTeamInfo!.enum == TeamEnum.TEAM2) {
+                        if (commitedActionsData.length > 0) {
+                            newGame.team2.isCommittedMove = false;
+                            for (const move of commitedActionsData) {
+                                newGame.doPlayerMove(newGame.team2.players[move.playerId], move.moveType, move.oldPosition, move.newPosition);
+                            }
+                            newGame.commitMove(TeamEnum.TEAM2);
                         }
-                        newGame.commitMove(TeamEnum.TEAM2);
                     }
                 }
             }
+
+            console.log('newGame isCommitedMove 2', newGame.team1.isCommittedMove, newGame.team2.isCommittedMove);
 
             setGame(newGame);
             // Set current history index to the latest state
             setCurrentHistoryIndex(newGame.history.length - 1);
 
             // calculating new game state
-            if (dbGameData.data.team1_moves.length > 0 && dbGameData.data.team2_moves.length > 0) {
-                console.log('exist team1_moves and team2_moves!');
+            if (newGame.team1.isCommittedMove && newGame.team2.isCommittedMove) {
                 setIsTwoTeamCommitted(true);
             }
 
@@ -210,8 +263,12 @@ export default function GamePage() {
 
                 game!.playerMoves = [];
 
-                game!.saveState(gameEvent.new_state);
-                game!.restoreState(gameEvent.new_state);
+                // Convert event state to GameState format
+                const gameState = convertEventStateToGameState(gameEvent.new_state);
+                console.log('Converted gameState', gameState);
+
+                game!.saveState(gameState);
+                game!.restoreState(gameState);
 
 
                 isNewStateRecalculatedRef.current = true;
@@ -221,6 +278,8 @@ export default function GamePage() {
                 setGameSubmissionState(GameSubmissionState.IDLE);
                 // Reset history index to latest state
                 setCurrentHistoryIndex(game!.history.length - 1);
+
+                localStorage.removeItem('commitedActions');
             }
             if (gameEvent.type === 'GAME_ACTION_COMMITTED') {
                 console.log('Game action committed notification received, re-fetching game data...');
@@ -425,6 +484,7 @@ export default function GamePage() {
                 }
             }
 
+            localStorage.removeItem('commitedActions');
             setIsTwoTeamCommitted(false);
         }
 
@@ -469,6 +529,8 @@ export default function GamePage() {
                 const data = await response.json();
 
                 console.log('Move committed successfully:', data);
+
+                localStorage.setItem('commitedActions', JSON.stringify(game!.playerMoves));
 
                 if (data.isTwoTeamCommited) {
                     console.log('Two team commited, calculating new game state...');

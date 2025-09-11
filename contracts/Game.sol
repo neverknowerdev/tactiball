@@ -30,6 +30,7 @@ error FinishGameByTimeout_NoLastMove();
 error GameHasNotReachedMaxMoves();
 error OnlyGameEngineServerCanCall();
 error InvalidTeam();
+error MovesEncryptedCannotBeZero();
 
 contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using GameLib for *;
@@ -58,6 +59,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     uint256 public gameRequestIndex;
 
     mapping(string => bool) public teamNames;
+
+    string private publicKey;
 
     uint256[100] private __gap;
 
@@ -92,8 +95,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint8[] clashRandomNumbers,
         GameLib.GameAction[] team1Actions,
         GameLib.GameAction[] team2Actions,
-        GameLib.Position ballPosition,
-        GameLib.TeamEnum ballOwner
+        GameLib.BoardState boardState
     );
     enum ErrorType {
         UNSPECIFIED,
@@ -125,6 +127,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         _disableInitializers();
     }
 
+    function gamePublicKey() public view returns (string memory) {
+        return publicKey;
+    }
+
     /**
      * @dev Initializer function to set the Gelato address
      * @param _gelatoAddress The address of the Gelato automation service
@@ -134,7 +140,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function initialize(
         address _gelatoAddress,
         address _relayerAddress,
-        address _gameEngineServerAddress
+        address _gameEngineServerAddress,
+        string memory _publicKey
     ) public initializer {
         if (_gelatoAddress == address(0)) revert InitAddressCannotBeZero();
         if (_relayerAddress == address(0)) revert InitAddressCannotBeZero();
@@ -143,6 +150,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         gelatoAddress = _gelatoAddress;
         relayerAddress = _relayerAddress;
         gameEngineServerAddress = _gameEngineServerAddress;
+        publicKey = _publicKey;
         __Ownable_init(msg.sender);
     }
 
@@ -286,7 +294,11 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ========================================
 
     // Internal function that starts a game with a specified sender
-    function _startGame(address sender, uint256 gameRequestId) internal {
+    function _startGame(
+        address sender,
+        uint256 gameRequestId,
+        bytes calldata _encryptedKey
+    ) internal {
         if (gameRequests[gameRequestId].createdAt == 0) revert DoesNotExist();
         if (teams[gameRequests[gameRequestId].team2id].wallet != sender)
             revert GameOwnerShouldCall();
@@ -315,7 +327,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             team2id,
             nextGameId,
             teams[team1id].eloRating,
-            teams[team2id].eloRating
+            teams[team2id].eloRating,
+            _encryptedKey
         );
 
         games[game.gameId] = game;
@@ -340,16 +353,20 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     // Public wrapper that calls internal function with msg.sender
-    function startGame(uint256 gameRequestId) public {
-        _startGame(msg.sender, gameRequestId);
+    function startGame(
+        uint256 gameRequestId,
+        bytes calldata _encryptedKey
+    ) public {
+        _startGame(msg.sender, gameRequestId, _encryptedKey);
     }
 
     // Relayer version that can start game for any address
     function startGameRelayer(
         address sender,
-        uint256 gameRequestId
+        uint256 gameRequestId,
+        bytes calldata _encryptedKey
     ) public onlyRelayer {
-        _startGame(sender, gameRequestId);
+        _startGame(sender, gameRequestId, _encryptedKey);
     }
 
     // ========================================
@@ -360,15 +377,21 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function _commitGameActions(
         address sender,
         uint256 gameId,
-        GameLib.TeamEnum team
+        GameLib.TeamEnum team,
+        bytes32 movesEncrypted
     ) internal gameExists(gameId) {
         GameLib.Game storage game = games[gameId];
         if (game.status != GameLib.GameStatus.ACTIVE) revert GameIsNotActive();
         if (team == GameLib.TeamEnum.NONE) revert InvalidTeam();
-        if (team == GameLib.TeamEnum.TEAM1 && game.gameState.team1MadeMove)
-            revert MovesAlreadyCommitted();
-        if (team == GameLib.TeamEnum.TEAM2 && game.gameState.team2MadeMove)
-            revert MovesAlreadyCommitted();
+        if (movesEncrypted == bytes32(0)) revert MovesEncryptedCannotBeZero();
+        if (
+            team == GameLib.TeamEnum.TEAM1 &&
+            game.gameState.team1MovesEncrypted != bytes32(0)
+        ) revert MovesAlreadyCommitted();
+        if (
+            team == GameLib.TeamEnum.TEAM2 &&
+            game.gameState.team2MovesEncrypted != bytes32(0)
+        ) revert MovesAlreadyCommitted();
 
         if (team == GameLib.TeamEnum.TEAM1) {
             if (teams[game.team1.teamId].wallet != sender)
@@ -385,7 +408,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         bool bothTeamsCommitted = GameLib.commitGameActions(
             game.gameState,
-            team
+            team,
+            movesEncrypted
         );
 
         if (bothTeamsCommitted) {
@@ -393,18 +417,14 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
     }
 
-    // Public wrapper that calls internal function with msg.sender
-    // function commitGameActions(uint256 gameId, GameLib.TeamEnum team) public {
-    //     _commitGameActions(msg.sender, gameId, team);
-    // }
-
     // Relayer version that can commit game actions for any address
     function commitGameActionsRelayer(
         address sender,
         uint256 gameId,
-        GameLib.TeamEnum team
+        GameLib.TeamEnum team,
+        bytes32 movesEncrypted
     ) public onlyRelayer {
-        _commitGameActions(sender, gameId, team);
+        _commitGameActions(sender, gameId, team, movesEncrypted);
     }
 
     // ========================================
@@ -423,8 +443,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             teams[game.team2.teamId].wallet != sender
         ) revert GameOwnerShouldCall();
         if (
-            game.gameState.team1MadeMove == false ||
-            game.gameState.team2MadeMove == false
+            game.gameState.team1MovesEncrypted == bytes32(0) ||
+            game.gameState.team2MovesEncrypted == bytes32(0)
         ) revert ActionsNotCommitted();
         if (
             game.gameState.lastMoveAt + GameLib.MAX_MOVE_TIME >= block.timestamp
@@ -529,8 +549,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint8[] calldata clashRandomNumbers,
         GameLib.GameAction[] calldata team1Actions,
         GameLib.GameAction[] calldata team2Actions,
-        GameLib.Position calldata ballPosition,
-        GameLib.TeamEnum ballOwner
+        GameLib.BoardState calldata boardState
     ) public gameExists(gameId) onlyGameEngine {
         GameLib.Game storage game = games[gameId];
 
@@ -538,16 +557,18 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         if (game.gameState.movesMade > 0) {
             if (
-                game.gameState.team1MadeMove == false ||
-                game.gameState.team2MadeMove == false
+                game.gameState.team1MovesEncrypted == bytes32(0) ||
+                game.gameState.team2MovesEncrypted == bytes32(0)
             ) revert ActionsNotCommitted();
         }
+
+        game.lastBoardState = boardState;
 
         game.gameState = GameLib.GameState({
             movesMade: game.gameState.movesMade + 1,
             lastMoveAt: uint64(block.timestamp),
-            team1MadeMove: false,
-            team2MadeMove: false,
+            team1MovesEncrypted: bytes32(0),
+            team2MovesEncrypted: bytes32(0),
             lastMoveTeam: GameLib.TeamEnum.NONE,
             team1score: stateType == GameLib.StateType.GOAL_TEAM1
                 ? game.gameState.team1score + 1
@@ -570,8 +591,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             clashRandomNumbers,
             team1Actions,
             team2Actions,
-            ballPosition,
-            ballOwner
+            game.lastBoardState
         );
 
         if (game.gameState.movesMade >= GameLib.MAX_MOVES) {
