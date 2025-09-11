@@ -864,7 +864,7 @@ export function convertEventStateToGameState(eventState: any): GameState {
         return moves.map((move: any) => ({
             playerId: move.playerId || move.player_id || 0,
             teamEnum: move.teamEnum || (move.team_enum === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2),
-            moveType: move.moveType || move.move_type || MoveType.MOVE,
+            moveType: move.moveType || move.move_type || MoveType.RUN,
             oldPosition: move.oldPosition || move.old_position || { x: 0, y: 0 },
             newPosition: move.newPosition || move.new_position || { x: 0, y: 0 },
             playerKey: () => `${move.playerId || move.player_id || 0}`
