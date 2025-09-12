@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
-import { publicClient, createRelayerClient } from '@/lib/providers';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from '@/lib/contract';
+import { publicClient, sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { parseEventLogs } from 'viem';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -65,25 +65,24 @@ export async function POST(request: NextRequest) {
 
         // Simulate the transaction first to ensure it will succeed
         console.log('Simulating finishGameByTimeoutRelayer transaction...');
-        const relayerClient = createRelayerClient();
         const { request: simulationRequest } = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'finishGameByTimeoutRelayer',
             args: [body.wallet_address, BigInt(body.game_id)],
             chain: base,
-            account: relayerClient.account
+            account: RELAYER_ADDRESS
         });
 
         console.log('Transaction simulation successful, executing...');
 
         // Execute the actual transaction using relayer client
-        const hash = await relayerClient.writeContract(simulationRequest);
+        const hash = await sendTransactionWithRetry(simulationRequest);
 
         console.log('Game finished by timeout successfully. Transaction hash:', hash);
 
         // Wait for transaction confirmation
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        const receipt = await waitForTransactionReceipt(hash);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
-import { publicClient, createRelayerClient } from '@/lib/providers';
-import { CONTRACT_ADDRESS, CONTRACT_ABI } from '@/lib/contract';
+import { publicClient, sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { processGameMoves } from './process-game-moves';
 import { toContractStateType, toContractMove, toTeamEnum } from './types';
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         console.log('Processing game actions commit for game:', body.game_id);
         console.log('Team:', body.team_enum === 1 ? 'Team 1' : 'Team 2');
 
-        const gameInfo = await getGameFromContract(body.game_id);
+        const gameInfo = await getGameFromContract(Number(body.game_id));
         if (!gameInfo.success) {
             return NextResponse.json(
                 { error: 'Game not found', errorName: 'GAME_NOT_FOUND' },
@@ -74,8 +74,6 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             );
         }
-
-        const relayerClient = createRelayerClient();
 
         // Check if both teams have submitted moves
         if (BigInt(gameInfo.data.gameState.team1MovesEncrypted) === BigInt(0)) {
@@ -120,15 +118,15 @@ export async function POST(request: NextRequest) {
             functionName: 'newGameState',
             args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
             chain: base,
-            account: relayerClient.account
+            account: RELAYER_ADDRESS
         });
 
         // Execute newGameState transaction
-        const hash = await relayerClient.writeContract(newGameStateRequest);
+        const hash = await sendTransactionWithRetry(newGameStateRequest);
         console.log('New game state committed. Transaction hash:', hash);
 
         // Wait for transaction confirmation
-        const receipt = await publicClient.waitForTransactionReceipt({ hash: hash });
+        const receipt = await waitForTransactionReceipt(hash);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,

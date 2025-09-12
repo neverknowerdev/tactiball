@@ -7,6 +7,8 @@ export const CONTRACT_ADDRESS = '0x5582A4C5a7e1d1997189774Cb1785aCb3d1E063d' as 
 // Import the ABI from the web3-functions directory
 export const CONTRACT_ABI = gameArtifact.abi as any[];
 
+export const RELAYER_ADDRESS = '0xc510350904b2fD01D9af92342f49a3c7aEC47739' as Address;
+
 export interface DecodedEvent {
     eventName: string;
     args: Record<string, any>;
@@ -67,7 +69,7 @@ export type GameFetchResult = {
  * @param gameId - The ID of the game to fetch
  * @returns Promise<GameFetchResult> - The game data or error information
  */
-export async function getGameFromContract(gameId: string): Promise<GameFetchResult> {
+export async function getGameFromContract(gameId: number): Promise<GameFetchResult> {
     try {
         console.log('Fetching game data from contract for game ID:', gameId);
 

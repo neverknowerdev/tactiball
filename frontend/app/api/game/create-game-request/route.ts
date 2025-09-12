@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { type Address, BaseError, ContractFunctionRevertedError, parseEventLogs } from 'viem';
-import { createRelayerClient, publicClient } from '@/lib/providers';
-import { CONTRACT_ABI, CONTRACT_ADDRESS } from '@/lib/contract';
+import { publicClient, sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -62,8 +62,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const relayerClient = createRelayerClient();
-
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
@@ -71,14 +69,12 @@ export async function POST(request: NextRequest) {
             functionName: 'createGameRequestRelayer',
             args: [wallet_address as Address, team1_id, team2_id],
             chain: base,
-            account: relayerClient.account
+            account: RELAYER_ADDRESS
         });
 
-        const result = await relayerClient.writeContract(simulation.request);
+        const result = await sendTransactionWithRetry(simulation.request);
 
-        const receipt = await publicClient.waitForTransactionReceipt({
-            hash: result
-        });
+        const receipt = await waitForTransactionReceipt(result);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
-import { publicClient, createRelayerClient } from '@/lib/providers';
+import { publicClient } from '@/lib/providers';
 import { parseEventLogs, Log } from 'viem';
-import { CONTRACT_ADDRESS, CONTRACT_ABI, getGameFromContract } from '@/lib/contract';
+import { CONTRACT_ADDRESS, CONTRACT_ABI, getGameFromContract, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { decodeSymmetricKey, encodeData, bigintToBuffer } from '@/lib/encrypting';
 import { sendWebhookMessage } from '@/lib/webhook';
 import { FIELD_HEIGHT, FIELD_WIDTH, MoveType, serializeMoves, TeamEnum } from '@/lib/game';
+import { WebSocketBroadcastingService } from '@/lib/ably';
+import { sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
 
 /**
  * Game Actions Commit Endpoint
@@ -21,7 +23,7 @@ import { FIELD_HEIGHT, FIELD_WIDTH, MoveType, serializeMoves, TeamEnum } from '@
 
 // Interface for the request body
 interface CommitGameActionsRequest {
-    game_id: string;
+    game_id: number;
     team_id: string;
     team_enum: number; // 1 for team1, 2 for team2
     wallet_address: string;
@@ -106,7 +108,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const gameInfo = await getGameFromContract(body.game_id);
+        const gameInfo = await getGameFromContract(Number(body.game_id));
         if (!gameInfo.success) {
             return NextResponse.json(
                 { error: 'Game not found', errorName: 'GAME_NOT_FOUND' },
@@ -153,27 +155,30 @@ export async function POST(request: NextRequest) {
         console.log('body.game_id', body.game_id);
         console.log('body.team_enum', body.team_enum);
         console.log('encryptedMoves', encryptedMoves);
-        const relayerClient = createRelayerClient();
         const { request: simulationRequest } = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'commitGameActionsRelayer',
             args: [body.wallet_address, body.game_id, body.team_enum, encryptedMoves],
             chain: base,
-            account: relayerClient.account
+            account: RELAYER_ADDRESS
         });
 
         console.log('Transaction simulation successful, executing...');
         console.log('simulationRequest', simulationRequest)
 
-        // Execute the actual transaction using relayer client
-        let hash = await relayerClient.writeContract(simulationRequest);
+        // Execute the transaction using the retry logic
+        const hash = await sendTransactionWithRetry(simulationRequest);
 
-        console.log('Game actions committed successfully. Transaction hash:', hash);
+        const wsService = new WebSocketBroadcastingService(process.env.ABLY_API_KEY!);
+        await wsService.broadcastToGame(body.game_id, {
+            type: 'GAME_ACTION_COMMITTED',
+            game_id: body.game_id,
+            timestamp: new Date().getTime()
+        });
 
         // Wait for transaction confirmation
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
+        const receipt = await waitForTransactionReceipt(hash);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,

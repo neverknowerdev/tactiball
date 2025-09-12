@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { type Address, BaseError, ContractFunctionRevertedError, parseEventLogs } from 'viem';
-import { createRelayerClient, publicClient } from '@/lib/providers';
-import { CONTRACT_ABI, CONTRACT_ADDRESS } from '@/lib/contract';
+import { publicClient, sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { generateSymmetricKey, encodeSymmetricKey, generateECIESKeyPair } from '@/lib/encrypting';
+import { generateSymmetricKey, encodeSymmetricKey } from '@/lib/encrypting';
 
 interface StartGameRequest {
     walletAddress: string;
@@ -54,8 +54,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const relayerClient = createRelayerClient();
-
         // Generate encryption keys for the game
         const symmetricKey = generateSymmetricKey();
 
@@ -78,14 +76,12 @@ export async function POST(request: NextRequest) {
             functionName: 'startGameRelayer',
             args: [wallet_address as Address, game_request_id, encryptedKeyHex],
             chain: base,
-            account: relayerClient.account
+            account: RELAYER_ADDRESS
         });
 
-        const result = await relayerClient.writeContract(simulation.request);
+        const result = await sendTransactionWithRetry(simulation.request);
 
-        const receipt = await publicClient.waitForTransactionReceipt({
-            hash: result
-        });
+        const receipt = await waitForTransactionReceipt(result);
 
         console.log('Starting game with relayer:', {
             wallet_address,
