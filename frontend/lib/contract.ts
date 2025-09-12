@@ -69,7 +69,7 @@ export type GameFetchResult = {
  * @param gameId - The ID of the game to fetch
  * @returns Promise<GameFetchResult> - The game data or error information
  */
-export async function getGameFromContract(gameId: number): Promise<GameFetchResult> {
+export async function getGameFromContract(gameId: string): Promise<GameFetchResult> {
     try {
         console.log('Fetching game data from contract for game ID:', gameId);
 

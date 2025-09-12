@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { type Address, BaseError, ContractFunctionRevertedError, parseEventLogs } from 'viem';
-import { publicClient, sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { publicClient } from '@/lib/providers';
+import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
@@ -79,19 +80,19 @@ export async function POST(request: NextRequest) {
             account: RELAYER_ADDRESS
         });
 
-        const result = await sendTransactionWithRetry(simulation.request);
+        const paymasterReceipt = await sendTransactionWithRetry(simulation.request);
 
-        const receipt = await waitForTransactionReceipt(result);
+        // const receipt = await waitForTransactionReceipt(result);
 
         console.log('Starting game with relayer:', {
             wallet_address,
             game_request_id,
-            transactionHash: receipt.transactionHash
+            transactionHash: paymasterReceipt.receipt.transactionHash
         });
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
-            logs: receipt.logs,
+            logs: paymasterReceipt.logs,
         });
 
         await sendWebhookMessage(logs);
@@ -100,11 +101,11 @@ export async function POST(request: NextRequest) {
             success: true,
             message: 'Game started successfully',
             data: {
-                gameId: receipt.transactionHash, // Using transaction hash as temporary ID
+                // gameId: paymasterReceipt.receipt.transactionHash, // Using transaction hash as temporary ID
                 game_request_id,
                 status: 'active',
                 startTime: new Date().toISOString(),
-                transactionHash: receipt.transactionHash
+                transactionHash: paymasterReceipt.receipt.transactionHash
             }
         });
 

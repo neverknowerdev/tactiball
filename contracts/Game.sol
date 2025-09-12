@@ -62,7 +62,9 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     string private publicKey;
 
-    uint256[100] private __gap;
+    address public relayerSmartAccountAddress;
+
+    uint256[99] private __gap;
 
     // ========================================
     // EVENTS
@@ -135,20 +137,25 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
      * @dev Initializer function to set the Gelato address
      * @param _gelatoAddress The address of the Gelato automation service
      * @param _relayerAddress The address of the relayer service
+     * @param _relayerSmartAccountAddress The address of the relayer smart account
      * @param _gameEngineServerAddress The address of the game engine server
      */
     function initialize(
         address _gelatoAddress,
         address _relayerAddress,
+        address _relayerSmartAccountAddress,
         address _gameEngineServerAddress,
         string memory _publicKey
     ) public initializer {
         if (_gelatoAddress == address(0)) revert InitAddressCannotBeZero();
         if (_relayerAddress == address(0)) revert InitAddressCannotBeZero();
+        if (_relayerSmartAccountAddress == address(0))
+            revert InitAddressCannotBeZero();
         if (_gameEngineServerAddress == address(0))
             revert InitAddressCannotBeZero();
         gelatoAddress = _gelatoAddress;
         relayerAddress = _relayerAddress;
+        relayerSmartAccountAddress = _relayerSmartAccountAddress;
         gameEngineServerAddress = _gameEngineServerAddress;
         publicKey = _publicKey;
         __Ownable_init(msg.sender);
@@ -160,6 +167,18 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyOwner {}
+
+    /**
+     * @dev Set the relayer smart account address (for existing deployments)
+     * @param _relayerSmartAccountAddress The address of the relayer smart account
+     */
+    function setRelayerSmartAccountAddress(
+        address _relayerSmartAccountAddress
+    ) public onlyOwner {
+        if (_relayerSmartAccountAddress == address(0))
+            revert InitAddressCannotBeZero();
+        relayerSmartAccountAddress = _relayerSmartAccountAddress;
+    }
 
     // ========================================
     // CREATE TEAM
@@ -764,13 +783,18 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     modifier onlyGameEngine() {
         if (
-            msg.sender != gameEngineServerAddress && msg.sender != gelatoAddress
+            msg.sender != gameEngineServerAddress &&
+            msg.sender != relayerSmartAccountAddress &&
+            msg.sender != gelatoAddress
         ) revert OnlyGameEngineServerCanCall();
         _;
     }
 
     modifier onlyRelayer() {
-        if (msg.sender != relayerAddress) revert OnlyRelayerCanCall();
+        if (
+            msg.sender != relayerAddress &&
+            msg.sender != relayerSmartAccountAddress
+        ) revert OnlyRelayerCanCall();
         _;
     }
 }

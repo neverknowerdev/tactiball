@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
-import { publicClient, sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { publicClient } from '@/lib/providers';
+import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { parseEventLogs } from 'viem';
@@ -77,32 +78,29 @@ export async function POST(request: NextRequest) {
         console.log('Transaction simulation successful, executing...');
 
         // Execute the actual transaction using relayer client
-        const hash = await sendTransactionWithRetry(simulationRequest);
+        const paymasterReceipt = await sendTransactionWithRetry(simulationRequest);
 
-        console.log('Game finished by timeout successfully. Transaction hash:', hash);
-
-        // Wait for transaction confirmation
-        const receipt = await waitForTransactionReceipt(hash);
+        console.log('Game finished by timeout successfully. Transaction hash:', paymasterReceipt.receipt.transactionHash);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
-            logs: receipt.logs,
+            logs: paymasterReceipt.logs,
         });
 
         await sendWebhookMessage(logs);
 
-        if (receipt.status === 'success') {
+        if (paymasterReceipt.receipt.status === 'success') {
             return NextResponse.json({
                 success: true,
                 message: 'Game finished by timeout successfully',
-                transactionHash: hash,
+                transactionHash: paymasterReceipt.receipt.transactionHash,
                 gameId: body.game_id,
-                blockNumber: receipt.blockNumber,
-                gasUsed: receipt.gasUsed
+                blockNumber: paymasterReceipt.receipt.blockNumber,
+                gasUsed: paymasterReceipt.receipt.gasUsed
             });
         } else {
             return NextResponse.json(
-                { error: 'Transaction failed', errorName: 'TRANSACTION_FAILED', transactionHash: hash },
+                { error: 'Transaction failed', errorName: 'TRANSACTION_FAILED', transactionHash: paymasterReceipt.receipt.transactionHash },
                 { status: 500 }
             );
         }

@@ -1,0 +1,240 @@
+"use server";
+import { createWalletClient, createPublicClient, http, type Hex } from 'viem';
+import { base } from 'viem/chains';
+import { privateKeyToAccount } from 'viem/accounts';
+import { toCoinbaseSmartAccount } from 'viem/account-abstraction';
+import { createBundlerClient } from 'viem/account-abstraction';
+import { redis } from './redis';
+import { UserOperationReceipt } from 'viem/account-abstraction';
+import { publicClient } from './providers';
+import { CONTRACT_ABI } from './contract';
+
+function getCoinbasePaymasterRpcUrl() {
+    // Coinbase Paymaster Configuration
+    const COINBASE_PAYMASTER_RPC_URL = process.env.COINBASE_PAYMASTER_RPC_URL;
+
+    if (!COINBASE_PAYMASTER_RPC_URL) {
+        throw new Error('COINBASE_PAYMASTER_RPC_URL environment variable is required');
+    }
+
+    console.log('Using Coinbase Paymaster for transaction sponsorship');
+    console.log('Paymaster RPC:', COINBASE_PAYMASTER_RPC_URL);
+    return COINBASE_PAYMASTER_RPC_URL;
+}
+
+// Create a public client for Coinbase Paymaster
+const paymasterPublicClient = createPublicClient({
+    chain: base,
+    transport: http(process.env.RPC_URL || 'https://mainnet.base.org')
+});
+
+// Create smart account for Paymaster transactions
+export async function createSmartAccount() {
+    const privateKey = process.env.RELAYER_PRIVATE_KEY;
+    if (!privateKey) {
+        throw new Error('RELAYER_PRIVATE_KEY environment variable is required');
+    }
+
+    const owner = privateKeyToAccount(privateKey as Hex);
+
+    // Create Coinbase smart wallet using the EOA signer
+    const smartAccount = await toCoinbaseSmartAccount({
+        client: paymasterPublicClient,
+        owners: [owner],
+        version: '1.1' // Specify version as required
+    });
+
+    return smartAccount;
+}
+
+// Create bundler client for UserOperations
+export async function createRelayerBundlerClient() {
+    const smartAccount = await createSmartAccount();
+
+    return createBundlerClient({
+        account: smartAccount,
+        client: paymasterPublicClient,
+        transport: http(getCoinbasePaymasterRpcUrl()),
+        chain: base,
+    });
+}
+
+// Legacy function for backward compatibility (now uses smart account)
+export async function createRelayerClient() {
+    const smartAccount = await createSmartAccount();
+
+    // Return a wallet client that uses the smart account
+    return createWalletClient({
+        account: smartAccount,
+        chain: base,
+        transport: http(getCoinbasePaymasterRpcUrl()),
+    });
+}
+
+// Redis-based nonce management for relayer
+export async function getNextRelayerNonce(account: Hex): Promise<bigint> {
+    const nonceKey = `relayer_nonce:${account}`;
+
+    try {
+        if (!redis) {
+            throw new Error('Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables');
+        }
+
+        // Use Redis INCR for atomic increment
+        const nonceStr = await redis.incr(nonceKey);
+        const nonce = Number(nonceStr);
+
+        // If this is the first time (nonce === 1), get the current nonce from blockchain
+        if (nonce === 1) {
+            const blockchainNonce = await publicClient.getTransactionCount({
+                address: account,
+                blockTag: 'pending'
+            });
+
+            // Set the nonce to blockchain nonce + 1
+            await redis.set(nonceKey, Number(blockchainNonce) + 1);
+            return BigInt(blockchainNonce as number);
+        }
+
+        return BigInt(nonce - 1); // Redis INCR returns the new value, so subtract 1
+    } catch (error) {
+        console.error('Error getting next relayer nonce:', error);
+        throw new Error(`Failed to get next nonce: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+// Reset nonce counter (useful for testing or if nonce gets out of sync)
+export async function resetRelayerNonce(account: Hex): Promise<void> {
+    const nonceKey = `relayer_nonce:${account}`;
+
+    try {
+        if (!redis) {
+            throw new Error('Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables');
+        }
+
+        // Get current nonce from blockchain
+        const blockchainNonce = await publicClient.getTransactionCount({
+            address: account,
+            blockTag: 'pending'
+        });
+
+        // Reset to blockchain nonce
+        await redis.set(nonceKey, Number(blockchainNonce));
+        console.log(`Reset nonce for ${account} to ${blockchainNonce}`);
+    } catch (error) {
+        console.error('Error resetting relayer nonce:', error);
+        throw new Error(`Failed to reset nonce: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+// Get current nonce without incrementing (for debugging)
+export async function getCurrentRelayerNonce(account: Hex): Promise<bigint> {
+    const nonceKey = `relayer_nonce:${account}`;
+
+    try {
+        if (!redis) {
+            throw new Error('Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables');
+        }
+
+        const nonceStr = await redis.get(nonceKey);
+        const nonce = nonceStr !== null ? Number(nonceStr) : null;
+
+        if (nonce === null) {
+            // No nonce stored, get from blockchain
+            const blockchainNonce = await publicClient.getTransactionCount({
+                address: account,
+                blockTag: 'pending'
+            });
+            return BigInt(blockchainNonce as number);
+        }
+
+        return BigInt(nonce);
+    } catch (error) {
+        console.error('Error getting current relayer nonce:', error);
+        throw new Error(`Failed to get current nonce: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+
+// Generic function to send transactions with retry logic using UserOperations
+export async function sendTransactionWithRetry(request: any, maxRetries: number = 3): Promise<UserOperationReceipt> {
+    const bundlerClient = await createRelayerBundlerClient();
+    const smartAccount = await createSmartAccount();
+    const accountAddress = smartAccount.address;
+
+    console.log('Sending UserOperation for smart account:', accountAddress);
+    console.log('Transaction will be sponsored by Coinbase Paymaster');
+
+    // Convert the contract call request to a UserOperation call
+    const call = {
+        abi: CONTRACT_ABI,
+        functionName: request.functionName,
+        to: request.address,
+        args: request.args,
+    };
+
+    // Let the bundler handle gas estimation automatically
+    // The bundler will estimate gas and apply Paymaster sponsorship
+
+    let userOpHash: string;
+    let retryCount = 0;
+
+    while (retryCount < maxRetries) {
+        try {
+            // Send UserOperation with Paymaster sponsorship
+            userOpHash = await bundlerClient.sendUserOperation({
+                account: smartAccount,
+                calls: [call],
+                paymaster: true // Enable Paymaster sponsorship
+            });
+
+            console.log('UserOperation sent successfully. UserOp hash:', userOpHash);
+            console.log('Transaction sponsored by Coinbase Paymaster: YES');
+
+            // Wait for UserOperation receipt
+            const receipt = await bundlerClient.waitForUserOperationReceipt({
+                hash: userOpHash as `0x${string}`,
+                pollingInterval: 200
+            });
+
+            return receipt;
+
+        } catch (error: any) {
+            retryCount++;
+            console.error(`UserOperation attempt ${retryCount} failed:`, error.message);
+
+            // Paymaster specific error handling
+            if (error.message?.includes('insufficient funds') ||
+                error.message?.includes('gas estimation failed') ||
+                error.message?.includes('execution reverted') ||
+                error.message?.includes('paymaster') ||
+                error.message?.includes('sponsor')) {
+                console.error('Paymaster UserOperation failed:', error.message);
+                throw error; // Don't retry for these errors
+            }
+
+            if (error.message?.includes('replacement transaction underpriced') && retryCount < maxRetries) {
+                // Wait a bit before retry to let the previous transaction settle
+                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+                continue;
+            }
+
+            throw error;
+        }
+    }
+
+    throw new Error('Failed to commit UserOperation after maximum retries');
+}
+
+export async function waitForPaymasterTransactionReceipt(hash: string | UserOperationReceipt) {
+    console.log('UserOperation sent successfully. UserOp hash:', hash);
+    console.log('Transaction sponsored by Coinbase Paymaster: YES');
+
+    // If it's a UserOperationReceipt, extract the transaction hash
+    const txHash = typeof hash === 'string' ? hash : hash.receipt.transactionHash;
+
+    return await publicClient.waitForTransactionReceipt({
+        hash: txHash as `0x${string}`,
+        confirmations: 0,
+        pollingInterval: 200
+    });
+}

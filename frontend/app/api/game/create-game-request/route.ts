@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { type Address, BaseError, ContractFunctionRevertedError, parseEventLogs } from 'viem';
-import { publicClient, sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { publicClient } from '@/lib/providers';
+import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
@@ -72,13 +73,11 @@ export async function POST(request: NextRequest) {
             account: RELAYER_ADDRESS
         });
 
-        const result = await sendTransactionWithRetry(simulation.request);
-
-        const receipt = await waitForTransactionReceipt(result);
+        const paymasterReceipt = await sendTransactionWithRetry(simulation.request);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
-            logs: receipt.logs,
+            logs: paymasterReceipt.logs,
         });
 
         await sendWebhookMessage(logs);
@@ -87,18 +86,18 @@ export async function POST(request: NextRequest) {
             wallet_address,
             team1_id,
             team2_id,
-            transactionHash: receipt.transactionHash
+            transactionHash: paymasterReceipt.receipt.transactionHash
         });
 
         return NextResponse.json({
             success: true,
             message: 'Game request created successfully',
             data: {
-                gameRequestId: receipt.transactionHash, // Using transaction hash as temporary ID
+                gameRequestId: paymasterReceipt.receipt.transactionHash, // Using transaction hash as temporary ID
                 team1_id,
                 team2_id,
                 status: 'pending',
-                transactionHash: receipt.transactionHash
+                transactionHash: paymasterReceipt.receipt.transactionHash
             }
         });
 

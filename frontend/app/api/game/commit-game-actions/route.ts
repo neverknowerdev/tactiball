@@ -7,8 +7,7 @@ import { base } from 'viem/chains';
 import { decodeSymmetricKey, encodeData, bigintToBuffer } from '@/lib/encrypting';
 import { sendWebhookMessage } from '@/lib/webhook';
 import { FIELD_HEIGHT, FIELD_WIDTH, MoveType, serializeMoves, TeamEnum } from '@/lib/game';
-import { WebSocketBroadcastingService } from '@/lib/ably';
-import { sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { sendTransactionWithRetry } from '@/lib/paymaster';
 
 /**
  * Game Actions Commit Endpoint
@@ -23,7 +22,7 @@ import { sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/provi
 
 // Interface for the request body
 interface CommitGameActionsRequest {
-    game_id: number;
+    game_id: string;
     team_id: string;
     team_enum: number; // 1 for team1, 2 for team2
     wallet_address: string;
@@ -108,7 +107,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const gameInfo = await getGameFromContract(Number(body.game_id));
+        const gameInfo = await getGameFromContract(body.game_id);
         if (!gameInfo.success) {
             return NextResponse.json(
                 { error: 'Game not found', errorName: 'GAME_NOT_FOUND' },
@@ -168,43 +167,35 @@ export async function POST(request: NextRequest) {
         console.log('simulationRequest', simulationRequest)
 
         // Execute the transaction using the retry logic
-        const hash = await sendTransactionWithRetry(simulationRequest);
-
-        const wsService = new WebSocketBroadcastingService(process.env.ABLY_API_KEY!);
-        await wsService.broadcastToGame(body.game_id, {
-            type: 'GAME_ACTION_COMMITTED',
-            game_id: body.game_id,
-            timestamp: new Date().getTime()
-        });
-
-        // Wait for transaction confirmation
-        const receipt = await waitForTransactionReceipt(hash);
+        const paymasterReceipt = await sendTransactionWithRetry(simulationRequest);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
-            logs: receipt.logs,
+            logs: paymasterReceipt.logs,
         });
 
         const gameActionCommittedLog: Log = logs.find(log => log.eventName === 'gameActionCommitted') as Log;
 
+        console.log('gameActionCimmitted?', gameActionCommittedLog);
+
         await sendWebhookMessage(logs);
         // two players made moves - need to calculate
 
-        if (receipt.status === 'success') {
+        if (paymasterReceipt.receipt.status === 'success') {
             return NextResponse.json({
                 success: true,
                 message: 'Game actions committed successfully to blockchain',
-                transactionHash: hash,
+                transactionHash: paymasterReceipt.receipt.transactionHash,
                 gameId: body.game_id,
                 teamEnum: body.team_enum,
                 movesCount: body.moves.length,
-                blockNumber: Number(receipt.blockNumber),
-                gasUsed: Number(receipt.gasUsed),
+                blockNumber: Number(paymasterReceipt.receipt.blockNumber),
+                gasUsed: Number(paymasterReceipt.receipt.gasUsed),
                 isTwoTeamCommited: gameActionCommittedLog ? true : false
             });
         } else {
             return NextResponse.json(
-                { error: 'Transaction failed', errorName: 'TRANSACTION_FAILED', transactionHash: hash },
+                { error: 'Transaction failed', errorName: 'TRANSACTION_FAILED', transactionHash: paymasterReceipt.receipt.transactionHash },
                 { status: 500 }
             );
         }

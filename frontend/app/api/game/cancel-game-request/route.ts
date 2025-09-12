@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { type Address, BaseError, ContractFunctionRevertedError, parseEventLogs } from 'viem';
-import { createRelayerClient, publicClient } from '@/lib/providers';
-import { CONTRACT_ABI, CONTRACT_ADDRESS } from '@/lib/contract';
+import { publicClient } from '@/lib/providers';
+import { sendTransactionWithRetry } from '@/lib/paymaster';
+import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -60,8 +61,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const relayerClient = createRelayerClient();
-
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
@@ -69,24 +68,24 @@ export async function POST(request: NextRequest) {
             functionName: 'cancelGameRequestRelayer',
             args: [wallet_address as Address, game_request_id],
             chain: base,
-            account: relayerClient.account
+            account: RELAYER_ADDRESS
         });
 
-        const result = await relayerClient.writeContract(simulation.request);
+        const paymasterReceipt = await sendTransactionWithRetry(simulation.request);
 
-        const receipt = await publicClient.waitForTransactionReceipt({
-            hash: result
-        });
+        // const receipt = await publicClient.waitForTransactionReceipt({
+        //     hash: result
+        // });
 
         console.log('Cancelling game request with relayer:', {
             wallet_address,
             game_request_id,
-            transactionHash: receipt.transactionHash
+            transactionHash: paymasterReceipt.receipt.transactionHash
         });
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
-            logs: receipt.logs,
+            logs: paymasterReceipt.logs,
         });
 
         await sendWebhookMessage(logs);
@@ -97,7 +96,7 @@ export async function POST(request: NextRequest) {
             data: {
                 game_request_id,
                 status: 'cancelled',
-                transactionHash: receipt.transactionHash
+                transactionHash: paymasterReceipt.receipt.transactionHash
             }
         });
 

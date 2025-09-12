@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { type Address, parseEventLogs, Log } from 'viem';
-import { publicClient, sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { publicClient } from '@/lib/providers';
+import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
@@ -93,13 +94,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             account: RELAYER_ADDRESS
         });
 
-        const result = await sendTransactionWithRetry(simulation.request);
-
-        const receipt = await waitForTransactionReceipt(result);
+        const paymasterReceipt = await sendTransactionWithRetry(simulation.request);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
-            logs: receipt.logs,
+            logs: paymasterReceipt.logs,
         });
 
         await sendWebhookMessage(logs);
@@ -111,12 +110,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             CONTRACT_ADDRESS
         });
 
-        console.log('Transaction sent successfully:', result);
+        console.log('Transaction sent successfully:', paymasterReceipt.receipt.transactionHash);
 
         return NextResponse.json({
             success: true,
             message: 'Team created successfully',
-            transactionHash: receipt.transactionHash
+            transactionHash: paymasterReceipt.receipt.transactionHash
         });
 
     } catch (error) {

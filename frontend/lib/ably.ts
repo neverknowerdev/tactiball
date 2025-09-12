@@ -308,7 +308,7 @@ export class WebSocketBroadcastingService {
     /**
      * Broadcast a message to a specific game channel
      */
-    async broadcastToGame(gameId: number, message: BroadcastMessage): Promise<void> {
+    async broadcastToGame(gameId: string, message: BroadcastMessage): Promise<void> {
         try {
             const channel = `game_${gameId}`;
             await this.broadcastToChannel(channel, message);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
-import { publicClient, sendTransactionWithRetry, waitForTransactionReceipt } from '@/lib/providers';
+import { publicClient } from '@/lib/providers';
+import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { processGameMoves } from './process-game-moves';
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
         console.log('Processing game actions commit for game:', body.game_id);
         console.log('Team:', body.team_enum === 1 ? 'Team 1' : 'Team 2');
 
-        const gameInfo = await getGameFromContract(Number(body.game_id));
+        const gameInfo = await getGameFromContract(body.game_id);
         if (!gameInfo.success) {
             return NextResponse.json(
                 { error: 'Game not found', errorName: 'GAME_NOT_FOUND' },
@@ -122,15 +123,12 @@ export async function POST(request: NextRequest) {
         });
 
         // Execute newGameState transaction
-        const hash = await sendTransactionWithRetry(newGameStateRequest);
-        console.log('New game state committed. Transaction hash:', hash);
-
-        // Wait for transaction confirmation
-        const receipt = await waitForTransactionReceipt(hash);
+        const paymasterReceipt = await sendTransactionWithRetry(newGameStateRequest);
+        console.log('New game state committed. Transaction hash:', paymasterReceipt.receipt.transactionHash);
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
-            logs: receipt.logs,
+            logs: paymasterReceipt.logs,
         });
 
         await sendWebhookMessage(logs);
@@ -140,7 +138,7 @@ export async function POST(request: NextRequest) {
             message: 'Game state calculated successfully',
             gameId: body.game_id,
             teamEnum: body.team_enum,
-            transactionHash: hash,
+            transactionHash: paymasterReceipt.receipt.transactionHash,
         });
     } catch (error) {
         console.error('Error calculating game state:', error);
