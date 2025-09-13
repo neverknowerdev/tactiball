@@ -591,18 +591,15 @@ async function handleGoalScored(decodedData: DecodedEvent, supabase: any, wsServ
 }
 
 async function handleEloUpdated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
-    const { teamId, eloRating } = AbiDecoder.getTypedArgs(decodedData);
+    const { teamId, gameId, eloRating } = AbiDecoder.getTypedArgs(decodedData);
 
     console.log(`Elo updated: ${teamId} to ${eloRating}`);
 
-    const { error } = await supabase
-        .from('teams')
-        .update({ elo_rating: eloRating })
-        .eq('id', teamId);
+    const { error: gameUpdateError } = await supabase.rpc('update_elo_rating', { team_id: teamId, game_id: gameId, new_elo_rating: eloRating });
 
-    if (error) {
-        console.error('Error updating elo rating:', error);
-        throw error;
+    if (gameUpdateError) {
+        console.error('Error updating game elo rating:', gameUpdateError);
+        throw gameUpdateError;
     }
 }
 

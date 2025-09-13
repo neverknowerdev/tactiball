@@ -83,6 +83,29 @@ body {
   }
 }
 
+/* Horizontal loading bar animation */
+@keyframes pulse-loading {
+  0% {
+    transform: translateX(-100%);
+    width: 0%;
+  }
+
+  50% {
+    transform: translateX(0%);
+    width: 100%;
+  }
+
+  100% {
+    transform: translateX(100%);
+    width: 0%;
+  }
+}
+
+.animate-pulse-loading {
+  animation: pulse-loading 2s ease-in-out infinite;
+  width: 30%;
+}
+
 /* Override OnchainKit ConnectWallet button text color */
 .custom-connect-wallet {
   color: white !important;

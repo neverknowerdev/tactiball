@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CONTRACT_ADDRESS } from '@/lib/contract';
 import { createAnonClient } from '@/lib/supabase';
+import { redis } from '@/lib/redis';
 
-// Function to get transaction count from Basescan
+// Function to get transaction count from Basescan with caching
 async function getTransactionCountFromBasescan(): Promise<number> {
+    const cacheKey = `basescan-tx-count:${CONTRACT_ADDRESS}`;
+
+    // Check cache first
+    if (redis) {
+        try {
+            const cachedCount = await redis.get(cacheKey);
+            if (cachedCount !== null) {
+                console.log('Returning cached transaction count from Basescan');
+                return parseInt(cachedCount as string, 10);
+            }
+        } catch (cacheError) {
+            console.warn('Redis cache read error:', cacheError);
+        }
+    }
+
     try {
         const apiKey = process.env.BASESCAN_API_KEY;
         if (!apiKey) {
@@ -35,6 +51,16 @@ async function getTransactionCountFromBasescan(): Promise<number> {
         // Count transactions (result is an array of transactions)
         const transactionCount = Array.isArray(data.result) ? data.result.length : 0;
         console.log(`Found ${transactionCount} transactions for contract ${CONTRACT_ADDRESS}`);
+
+        // Cache the result for 10 minutes (600 seconds)
+        if (redis) {
+            try {
+                await redis.setex(cacheKey, 600, transactionCount.toString());
+                console.log('Cached transaction count from Basescan');
+            } catch (cacheError) {
+                console.warn('Redis cache write error:', cacheError);
+            }
+        }
 
         return transactionCount;
     } catch (error) {

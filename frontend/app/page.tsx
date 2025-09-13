@@ -33,6 +33,9 @@ import 'react-toastify/dist/ReactToastify.css';
 import countryList from '../public/countryList.json';
 import React from "react";
 import { LastGameResults } from './components/LastGameResults';
+import { Leaderboard } from './components/Leaderboard';
+import { GlobalStats } from './components/GlobalStats';
+import moment from "moment";
 
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
@@ -52,15 +55,6 @@ export default function App() {
     team2_info: any;
   } | null>(null);
   const [username, setUsername] = useState<string | null>(null);
-  const [globalStats, setGlobalStats] = useState<{
-    total_teams: number;
-    total_games: number;
-    total_transactions: number;
-  }>({
-    total_teams: 0,
-    total_games: 0,
-    total_transactions: 0,
-  });
 
   const addFrame = useAddFrame();
   const openUrl = useOpenUrl();
@@ -68,52 +62,17 @@ export default function App() {
   // Load stats from localStorage on mount
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('chessball_global_stats');
-      console.log('getting stored stats', stored);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        console.log('parsed', parsed);
-        setGlobalStats({
-          total_teams: Number(parsed.total_teams),
-          total_games: Number(parsed.total_games),
-          total_transactions: Number(parsed.total_transactions),
-        });
-      }
-
       if (localStorage.getItem('userTeam')) {
         setTeamInfo(JSON.parse(localStorage.getItem('userTeam') || '{}'));
       }
     } catch (error) {
-      console.error('Error loading stats from localStorage:', error);
+      console.error('Error loading team from localStorage:', error);
     }
   }, []);
 
 
 
   // Fetch global statistics
-  const fetchGlobalStats = useCallback(async () => {
-    try {
-      const response = await fetch('/api/get-global-stat');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      console.log('data', data);
-      if (data.success) {
-        const newStats = data.data;
-        setGlobalStats(newStats);
-
-        // Save to localStorage
-        try {
-          localStorage.setItem('chessball_global_stats', JSON.stringify(newStats));
-        } catch (error) {
-          console.error('Error saving stats to localStorage:', error);
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching global stats:', err);
-    }
-  }, []);
 
   // Fetch username from onchain identity
   const fetchUsername = useCallback(async (walletAddress: string) => {
@@ -170,7 +129,7 @@ export default function App() {
       const data = await response.json();
       console.log('teamInfo', data);
 
-      if (data.isFound) {
+      if (data.is_found) {
         setTeamInfo(data.team);
         localStorage.setItem('user_team_id', data.team.id);
         localStorage.setItem('userTeam', JSON.stringify(data.team));
@@ -185,7 +144,6 @@ export default function App() {
       setLoading(false);
     }
   }, []);
-
 
 
   const handlePlayNow = useCallback(() => {
@@ -295,11 +253,6 @@ export default function App() {
         fetchTeamInfo(address);
       }
 
-      globalStats.total_teams++;
-      globalStats.total_transactions++;
-
-      setGlobalStats(globalStats);
-      localStorage.setItem('chessball_global_stats', JSON.stringify(globalStats));
 
       // Close modal and show success message
       setIsCreateTeamModalOpen(false);
@@ -321,7 +274,6 @@ export default function App() {
     if (isConnected && address) {
       fetchTeamInfo(address);
       fetchUsername(address);
-      fetchGlobalStats(); // Fetch global stats on wallet connection
     } else {
       setTeamInfo(null);
 
@@ -431,10 +383,6 @@ export default function App() {
     };
   }, [teamInfo, username, address, signMessageAsync]);
 
-  // Fetch global stats on component mount
-  useEffect(() => {
-    fetchGlobalStats();
-  }, [fetchGlobalStats]);
 
   const handleAddFrame = useCallback(async () => {
     const frameAdded = await addFrame();
@@ -464,11 +412,15 @@ export default function App() {
     return null;
   }, [context, frameAdded, handleAddFrame]);
 
-  // Cache for country flags to avoid repeated lookups
   const countryFlagCache = React.useMemo(() => new Map<number, string>(), []);
 
+  // Helper function to format ELO rating from 1000 format to 10.00 format
+  const formatElo = (elo: number): string => {
+    return (elo / 100).toFixed(2);
+  };
+
   // Helper function to get country flag emoji
-  const getCountryFlag = (countryIndex: number) => {
+  const getCountryFlag = React.useCallback((countryIndex: number) => {
     // Check cache first
     if (countryFlagCache.has(countryIndex)) {
       return countryFlagCache.get(countryIndex)!;
@@ -496,7 +448,7 @@ export default function App() {
     const fallback = `#${countryIndex}`;
     countryFlagCache.set(countryIndex, fallback);
     return fallback;
-  };
+  }, [countryFlagCache]);
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans mini-app-theme relative">
@@ -592,7 +544,7 @@ export default function App() {
                     <div className="flex justify-between items-start mb-2">
                       <h2 className="text-xl font-bold text-black">{teamInfo.name}</h2>
                       <div className="flex flex-col items-end gap-1">
-                        <span className="text-sm font-semibold text-white bg-blue-600 px-2 py-1 rounded-md">ELO {teamInfo.elo_rating}</span>
+                        <span className="text-sm font-semibold text-white bg-blue-600 px-2 py-1 rounded-md">ELO {formatElo(teamInfo.elo_rating)}</span>
                       </div>
                     </div>
 
@@ -602,14 +554,14 @@ export default function App() {
                         <Avatar className="w-6 h-6" />
                         <Name className="text-black ml-0" />
                       </Identity>
-                      <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded" title={`Position: ${teamInfo.leaguePosition}th in ${teamInfo.country} / ${teamInfo.globalPosition}th globally`}>
-                        {teamInfo.leaguePosition}th {getCountryFlag(teamInfo.countryIndex)} / {teamInfo.globalPosition}th 🌍
+                      <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded" title={`Position: ${teamInfo.league_position}th in ${teamInfo.country} / ${teamInfo.globalPosition}th globally`}>
+                        {teamInfo.leaguePosition}th {getCountryFlag(teamInfo.country_index)} / {teamInfo.global_position}th 🌍
                       </div>
                     </div>
 
                     {/* League and matches */}
                     <div className="text-sm text-black">
-                      {teamInfo.matchesPlayed} matches played · {teamInfo.teamAge === 0 ? "just created" : `${teamInfo.teamAge} days old`}
+                      {teamInfo.matchesPlayed} matches played · {teamInfo.team_age === 0 ? "just created" : `${teamInfo.team_age} days old`}
                     </div>
 
                     {/* Active game indicator */}
@@ -686,123 +638,20 @@ export default function App() {
         </div>
 
         {/* Global game stats */}
-        <div className="w-full max-w-md mb-2 bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-4 grid grid-cols-3 gap-3 text-center">
-            <div>
-              <div className="text-xl font-bold animate-number">{globalStats?.total_teams}</div>
-              <div className="text-xs text-gray-600">Teams</div>
-            </div>
-            <div>
-              <div className="text-xl font-bold animate-number">{globalStats?.total_games}</div>
-              <div className="text-xs text-gray-600">Games Played</div>
-            </div>
-            <div>
-              <div className="text-xl font-bold animate-number">{globalStats?.total_transactions}</div>
-              <div className="text-xs text-gray-600">Transactions</div>
-            </div>
-          </div>
-        </div>
+        <GlobalStats className="mb-2" />
 
         {/* Leaderboard preview */}
-        <div className="w-full max-w-md bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-4">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-lg font-semibold">Leaderboard 🌍</h3>
-              <span className="text-lg text-gray-500">{new Date().toLocaleDateString('en-US', { month: 'long' })}</span>
-            </div>
-            <table className="w-full text-sm text-left">
-              <thead className="text-gray-600">
-                <tr className="border-b">
-                  <th className="py-2 pr-2">Pos</th>
-                  <th className="py-2 pr-2">Team</th>
-                  <th className="py-2 pr-2 text-center">M</th>
-                  <th className="py-2 pr-2 text-center">W</th>
-                  <th className="py-2 pr-2 text-center">D</th>
-                  <th className="py-2 pr-2 text-center">L</th>
-                  <th className="py-2 pr-2">Form</th>
-                  <th className="py-2 pr-2 text-right">EloΔ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* User team pinned */}
-                {teamInfo && (
-                  <tr className="bg-green-50">
-                    <td className="py-2 pr-2">—</td>
-                    <td className="py-2 pr-2 font-medium">{teamInfo.name}</td>
-                    <td className="py-2 pr-2 text-center">{teamInfo.matchesPlayed}</td>
-                    <td className="py-2 pr-2 text-center">{teamInfo.wins}</td>
-                    <td className="py-2 pr-2 text-center">{teamInfo.draws}</td>
-                    <td className="py-2 pr-2 text-center">{teamInfo.losses}</td>
-                    <td className="py-2 pr-2">
-                      <LastGameResults lastGames={teamInfo.lastGames || []} />
-                    </td>
-                    <td className="py-2 pr-2 text-right font-medium">+{Math.floor(Math.random() * 100) + 20}</td>
-                  </tr>
-                )}
-                {/* Top 3 */}
-                <tr className="border-t">
-                  <td className="py-2 pr-2">1</td>
-                  <td className="py-2 pr-2 font-medium">ChessMasters</td>
-                  <td className="py-2 pr-2 text-center">14</td>
-                  <td className="py-2 pr-2 text-center">11</td>
-                  <td className="py-2 pr-2 text-center">2</td>
-                  <td className="py-2 pr-2 text-center">1</td>
-                  <td className="py-2 pr-2">
-                    <div className="flex gap-1 items-center">
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                    </div>
-                  </td>
-                  <td className="py-2 pr-2 text-right">+140</td>
-                </tr>
-                <tr className="border-t">
-                  <td className="py-2 pr-2">2</td>
-                  <td className="py-2 pr-2 font-medium">Pawns United</td>
-                  <td className="py-2 pr-2 text-center">14</td>
-                  <td className="py-2 pr-2 text-center">10</td>
-                  <td className="py-2 pr-2 text-center">3</td>
-                  <td className="py-2 pr-2 text-center">1</td>
-                  <td className="py-2 pr-2">
-                    <div className="flex gap-1 items-center">
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-red-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                    </div>
-                  </td>
-                  <td className="py-2 pr-2 text-right">+120</td>
-                </tr>
-                <tr className="border-t">
-                  <td className="py-2 pr-2">3</td>
-                  <td className="py-2 pr-2 font-medium">Rook Attack</td>
-                  <td className="py-2 pr-2 text-center">14</td>
-                  <td className="py-2 pr-2 text-center">9</td>
-                  <td className="py-2 pr-2 text-center">2</td>
-                  <td className="py-2 pr-2 text-center">3</td>
-                  <td className="py-2 pr-2">
-                    <div className="flex gap-1 items-center">
-                      <span className="h-2 w-2 rounded-full bg-red-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-gray-400"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                      <span className="h-2 w-2 rounded-full bg-green-600"></span>
-                    </div>
-                  </td>
-                  <td className="py-2 pr-2 text-right">+90</td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="flex justify-center mt-3">
-              <button className="border border-gray-300 rounded-lg px-4 py-2 text-sm hover:bg-gray-50 transition-colors">
-                View Full Leaderboard
-              </button>
-            </div>
-          </div>
-        </div>
+        <Leaderboard
+          period="month"
+          limit={50}
+          userLeaderboardData={teamInfo?.leaderboard}
+          userTeamInfo={teamInfo ? {
+            id: teamInfo.id,
+            name: teamInfo.name,
+            country_index: teamInfo.country_index,
+            elo_rating: teamInfo.elo_rating
+          } : undefined}
+        />
       </div>
 
       {/* Create Team Modal */}

@@ -158,8 +158,8 @@ BEGIN
     team2_is_draw := (game_record.winner IS NULL);
     
     -- Extract ELO rating differences
-    team1_elo_diff := COALESCE((game_record.team1_info->>'eloRatingDiff')::NUMERIC, 0);
-    team2_elo_diff := COALESCE((game_record.team2_info->>'eloRatingDiff')::NUMERIC, 0);
+    team1_elo_diff := COALESCE((game_record.team1_info->>'elo_rating_diff')::NUMERIC, 0);
+    team2_elo_diff := COALESCE((game_record.team2_info->>'elo_rating_diff')::NUMERIC, 0);
     
     -- Update weekly statistics for both teams
     PERFORM public.update_team_statistic_for_game_result(

@@ -29,6 +29,10 @@ export const GameRequestModal: React.FC<GameRequestModalProps> = ({
     current_user_wallet,
     current_team_id
 }) => {
+    // Helper function to format ELO rating from 1000 format to 10.00 format
+    const formatElo = (elo: number): string => {
+        return (elo / 100).toFixed(2);
+    };
     const [isProcessing, setIsProcessing] = useState(false);
     const { signMessageAsync } = useSignMessage();
 
@@ -144,7 +148,7 @@ export const GameRequestModal: React.FC<GameRequestModalProps> = ({
                             <div className="text-center">
                                 <h4 className="text-lg font-semibold text-gray-900 break-words max-w-[120px] leading-tight">{team1_info.name}</h4>
                                 <p className="text-sm text-gray-600 break-words max-w-[120px] leading-tight">@{team1_info.username}</p>
-                                <div className="text-sm font-medium text-blue-600">ELO {team1_info.elo_rating}</div>
+                                <div className="text-sm font-medium text-blue-600">ELO {formatElo(team1_info.elo_rating)}</div>
                             </div>
                         </div>
 
@@ -164,7 +168,7 @@ export const GameRequestModal: React.FC<GameRequestModalProps> = ({
                             <div className="text-center">
                                 <h4 className="text-lg font-semibold text-gray-900 break-words max-w-[120px] leading-tight">{team2_info.name}</h4>
                                 <p className="text-sm text-gray-600 break-words max-w-[120px] leading-tight">@{team2_info.username}</p>
-                                <div className="text-sm font-medium text-red-600">ELO {team2_info.elo_rating}</div>
+                                <div className="text-sm font-medium text-red-600">ELO {formatElo(team2_info.elo_rating)}</div>
                             </div>
                         </div>
                     </div>
