@@ -142,13 +142,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const processedGlobalLeaderboard: LeaderboardEntry[] = (globalLeaderboard || [])
             .map((stat, index) => {
                 console.log('stat', stat);
+                const team = stat.teams as any; // teams is an object, not an array
                 const totalGames = stat.wins + stat.draws + stat.losses;
 
                 return {
-                    team_id: stat.teams.id,
-                    team_name: stat.teams.name,
-                    country: stat.teams.country,
-                    elo_rating: stat.teams.elo_rating,
+                    team_id: team.id,
+                    team_name: team.name,
+                    country: team.country,
+                    elo_rating: team.elo_rating,
                     global_rank: index + 1,
                     country_rank: 0, // Will be calculated separately
                     total_games: totalGames,
@@ -159,7 +160,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
                     goals_conceded: stat.goal_conceded,
                     elo_rating_delta: stat.elo_rating_delta,
                     goal_difference: stat.goal_scored - stat.goal_conceded,
-                    last_games: stat.teams.last_games_results,
+                    last_games: team.last_games_results,
                     win_percentage: totalGames > 0 ? (stat.wins / totalGames) * 100 : 0
                 };
             });
@@ -167,13 +168,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         // Process country leaderboard data
         const processedCountryLeaderboard: LeaderboardEntry[] = countryLeaderboard
             .map((stat, index) => {
+                const team = stat.teams as any; // teams is an object, not an array
                 const totalGames = stat.wins + stat.draws + stat.losses;
 
                 return {
-                    team_id: stat.teams.id,
-                    team_name: stat.teams.name,
-                    country: stat.teams.country,
-                    elo_rating: stat.teams.elo_rating,
+                    team_id: team.id,
+                    team_name: team.name,
+                    country: team.country,
+                    elo_rating: team.elo_rating,
                     global_rank: 0, // Not relevant for country leaderboard
                     country_rank: index + 1,
                     total_games: totalGames,
@@ -184,7 +186,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
                     goals_conceded: stat.goal_conceded,
                     elo_rating_delta: stat.elo_rating_delta,
                     goal_difference: stat.goal_scored - stat.goal_conceded,
-                    last_games: stat.teams.last_games_results,
+                    last_games: team.last_games_results,
                     win_percentage: totalGames > 0 ? (stat.wins / totalGames) * 100 : 0
                 };
             });
