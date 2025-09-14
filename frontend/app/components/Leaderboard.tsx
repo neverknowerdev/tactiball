@@ -279,11 +279,11 @@ export function Leaderboard({ period = 'month', limit = 5, countryIndex, userLea
                         <tr className="border-b">
                             <th className="py-2 pr-2">Pos</th>
                             <th className="py-2 pr-2">Team</th>
-                            <th className="py-2 pr-2 text-center">M</th>
-                            <th className="py-2 pr-2 text-center">W</th>
-                            <th className="py-2 pr-2 text-center">D</th>
-                            <th className="py-2 pr-2 text-center">L</th>
-                            <th className="py-2 pr-2">Form</th>
+                            <th className="py-2 pr-2 text-center" title="Matches">M</th>
+                            <th className="py-2 pr-2 text-center" title="Wins">W</th>
+                            <th className="py-2 pr-2 text-center" title="Draws">D</th>
+                            <th className="py-2 pr-2 text-center" title="Losses">L</th>
+                            <th className="py-2 pr-2 hidden sm:table-cell">Form</th>
                             <th className="py-2 pr-2 text-right">EloΔ</th>
                         </tr>
                     </thead>
@@ -306,20 +306,20 @@ export function Leaderboard({ period = 'month', limit = 5, countryIndex, userLea
                                 {getUserTeamData() && !isUserTeamInTop5() && (
                                     <tr className="bg-green-50 border-b-2 border-green-200">
                                         <td className="py-2 pr-2">—</td>
-                                        <td className="py-2 pr-2 font-medium flex items-center gap-2">
-                                            {getUserTeamData()!.team_name}
+                                        <td className="py-2 pr-2">
+                                            <span className="font-medium mr-2">{getUserTeamData()!.team_name}</span>
                                             <span
-                                                className="text-lg cursor-help"
+                                                className="text-base cursor-help"
                                                 title={countryList.find(c => c.index === getUserTeamData()!.country)?.name || `Country #${getUserTeamData()!.country}`}
                                             >
                                                 {getCountryFlag(getUserTeamData()!.country)}
                                             </span>
                                         </td>
                                         <td className="py-2 pr-2 text-center">{getUserTeamData()!.total_games}</td>
-                                        <td className="py-2 pr-2 text-center">{getUserTeamData()!.wins}</td>
+                                        <td className="py-2 pr-2 text-center text-green-600 font-medium">{getUserTeamData()!.wins}</td>
                                         <td className="py-2 pr-2 text-center">{getUserTeamData()!.draws}</td>
-                                        <td className="py-2 pr-2 text-center">{getUserTeamData()!.losses}</td>
-                                        <td className="py-2 pr-2">
+                                        <td className="py-2 pr-2 text-center text-red-600 font-medium">{getUserTeamData()!.losses}</td>
+                                        <td className="py-2 pr-2 hidden sm:table-cell">
                                             <div className="flex gap-1 items-center">
                                                 {getUserTeamData()!.last_games?.slice(0, 5).map((result: string, i: number) => (
                                                     <span
@@ -351,20 +351,20 @@ export function Leaderboard({ period = 'month', limit = 5, countryIndex, userLea
                                                         : "border-t"
                                             }>
                                                 <td className="py-2 pr-2">{team.global_rank}</td>
-                                                <td className="py-2 pr-2 font-medium flex items-center gap-2">
-                                                    {team.team_name}
+                                                <td className="py-2 pr-2">
+                                                    <span className="font-medium mr-2">{team.team_name}</span>
                                                     <span
-                                                        className="text-lg cursor-help"
+                                                        className="text-base cursor-help"
                                                         title={countryInfo?.name || `Country #${team.country}`}
                                                     >
                                                         {getCountryFlag(team.country)}
                                                     </span>
                                                 </td>
                                                 <td className="py-2 pr-2 text-center">{team.total_games}</td>
-                                                <td className="py-2 pr-2 text-center">{team.wins}</td>
+                                                <td className="py-2 pr-2 text-center text-green-600 font-medium">{team.wins}</td>
                                                 <td className="py-2 pr-2 text-center">{team.draws}</td>
-                                                <td className="py-2 pr-2 text-center">{team.losses}</td>
-                                                <td className="py-2 pr-2">
+                                                <td className="py-2 pr-2 text-center text-red-600 font-medium">{team.losses}</td>
+                                                <td className="py-2 pr-2 hidden sm:table-cell">
                                                     <div className="flex gap-1 items-center">
                                                         {team.last_games?.slice(0, 5).map((result: string, i: number) => (
                                                             <span
