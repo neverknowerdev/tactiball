@@ -74,7 +74,7 @@ export default function GamePage() {
     const isNewStateRecalculatedRef = useRef<boolean | null>(false);
 
     // Calculate if the game has timed out (more than 60 seconds since last move)
-    const isGameTimedOut = (): boolean => {
+    const isGameTimedOut = (lastMoveAt: number): boolean => {
         if (!lastMoveAt) return false;
         const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
         const timeSinceLastMove = currentTime - lastMoveAt;
@@ -82,7 +82,7 @@ export default function GamePage() {
     };
 
     // Get time remaining until timeout (returns negative if already timed out)
-    const getTimeUntilTimeout = (): number => {
+    const getTimeUntilTimeout = (lastMoveAt: number): number => {
         if (!lastMoveAt) return 0;
         const currentTime = Math.floor(Date.now() / 1000);
         const timeSinceLastMove = currentTime - lastMoveAt;
@@ -149,7 +149,11 @@ export default function GamePage() {
         game.team2.score = contractGameData.data.gameState.team2score;
 
         // Store the lastMoveAt timestamp for timeout calculations
-        setLastMoveAt(contractGameData.data.gameState.lastMoveAt);
+        setLastMoveAt(Number(contractGameData.data.gameState.lastMoveAt));
+
+        console.log('lastMoveAt', Number(contractGameData.data.gameState.lastMoveAt), lastMoveAt);
+        console.log('getTimeUntilTimeout', getTimeUntilTimeout(Number(contractGameData.data.gameState.lastMoveAt)));
+        console.log('isGameTimedOut', isGameTimedOut(Number(contractGameData.data.gameState.lastMoveAt)));
 
         const gameState: GameState = {
             team1PlayerPositions: contractGameData.data.lastBoardState.team1PlayerPositions,
@@ -1149,8 +1153,8 @@ export default function GamePage() {
                                     <p className="text-gray-600">Your moves are written. Waiting for your opponent to make moves...</p>
 
                                     {(() => {
-                                        const timeUntilTimeout = getTimeUntilTimeout();
-                                        const isTimedOut = isGameTimedOut();
+                                        const timeUntilTimeout = getTimeUntilTimeout(lastMoveAt!);
+                                        const isTimedOut = isGameTimedOut(lastMoveAt!);
 
                                         console.log('timeUntilTimeout', timeUntilTimeout);
                                         console.log('isTimedOut', isTimedOut);
