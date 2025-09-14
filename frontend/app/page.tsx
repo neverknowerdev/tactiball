@@ -554,8 +554,8 @@ export default function App() {
                         <Avatar className="w-6 h-6" />
                         <Name className="text-black ml-0" />
                       </Identity>
-                      <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded" title={`Position: ${teamInfo.league_position}th in ${teamInfo.country} / ${teamInfo.globalPosition}th globally`}>
-                        {teamInfo.leaguePosition}th {getCountryFlag(teamInfo.country_index)} / {teamInfo.global_position}th 🌍
+                      <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded" title={`Position: ${teamInfo.league_position}th in ${teamInfo.country} / ${teamInfo.global_position}th globally`}>
+                        {teamInfo.league_position}th {getCountryFlag(teamInfo.country_index)} / {teamInfo.global_position}th 🌍
                       </div>
                     </div>
 
