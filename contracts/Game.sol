@@ -363,8 +363,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         activeGames.push(game.gameId);
 
         emit GameStarted(game.gameId, team1id, team2id, GameLib.TeamEnum.TEAM1);
-        // emit with empty arrays to trigger the game worker at the game start
-        emit gameActionCommitted(game.gameId, block.timestamp);
+        // // emit with empty arrays to trigger the game worker at the game start
+        // emit gameActionCommitted(game.gameId, block.timestamp);
     }
 
     function testTriggerGameActionCommitted(uint256 gameId) public onlyOwner {

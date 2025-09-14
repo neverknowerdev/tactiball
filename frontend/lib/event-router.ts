@@ -200,6 +200,7 @@ async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsSer
             primary_wallet: owner,
             name: name,
             country: country,
+            elo_rating: 10000,
             created_at: new Date(timestamp * 1000).toISOString()
         })
         .select();
@@ -289,7 +290,7 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
     // Get team data from database
     const { data: teamsData, error: teamsError } = await supabase
         .from('teams')
-        .select('id, name, elo_rating')
+        .select('id, name, elo_rating, country')
         .in('id', [team1id, team2id]);
 
     if (teamsError) {
