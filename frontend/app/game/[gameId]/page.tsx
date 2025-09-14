@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Game, TeamEnum, TeamPlayer, MoveType, isPosEquals, Team, GameStatus, GameStateType, toGameStatus, GameState, convertEventStateToGameState } from '@/lib/game';
+import { Game, TeamEnum, TeamPlayer, MoveType, isPosEquals, Team, GameStateType, toGameStatus, GameState, convertEventStateToGameState } from '@/lib/game';
 import { getGameFromDB } from '@/lib/db';
 import '../game.css';
 import { authUserWithSignature } from '@/lib/auth';
@@ -10,7 +10,7 @@ import { useAccount, useSignMessage } from "wagmi";
 import { toast, ToastContainer } from "react-toastify";
 import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import 'react-toastify/dist/ReactToastify.css';
-import { gameChannelManager, subscribeToGame, unsubscribeFromGame } from '@/lib/ably';
+import { subscribeToGame, unsubscribeFromGame } from '@/lib/ably';
 import { getGameFromContract } from '@/lib/contract';
 
 // Cell type enum
@@ -56,6 +56,7 @@ export default function GamePage() {
     const { address, isConnected } = useAccount();
     const { signMessageAsync } = useSignMessage();
     const [isTwoTeamCommitted, setIsTwoTeamCommitted] = useState(false);
+    const [lastMoveAt, setLastMoveAt] = useState<number | null>(null);
     const [gameResultModal, setGameResultModal] = useState<{
         isOpen: boolean;
         winner: number;
@@ -72,6 +73,65 @@ export default function GamePage() {
 
     const isNewStateRecalculatedRef = useRef<boolean | null>(false);
 
+    // Calculate if the game has timed out (more than 60 seconds since last move)
+    const isGameTimedOut = (): boolean => {
+        if (!lastMoveAt) return false;
+        const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+        const timeSinceLastMove = currentTime - lastMoveAt;
+        return timeSinceLastMove > 60;
+    };
+
+    // Get time remaining until timeout (returns negative if already timed out)
+    const getTimeUntilTimeout = (): number => {
+        if (!lastMoveAt) return 0;
+        const currentTime = Math.floor(Date.now() / 1000);
+        const timeSinceLastMove = currentTime - lastMoveAt;
+        return 60 - timeSinceLastMove;
+    };
+
+    // Send cancel game request
+    const handleCancelGameRequest = async () => {
+        if (!address || !signMessageAsync) {
+            toast.error('Please connect your wallet first');
+            return;
+        }
+
+        try {
+            const signature = await authUserWithSignature(address, signMessageAsync);
+
+            const response = await fetch('/api/game/finish-game-by-timeout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    game_id: gameId,
+                    wallet_address: address,
+                    signature: signature.signature,
+                    message: signature.message
+                })
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                console.error('Failed to cancel game:', data);
+                toast.error(data.error || 'Failed to cancel game');
+                return;
+            }
+
+            const data = await response.json();
+            console.log('Game cancelled successfully:', data);
+            toast.success('Game cancelled due to timeout');
+
+            // Reset the game state
+            setGameSubmissionState(GameSubmissionState.IDLE);
+
+        } catch (error) {
+            console.error('Error cancelling game:', error);
+            toast.error('Failed to cancel game. Please try again.');
+        }
+    };
+
     const fetchGameFromSmartContract = async (game: Game): Promise<Game> => {
         const contractGameData = await getGameFromContract(gameId);
         if (!contractGameData.success) {
@@ -87,6 +147,9 @@ export default function GamePage() {
 
         game.team1.score = contractGameData.data.gameState.team1score;
         game.team2.score = contractGameData.data.gameState.team2score;
+
+        // Store the lastMoveAt timestamp for timeout calculations
+        setLastMoveAt(contractGameData.data.gameState.lastMoveAt);
 
         const gameState: GameState = {
             team1PlayerPositions: contractGameData.data.lastBoardState.team1PlayerPositions,
@@ -283,12 +346,18 @@ export default function GamePage() {
                 setCurrentHistoryIndex(game!.history.length - 1);
 
                 localStorage.removeItem('commitedActions');
+
+                // Reset timeout tracking when new game state is received
+                setLastMoveAt(Math.floor(Date.now() / 1000));
             }
             if (gameEvent.type === 'GAME_ACTION_COMMITTED') {
                 console.log('Game action committed notification received, re-fetching game data...');
                 // Reset submission state when game finished is received
                 setGameSubmissionState(GameSubmissionState.WAITING_FOR_CALCULATION);
                 isNewStateRecalculatedRef.current = false;
+
+                // Reset timeout tracking when opponent commits their move
+                setLastMoveAt(Math.floor(Date.now() / 1000));
             }
             if (gameEvent.type === 'GAME_FINISHED') {
                 console.log('Game finished notification received:', gameEvent);
@@ -349,6 +418,20 @@ export default function GamePage() {
         const urlParams = new URLSearchParams(window.location.search);
         setIsDebugMode(urlParams.has('debug'));
     }, []);
+
+    // Timeout check effect - runs every second when waiting for opponent
+    useEffect(() => {
+        if (gameSubmissionState !== GameSubmissionState.WAITING_FOR_OPPONENT || !lastMoveAt) {
+            return;
+        }
+
+        const interval = setInterval(() => {
+            // Force re-render to update timeout UI
+            setLastMoveAt(prev => prev); // This will trigger a re-render
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [gameSubmissionState, lastMoveAt]);
 
     useEffect(() => {
         // Generate cell states
@@ -1063,7 +1146,42 @@ export default function GamePage() {
                                 <>
                                     <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-yellow-600 mx-auto mb-4"></div>
                                     <h3 className="text-xl font-semibold text-gray-800 mb-2">Your Moves Submitted!</h3>
-                                    <p className="text-gray-600">Your moves are written. Waiting for yout opponent to make moves...</p>
+                                    <p className="text-gray-600">Your moves are written. Waiting for your opponent to make moves...</p>
+
+                                    {(() => {
+                                        const timeUntilTimeout = getTimeUntilTimeout();
+                                        const isTimedOut = isGameTimedOut();
+
+                                        console.log('timeUntilTimeout', timeUntilTimeout);
+                                        console.log('isTimedOut', isTimedOut);
+
+                                        if (isTimedOut) {
+                                            return (
+                                                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                                    <div className="text-red-800 font-medium mb-2">⏰ Game Timeout</div>
+                                                    <p className="text-red-600 text-sm mb-3">
+                                                        Your opponent hasn't made a move in over 1 minute. You can cancel the game if they don't respond.
+                                                    </p>
+                                                    <button
+                                                        onClick={handleCancelGameRequest}
+                                                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                                                    >
+                                                        Cancel Game
+                                                    </button>
+                                                </div>
+                                            );
+                                        } else if (timeUntilTimeout > 0 && timeUntilTimeout <= 60) {
+                                            return (
+                                                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                    <div className="text-yellow-800 font-medium mb-1">⏱️ Timeout Warning</div>
+                                                    <p className="text-yellow-600 text-sm">
+                                                        Waiting for opponent... {timeUntilTimeout}s remaining
+                                                    </p>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </>
                             )}
                             {gameSubmissionState === GameSubmissionState.WAITING_FOR_CALCULATION && (
