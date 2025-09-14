@@ -26,6 +26,7 @@ describe("ELO Rating System", function () {
             owner.address, // gelatoAddress - using owner for testing
             owner.address,  // relayerAddress - using owner for testing
             owner.address,  // gameEngineAddress - using owner for testing
+            owner.address,  // gameEngineAddress - using owner for testing
             "test-public-key" // publicKey - using test key for testing
         ], {
             kind: 'uups',
@@ -108,8 +109,10 @@ describe("ELO Rating System", function () {
             // We need to simulate moves to reach the maximum moves limit
             for (let move = 1; move <= 45; move++) {
                 // Commit moves for both teams (simulating via relayer since we're testing)
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
+                const dummyMoves1 = ethers.keccak256(ethers.toUtf8Bytes(`team1_move_${move}`));
+                const dummyMoves2 = ethers.keccak256(ethers.toUtf8Bytes(`team2_move_${move}`));
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2); // TEAM2, dummy moves
 
                 // Update game state with no goals (maintaining 0:0 score)
                 const boardState = {
@@ -144,8 +147,10 @@ describe("ELO Rating System", function () {
             // If the game hasn't finished yet, we need to trigger one more state update
             if (gameData.status === 1) {
                 console.log("Game not finished yet, triggering one more state update...");
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
+                const dummyMoves1 = ethers.keccak256(ethers.toUtf8Bytes("team1_final_move"));
+                const dummyMoves2 = ethers.keccak256(ethers.toUtf8Bytes("team2_final_move"));
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2); // TEAM2, dummy moves
                 await game.connect(owner).newGameState(
                     gameId,
                     1, // StateType.MOVE (no goal)
@@ -223,8 +228,10 @@ describe("ELO Rating System", function () {
             // Simulate game progression with team1 scoring a goal
             // First, make some moves to set up the game
             for (let move = 1; move <= 10; move++) {
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
+                const dummyMoves1 = ethers.keccak256(ethers.toUtf8Bytes(`team1_move_${move}`));
+                const dummyMoves2 = ethers.keccak256(ethers.toUtf8Bytes(`team2_move_${move}`));
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2); // TEAM2, dummy moves
 
                 const boardState = {
                     team1PlayerPositions: [
@@ -250,8 +257,10 @@ describe("ELO Rating System", function () {
             }
 
             // Now simulate team1 scoring a goal
-            await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
-            await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
+            const goalMoves1 = ethers.keccak256(ethers.toUtf8Bytes("team1_goal_move"));
+            const goalMoves2 = ethers.keccak256(ethers.toUtf8Bytes("team2_goal_move"));
+            await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, goalMoves1); // TEAM1, dummy moves
+            await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, goalMoves2); // TEAM2, dummy moves
 
             const goalBoardState = {
                 team1PlayerPositions: [
@@ -277,8 +286,10 @@ describe("ELO Rating System", function () {
 
             // Continue the game to reach MAX_MOVES
             for (let move = 12; move <= 45; move++) {
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, 1); // TEAM1, dummy moves
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, 1); // TEAM2, dummy moves
+                const finalMoves1 = ethers.keccak256(ethers.toUtf8Bytes(`team1_final_${move}`));
+                const finalMoves2 = ethers.keccak256(ethers.toUtf8Bytes(`team2_final_${move}`));
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, finalMoves1); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, finalMoves2); // TEAM2, dummy moves
 
                 const finalBoardState = {
                     team1PlayerPositions: [
