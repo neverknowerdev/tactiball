@@ -13,7 +13,9 @@
     "test:upgradeable": "hardhat test test/UpgradeableGame.test.ts",
     "db:migrate": "./migrations/run-migrations.sh",
     "db:clear": "./migrations/clean-db.sh",
-    "fetch:game": "ts-node scripts/fetch-game.ts"
+    "fetch:game": "ts-node scripts/fetch-game.ts",
+    "fetch:team": "ts-node scripts/fetch-team.ts",
+    "recalculate:team-stat": "ts-node scripts/recalculate-team-stat.ts"
   },
   "dependencies": {
     "@ethersproject/bignumber": "^5.8.0",
@@ -21,6 +23,7 @@
     "@openzeppelin/contracts": "^5.4.0",
     "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.1",
+    "@supabase/supabase-js": "^2.57.4",
     "@types/elliptic": "^6.4.18",
     "@uniswap/lib": "^4.0.1-alpha",
     "create-onchain": "^0.0.24",
