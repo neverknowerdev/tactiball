@@ -596,7 +596,7 @@ async function handleEloUpdated(decodedData: DecodedEvent, supabase: any, wsServ
 
     console.log(`Elo updated: ${teamId} to ${eloRating}`);
 
-    const { error: gameUpdateError } = await supabase.rpc('update_elo_rating', { team_id: teamId, game_id: gameId, new_elo_rating: eloRating });
+    const { error: gameUpdateError } = await supabase.rpc('update_elo_rating', { team_id_param: teamId, game_id_param: gameId, new_elo_rating: eloRating });
 
     if (gameUpdateError) {
         console.error('Error updating game elo rating:', gameUpdateError);

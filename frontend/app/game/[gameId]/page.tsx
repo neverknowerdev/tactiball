@@ -85,6 +85,9 @@ export default function GamePage() {
         game.team1.teamId = contractGameData.data.team1.teamId;
         game.team2.teamId = contractGameData.data.team2.teamId;
 
+        game.team1.score = contractGameData.data.gameState.team1score;
+        game.team2.score = contractGameData.data.gameState.team2score;
+
         const gameState: GameState = {
             team1PlayerPositions: contractGameData.data.lastBoardState.team1PlayerPositions,
             team2PlayerPositions: contractGameData.data.lastBoardState.team2PlayerPositions,
@@ -133,7 +136,7 @@ export default function GamePage() {
                 team2PlayerPositions: state.team2_positions,
                 ballPosition: state.ball_position,
                 ballOwner: state.ball_owner,
-                type: (state.type == 'startPositions' ? GameStateType.START_POSITIONS : state.type == 'move' ? GameStateType.MOVE : state.type == 'goal_team1' ? GameStateType.GOAL_TEAM1 : GameStateType.GOAL_TEAM2) as GameStateType,
+                type: (state.type == 0 ? GameStateType.START_POSITIONS : state.type == 1 ? GameStateType.MOVE : state.type == 2 ? GameStateType.GOAL_TEAM1 : GameStateType.GOAL_TEAM2) as GameStateType,
                 clashRandomResults: state.clashRandomResults,
                 team1Moves: state.team1_moves || [],
                 team2Moves: state.team2_moves || []
@@ -180,7 +183,7 @@ export default function GamePage() {
                 setCurrentTeam(gameTeamInfo);
 
                 const storedActions = localStorage.getItem('commitedActions');
-                if (gameTeamInfo!.isCommittedMove && storedActions) {
+                if (gameTeamInfo && gameTeamInfo!.isCommittedMove && storedActions) {
                     const commitedActionsData = JSON.parse(storedActions);
 
                     if (gameTeamInfo!.enum == TeamEnum.TEAM1) {
@@ -691,10 +694,10 @@ export default function GamePage() {
         if (!game || index >= game!.history.length) return '';
 
         const state = game.history[index];
-        if (index === 0) return 'Initial Positions';
-        if (state.type === GameStateType.GOAL_TEAM1) return `Goal! ${game.team1.name}`;
-        if (state.type === GameStateType.GOAL_TEAM2) return `Goal! ${game.team2.name}`;
-        if (state.type === GameStateType.MOVE) return `Move ${index + 1}`;
+        if (index == 0) return 'Initial Positions';
+        if (state.type == GameStateType.GOAL_TEAM1) return `Goal! ${game.team1.name}`;
+        if (state.type == GameStateType.GOAL_TEAM2) return `Goal! ${game.team2.name}`;
+        if (state.type == GameStateType.MOVE) return `Move ${index + 1}`;
         return `State ${index}`;
     }
 
