@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { TeamEnum } from '@/lib/game';
+import { useOpenUrl } from '@coinbase/onchainkit/minikit';
 
 interface GameTipsModalProps {
     isOpen: boolean;
@@ -11,6 +12,8 @@ interface GameTipsModalProps {
 }
 
 export default function GameTipsModal({ isOpen, onClose, isConnected, currentTeam }: GameTipsModalProps) {
+    const openUrl = useOpenUrl();
+
     if (!isOpen) return null;
 
     return (
@@ -78,16 +81,15 @@ export default function GameTipsModal({ isOpen, onClose, isConnected, currentTea
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-gray-200">
-                    <a
-                        href="/rules-of-game"
-                        target="_blank"
+                    <button
+                        onClick={() => openUrl(`${window.location.origin}/rules-of-game`)}
                         className="flex items-center gap-2 text-blue-600 hover:text-blue-800 underline transition-colors"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                         View Full Rules
-                    </a>
+                    </button>
                 </div>
             </div>
         </div>

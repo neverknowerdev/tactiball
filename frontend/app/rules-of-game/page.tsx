@@ -7,7 +7,9 @@ export default function RulesOfGame() {
     return (
         <div>
             <div className="flex justify-center mb-6 mt-6">
-                <img src="/logo-white.png" alt="ChessBall Logo" className="h-32" />
+                <a href="/" className="cursor-pointer hover:opacity-80 transition-opacity">
+                    <img src="/logo-white.png" alt="ChessBall Logo" className="h-32" />
+                </a>
             </div>
 
             <div className="max-w-4xl mx-auto p-6 bg-white shadow-md rounded-lg">

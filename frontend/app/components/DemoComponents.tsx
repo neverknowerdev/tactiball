@@ -15,7 +15,7 @@ import {
   TransactionStatusLabel,
   TransactionStatus,
 } from "@coinbase/onchainkit/transaction";
-import { useNotification } from "@coinbase/onchainkit/minikit";
+import { useNotification, useOpenUrl } from "@coinbase/onchainkit/minikit";
 
 type ButtonProps = {
   children: ReactNode;
@@ -350,11 +350,10 @@ function TodoList() {
                   type="button"
                   id={`todo-${todo.id}`}
                   onClick={() => toggleTodo(todo.id)}
-                  className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                    todo.completed
+                  className={`w-5 h-5 rounded-full border flex items-center justify-center ${todo.completed
                       ? "bg-[var(--app-accent)] border-[var(--app-accent)]"
                       : "border-[var(--app-foreground-muted)] bg-transparent"
-                  }`}
+                    }`}
                 >
                   {todo.completed && (
                     <Icon
@@ -389,16 +388,17 @@ function TodoList() {
 
 function TransactionCard() {
   const { address } = useAccount();
+  const { openUrl } = useOpenUrl();
 
   // Example transaction call - sending 0 ETH to self
   const calls = useMemo(() => address
     ? [
-        {
-          to: address,
-          data: "0x" as `0x${string}`,
-          value: BigInt(0),
-        },
-      ]
+      {
+        to: address,
+        data: "0x" as `0x${string}`,
+        value: BigInt(0),
+      },
+    ]
     : [], [address]);
 
   const sendNotification = useNotification();
@@ -419,14 +419,12 @@ function TransactionCard() {
       <div className="space-y-4">
         <p className="text-[var(--app-foreground-muted)] mb-4">
           Experience the power of seamless sponsored transactions with{" "}
-          <a
-            href="https://onchainkit.xyz"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => openUrl("https://onchainkit.xyz")}
             className="text-[#0052FF] hover:underline"
           >
             OnchainKit
-          </a>
+          </button>
           .
         </p>
 
