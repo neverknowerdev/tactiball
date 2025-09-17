@@ -89,7 +89,7 @@
 }
 
 .field .grid {
-    margin: 20px;
+    padding: 20px;
     min-width: 500px;
 }
 
@@ -97,8 +97,8 @@
 .field .grid::before {
     content: '';
     position: absolute;
-    top: 0;
-    bottom: 0;
+    top: 20px;
+    bottom: 20px;
     left: 50%;
     width: 2px;
     background: white;

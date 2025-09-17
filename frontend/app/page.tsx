@@ -484,7 +484,7 @@ export default function App() {
       </div>
 
       {/* How to Play link */}
-      <div className="w-full flex justify-end mb-3">
+      <div className="w-full max-w-md flex justify-end mb-3">
         <a
           href="/rules-of-game"
           target="_blank"

@@ -919,8 +919,8 @@ export default function GamePage() {
                             </div>
                         </div>
                     )}
-                    {/* How to Play Button - Above Field, Top Right */}
-                    <div className="flex justify-end mb-1">
+                    {/* How to Play Button - Above Field, Aligned with Field Right Edge */}
+                    <div className="flex justify-end mb-1" style={{ maxWidth: '800px', margin: '0 auto' }}>
                         <button
                             onClick={() => setShowTips(!showTips)}
                             className="flex items-center gap-1 text-xs bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 hover:text-gray-900 px-2 py-1 rounded shadow-sm transition-all duration-200"
