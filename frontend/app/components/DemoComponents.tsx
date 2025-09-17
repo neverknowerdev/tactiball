@@ -351,8 +351,8 @@ function TodoList() {
                   id={`todo-${todo.id}`}
                   onClick={() => toggleTodo(todo.id)}
                   className={`w-5 h-5 rounded-full border flex items-center justify-center ${todo.completed
-                      ? "bg-[var(--app-accent)] border-[var(--app-accent)]"
-                      : "border-[var(--app-foreground-muted)] bg-transparent"
+                    ? "bg-[var(--app-accent)] border-[var(--app-accent)]"
+                    : "border-[var(--app-foreground-muted)] bg-transparent"
                     }`}
                 >
                   {todo.completed && (
@@ -388,7 +388,7 @@ function TodoList() {
 
 function TransactionCard() {
   const { address } = useAccount();
-  const { openUrl } = useOpenUrl();
+  const openUrl = useOpenUrl();
 
   // Example transaction call - sending 0 ETH to self
   const calls = useMemo(() => address
