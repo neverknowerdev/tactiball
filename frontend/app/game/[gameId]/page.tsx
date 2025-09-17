@@ -56,6 +56,7 @@ export default function GamePage() {
     const { address, isConnected } = useAccount();
     const { signMessageAsync } = useSignMessage();
     const [isTwoTeamCommitted, setIsTwoTeamCommitted] = useState(false);
+    const [secondsAfterLastMove, setSecondsAfterLastMove] = useState<number>(0);
     const [lastMoveAt, setLastMoveAt] = useState<number | null>(null);
     const [gameResultModal, setGameResultModal] = useState<{
         isOpen: boolean;
@@ -71,23 +72,9 @@ export default function GamePage() {
         timestamp: 0
     });
 
+    const [isCancelRequestSending, setIsCancelRequestSending] = useState(false);
+
     const isNewStateRecalculatedRef = useRef<boolean | null>(false);
-
-    // Calculate if the game has timed out (more than 60 seconds since last move)
-    const isGameTimedOut = (lastMoveAt: number): boolean => {
-        if (!lastMoveAt) return false;
-        const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
-        const timeSinceLastMove = currentTime - lastMoveAt;
-        return timeSinceLastMove > 60;
-    };
-
-    // Get time remaining until timeout (returns negative if already timed out)
-    const getTimeUntilTimeout = (lastMoveAt: number): number => {
-        if (!lastMoveAt) return 0;
-        const currentTime = Math.floor(Date.now() / 1000);
-        const timeSinceLastMove = currentTime - lastMoveAt;
-        return 60 - timeSinceLastMove;
-    };
 
     // Send cancel game request
     const handleCancelGameRequest = async () => {
@@ -95,6 +82,9 @@ export default function GamePage() {
             toast.error('Please connect your wallet first');
             return;
         }
+
+        setIsCancelRequestSending(true);
+        setGameSubmissionState(GameSubmissionState.IDLE);
 
         try {
             const signature = await authUserWithSignature(address, signMessageAsync);
@@ -126,9 +116,16 @@ export default function GamePage() {
             // Reset the game state
             setGameSubmissionState(GameSubmissionState.IDLE);
 
+            // Redirect to main page after 5 seconds
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 5000);
+
         } catch (error) {
             console.error('Error cancelling game:', error);
             toast.error('Failed to cancel game. Please try again.');
+        } finally {
+            setIsCancelRequestSending(false);
         }
     };
 
@@ -150,10 +147,6 @@ export default function GamePage() {
 
         // Store the lastMoveAt timestamp for timeout calculations
         setLastMoveAt(Number(contractGameData.data.gameState.lastMoveAt));
-
-        console.log('lastMoveAt', Number(contractGameData.data.gameState.lastMoveAt), lastMoveAt);
-        console.log('getTimeUntilTimeout', getTimeUntilTimeout(Number(contractGameData.data.gameState.lastMoveAt)));
-        console.log('isGameTimedOut', isGameTimedOut(Number(contractGameData.data.gameState.lastMoveAt)));
 
         const gameState: GameState = {
             team1PlayerPositions: contractGameData.data.lastBoardState.team1PlayerPositions,
@@ -240,6 +233,8 @@ export default function GamePage() {
                 console.error('Error fetching game data from database:', err);
             }
 
+            const isTwoTeamCommitted = newGame.team1.isCommittedMove && newGame.team2.isCommittedMove;
+
             console.log('newGame isCommitedMove 1', newGame.team1.isCommittedMove, newGame.team2.isCommittedMove);
 
             if (userTeamId) {
@@ -291,6 +286,16 @@ export default function GamePage() {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (!game || !isConnected) return;
+
+        if (game?.team1.isCommittedMove && game?.team2.isCommittedMove) {
+            setGameSubmissionState(GameSubmissionState.WAITING_FOR_CALCULATION);
+        } else if (currentTeam?.isCommittedMove) {
+            setGameSubmissionState(GameSubmissionState.WAITING_FOR_OPPONENT);
+        }
+    }, [game, isConnected]);
 
     // WebSocket subscription effect
     useEffect(() => {
@@ -428,10 +433,13 @@ export default function GamePage() {
         if (gameSubmissionState !== GameSubmissionState.WAITING_FOR_OPPONENT || !lastMoveAt) {
             return;
         }
+        setSecondsAfterLastMove(Math.floor(Date.now() / 1000) - lastMoveAt);
 
         const interval = setInterval(() => {
-            // Force re-render to update timeout UI
-            setLastMoveAt(prev => prev); // This will trigger a re-render
+            setSecondsAfterLastMove(prev => {
+                const newValue = prev + 1;
+                return newValue;
+            });
         }, 1000);
 
         return () => clearInterval(interval);
@@ -1134,6 +1142,24 @@ export default function GamePage() {
                 </div>
             )}
 
+            {/* Cancel Game Loading Modal */}
+            {isCancelRequestSending && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-in fade-in duration-300">
+                    <div
+                        className="bg-white rounded-lg p-8 shadow-2xl max-w-md mx-4 animate-in zoom-in-95 duration-300"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="text-center">
+                            <div className="mb-6">
+                                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-red-600 mx-auto mb-4"></div>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-2">Cancelling Game...</h2>
+                                <p className="text-gray-600">Please wait while we cancel the game</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Game Submission Status Popup */}
             {gameSubmissionState !== GameSubmissionState.IDLE && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-in fade-in duration-300">
@@ -1152,40 +1178,27 @@ export default function GamePage() {
                                     <h3 className="text-xl font-semibold text-gray-800 mb-2">Your Moves Submitted!</h3>
                                     <p className="text-gray-600">Your moves are written. Waiting for your opponent to make moves...</p>
 
-                                    {(() => {
-                                        const timeUntilTimeout = getTimeUntilTimeout(lastMoveAt!);
-                                        const isTimedOut = isGameTimedOut(lastMoveAt!);
-
-                                        console.log('timeUntilTimeout', timeUntilTimeout);
-                                        console.log('isTimedOut', isTimedOut);
-
-                                        if (isTimedOut) {
-                                            return (
-                                                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                                                    <div className="text-red-800 font-medium mb-2">⏰ Game Timeout</div>
-                                                    <p className="text-red-600 text-sm mb-3">
-                                                        Your opponent hasn't made a move in over 1 minute. You can cancel the game if they don't respond.
-                                                    </p>
-                                                    <button
-                                                        onClick={handleCancelGameRequest}
-                                                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                                                    >
-                                                        Cancel Game
-                                                    </button>
-                                                </div>
-                                            );
-                                        } else if (timeUntilTimeout > 0 && timeUntilTimeout <= 60) {
-                                            return (
-                                                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                                    <div className="text-yellow-800 font-medium mb-1">⏱️ Timeout Warning</div>
-                                                    <p className="text-yellow-600 text-sm">
-                                                        Waiting for opponent... {timeUntilTimeout}s remaining
-                                                    </p>
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
+                                    {secondsAfterLastMove > 60 ? (
+                                        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                            <div className="text-red-800 font-medium mb-2">⏰ Game Timeout</div>
+                                            <p className="text-red-600 text-sm mb-3">
+                                                Your opponent hasn't made a move in over 1 minute. You can cancel the game if they don't respond.
+                                            </p>
+                                            <button
+                                                onClick={handleCancelGameRequest}
+                                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                                            >
+                                                Cancel Game
+                                            </button>
+                                        </div>
+                                    ) : secondsAfterLastMove > 0 && secondsAfterLastMove <= 60 ? (
+                                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                            <div className="text-yellow-800 font-medium mb-1">⏱️ Timeout Warning</div>
+                                            <p className="text-yellow-600 text-sm">
+                                                Waiting for opponent... {60 - secondsAfterLastMove}s remaining
+                                            </p>
+                                        </div>
+                                    ) : null}
                                 </>
                             )}
                             {gameSubmissionState === GameSubmissionState.WAITING_FOR_CALCULATION && (

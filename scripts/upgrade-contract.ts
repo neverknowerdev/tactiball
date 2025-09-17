@@ -2,7 +2,7 @@ import { ethers, upgrades } from "hardhat";
 import { createHash } from "crypto";
 import { readFileSync } from "fs";
 import { join } from "path";
-
+import hre from "hardhat";
 // Helper function to get source code hash
 function getSourceCodeHash(filePath: string): string {
     try {
@@ -112,14 +112,6 @@ async function main() {
             GameLib: gameLibAddress
         }
     });
-
-    const newImplementation = await ChessBallGameV2.deploy({
-        gasPrice: adjustedGasPrice
-    });
-    await newImplementation.waitForDeployment();
-    const newImplementationAddress = await newImplementation.getAddress();
-    console.log("✅ New implementation deployed to:", newImplementationAddress);
-
     // Wait a bit before upgrade
     console.log("⏳ Waiting 5 seconds before upgrade...");
     await new Promise(resolve => setTimeout(resolve, 5000));
@@ -137,6 +129,11 @@ async function main() {
     // Get the new implementation address from the proxy
     const actualImplementationAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
     console.log("New implementation address from proxy:", actualImplementationAddress);
+
+    if (actualImplementationAddress.toLowerCase() == deploymentInfo.implementationAddress.toLowerCase()) {
+        console.log("✅ No changes in implementation...");
+        return;
+    }
 
     // Step 4: Verify the upgrade
     console.log("\n=== Step 4: Verifying Upgrade ===");
@@ -160,7 +157,7 @@ async function main() {
 
     const newDeploymentInfo = {
         ...deploymentInfo,
-        implementationAddress: newImplementationAddress,
+        implementationAddress: actualImplementationAddress,
         libraries: {
             gameLib: gameLibAddress
         },
@@ -188,6 +185,12 @@ async function main() {
     } else {
         console.log("\n✅ All libraries were unchanged - reused existing versions");
     }
+
+    console.log("Vefrifying implementation..");
+    await hre.run("verify:verify", {
+        address: actualImplementationAddress,
+    });
+
 
     console.log("\n🔗 Final Contract Addresses:");
     console.log(`   GameLib: ${gameLibAddress}`);

@@ -168,18 +168,6 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address newImplementation
     ) internal override onlyOwner {}
 
-    /**
-     * @dev Set the relayer smart account address (for existing deployments)
-     * @param _relayerSmartAccountAddress The address of the relayer smart account
-     */
-    function setRelayerSmartAccountAddress(
-        address _relayerSmartAccountAddress
-    ) public onlyOwner {
-        if (_relayerSmartAccountAddress == address(0))
-            revert InitAddressCannotBeZero();
-        relayerSmartAccountAddress = _relayerSmartAccountAddress;
-    }
-
     // ========================================
     // CREATE TEAM
     // ========================================
@@ -462,7 +450,11 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             teams[game.team2.teamId].wallet != sender
         ) revert GameOwnerShouldCall();
         if (
-            game.gameState.team1MovesEncrypted == bytes32(0) ||
+            teams[game.team1.teamId].wallet == sender &&
+            game.gameState.team1MovesEncrypted == bytes32(0)
+        ) revert ActionsNotCommitted();
+        if (
+            teams[game.team2.teamId].wallet == sender &&
             game.gameState.team2MovesEncrypted == bytes32(0)
         ) revert ActionsNotCommitted();
         if (
@@ -531,7 +523,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     // ========================================
-    // GELATO ORACLE FUNCTIONS
+    // GAME ENGINE FUNCTIONS
     // ========================================
 
     function setGameError(

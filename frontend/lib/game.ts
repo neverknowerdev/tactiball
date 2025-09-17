@@ -126,7 +126,7 @@ export interface GameType {
     ball: Ball;
 
     createdAt: number;
-
+    lastMoveAt: number | null;
     playerMoves: GameAction[];
 
     status: GameStatus;
@@ -142,6 +142,7 @@ export class Game implements GameType {
     public ball: Ball;
 
     public createdAt: number;
+    public lastMoveAt: number | null;
     public status: GameStatus;
 
     constructor(gameId: number) {
@@ -152,6 +153,7 @@ export class Game implements GameType {
         this.team2 = { id: 2, teamId: 0, enum: TeamEnum.TEAM2, name: 'Team 2', color: 'blue', score: 0, players: [], isCommittedMove: false };
         this.ball = { position: { x: 0, y: 0 }, oldPosition: null, ownerTeam: null };
         this.createdAt = Date.now();
+        this.lastMoveAt = null;
         this.status = GameStatus.ACTIVE;
         this.playerMoves = [];
         const playerTypeByIndex = function (index: number) {

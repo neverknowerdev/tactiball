@@ -65,7 +65,7 @@ async function main() {
             address: deploymentInfo.libraries.gameLib,
             contract: "contracts/GameLib.sol:GameLib",
             constructorArguments: [],
-            network: "baseSepolia"
+            network: networkName
         });
         console.log("✅ GameLib verified on Basescan!");
     } catch (error: any) {
@@ -86,7 +86,7 @@ async function main() {
             libraries: {
                 GameLib: deploymentInfo.libraries.gameLib
             },
-            network: "baseSepolia"
+            network: networkName
         });
         console.log("✅ Implementation verified on Basescan!");
     } catch (error: any) {
@@ -105,10 +105,11 @@ async function main() {
     console.log(`   Proxy: ${deploymentInfo.proxyAddress}`);
 
     console.log("\n🌐 Basescan Explorer URLs:");
-    console.log(`   EloCalculationLib: https://sepolia.basescan.org/address/${deploymentInfo.libraries.eloCalculationLib}`);
-    console.log(`   GameLib: https://sepolia.basescan.org/address/${deploymentInfo.libraries.gameLib}`);
-    console.log(`   Implementation: https://sepolia.basescan.org/address/${deploymentInfo.implementationAddress}`);
-    console.log(`   Proxy: https://sepolia.basescan.org/address/${deploymentInfo.proxyAddress}`);
+    const baseUrl = networkName === 'baseMainnet' ? 'https://basescan.org' : 'https://sepolia.basescan.org';
+    console.log(`   EloCalculationLib: ${baseUrl}/address/${deploymentInfo.libraries.eloCalculationLib}`);
+    console.log(`   GameLib: ${baseUrl}/address/${deploymentInfo.libraries.gameLib}`);
+    console.log(`   Implementation: ${baseUrl}/address/${deploymentInfo.implementationAddress}`);
+    console.log(`   Proxy: ${baseUrl}/address/${deploymentInfo.proxyAddress}`);
 }
 
 // Run verification if this script is executed directly
