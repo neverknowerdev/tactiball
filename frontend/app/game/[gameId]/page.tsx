@@ -12,6 +12,7 @@ import { ConnectWallet } from "@coinbase/onchainkit/wallet";
 import 'react-toastify/dist/ReactToastify.css';
 import { subscribeToGame, unsubscribeFromGame } from '@/lib/ably';
 import { getGameFromContract } from '@/lib/contract';
+import GameTipsModal from './GameTipsModal';
 
 // Cell type enum
 enum CellType {
@@ -48,6 +49,7 @@ export default function GamePage() {
     const [availableModes, setAvailableModes] = useState<MoveType[]>([]);
     const [modeIndex, setModeIndex] = useState<number>(0);
     const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
+    const [showTips, setShowTips] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [gameSubmissionState, setGameSubmissionState] = useState<GameSubmissionState>(GameSubmissionState.IDLE);
@@ -852,7 +854,30 @@ export default function GamePage() {
             {game && (
 
                 <div className="max-w-6xl mx-auto">
+                    {/* Back to Main - only show if game is not active */}
+                    {game && game.status !== 'ACTIVE' && (
+                        <div className="flex justify-start mb-4">
+                            <a
+                                href="/"
+                                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 underline transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                </svg>
+                                Back to Main
+                            </a>
+                        </div>
+                    )}
+
                     <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6">ChessBall Game #{gameId}</h1>
+
+                    {/* Tips Modal */}
+                    <GameTipsModal
+                        isOpen={showTips}
+                        onClose={() => setShowTips(false)}
+                        isConnected={isConnected}
+                        currentTeam={currentTeam}
+                    />
 
                     {/* Game Info */}
                     <div className="mb-6">
@@ -894,6 +919,19 @@ export default function GamePage() {
                             </div>
                         </div>
                     )}
+                    {/* How to Play Button - Above Field, Top Right */}
+                    <div className="flex justify-end mb-1">
+                        <button
+                            onClick={() => setShowTips(!showTips)}
+                            className="flex items-center gap-1 text-xs bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 hover:text-gray-900 px-2 py-1 rounded shadow-sm transition-all duration-200"
+                        >
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                            </svg>
+                            How to play?
+                        </button>
+                    </div>
+
                     <div className="field">
                         <div className="grid grid-cols-[repeat(17,1fr)] grid-rows-[repeat(11,1fr)] absolute inset-0 w-full h-full">
                             {game.team1.players.map((player, index) => (
