@@ -1,6 +1,6 @@
 "use server";
 import { createWalletClient, createPublicClient, http, type Hex } from 'viem';
-import { base } from 'viem/chains';
+import { basePreconf } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toCoinbaseSmartAccount } from 'viem/account-abstraction';
 import { createBundlerClient } from 'viem/account-abstraction';
@@ -23,7 +23,7 @@ function getCoinbasePaymasterRpcUrl() {
 
 // Create a dedicated flashblocks client with HTTP transport for faster confirmations
 const flashblocksClient = createPublicClient({
-    chain: base,
+    chain: basePreconf,
     transport: http(process.env.FLASHBLOCKS_RPC_URL),
     pollingInterval: 100,
 });
