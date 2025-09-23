@@ -116,10 +116,6 @@ async function processLog(supabase: any, wsService: WebSocketBroadcastingService
     } catch (error) {
         console.error(`Error processing log with signature ${eventLog.eventName}:`, error);
     }
-
-    console.log('sleeping for 3 seconds to finish all network things..');
-    // Sleep for 3 seconds to allow for any pending operations to complete
-    await new Promise(resolve => setTimeout(resolve, 3000));
 }
 
 async function saveEventToMessages(supabase: any, eventLog: DecodedEvent, timestamp: number, blockNumber: number, transactionHash: string, logIndex: number) {

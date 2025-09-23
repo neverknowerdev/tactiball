@@ -18,7 +18,6 @@ function getCoinbasePaymasterRpcUrl() {
     }
 
     console.log('Using Coinbase Paymaster for transaction sponsorship');
-    console.log('Paymaster RPC:', COINBASE_PAYMASTER_RPC_URL);
     return COINBASE_PAYMASTER_RPC_URL;
 }
 
@@ -26,6 +25,12 @@ function getCoinbasePaymasterRpcUrl() {
 const paymasterPublicClient = createPublicClient({
     chain: base,
     transport: http(process.env.RPC_URL || 'https://mainnet.base.org')
+});
+
+// Create a dedicated flashblocks client with HTTP transport for faster confirmations
+const flashblocksClient = createPublicClient({
+    chain: base,
+    transport: http(process.env.FLASHBLOCKS_RPC_URL)
 });
 
 // Create smart account for Paymaster transactions
@@ -53,7 +58,7 @@ export async function createRelayerBundlerClient() {
 
     return createBundlerClient({
         account: smartAccount,
-        client: paymasterPublicClient,
+        client: flashblocksClient, // Use flashblocks client for faster confirmations
         transport: http(getCoinbasePaymasterRpcUrl()),
         chain: base,
     });
@@ -86,7 +91,8 @@ export async function getNextRelayerNonce(account: Hex): Promise<bigint> {
 
         // If this is the first time (nonce === 1), get the current nonce from blockchain
         if (nonce === 1) {
-            const blockchainNonce = await publicClient.getTransactionCount({
+            console.log('Fetching initial nonce using flashblocks client');
+            const blockchainNonce = await flashblocksClient.getTransactionCount({
                 address: account,
                 blockTag: 'pending'
             });
@@ -112,8 +118,9 @@ export async function resetRelayerNonce(account: Hex): Promise<void> {
             throw new Error('Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables');
         }
 
-        // Get current nonce from blockchain
-        const blockchainNonce = await publicClient.getTransactionCount({
+        // Get current nonce from blockchain using flashblocks
+        console.log('Resetting nonce using flashblocks client');
+        const blockchainNonce = await flashblocksClient.getTransactionCount({
             address: account,
             blockTag: 'pending'
         });
@@ -140,8 +147,9 @@ export async function getCurrentRelayerNonce(account: Hex): Promise<bigint> {
         const nonce = nonceStr !== null ? Number(nonceStr) : null;
 
         if (nonce === null) {
-            // No nonce stored, get from blockchain
-            const blockchainNonce = await publicClient.getTransactionCount({
+            // No nonce stored, get from blockchain using flashblocks
+            console.log('Fetching current nonce using flashblocks client');
+            const blockchainNonce = await flashblocksClient.getTransactionCount({
                 address: account,
                 blockTag: 'pending'
             });
@@ -163,6 +171,7 @@ export async function sendTransactionWithRetry(request: any, maxRetries: number 
 
     console.log('Sending UserOperation for smart account:', accountAddress);
     console.log('Transaction will be sponsored by Coinbase Paymaster');
+    console.log('Using flashblocks client for transaction processing');
 
     // Convert the contract call request to a UserOperation call
     const call = {
@@ -181,6 +190,7 @@ export async function sendTransactionWithRetry(request: any, maxRetries: number 
     while (retryCount < maxRetries) {
         try {
             // Send UserOperation with Paymaster sponsorship
+            console.log('Sending UserOperation with flashblocks optimization');
             userOpHash = await bundlerClient.sendUserOperation({
                 account: smartAccount,
                 calls: [call],
@@ -190,12 +200,14 @@ export async function sendTransactionWithRetry(request: any, maxRetries: number 
             console.log('UserOperation sent successfully. UserOp hash:', userOpHash);
             console.log('Transaction sponsored by Coinbase Paymaster: YES');
 
-            // Wait for UserOperation receipt
+            // Wait for UserOperation receipt with flashblocks optimization
+            console.log('Waiting for UserOperation receipt with flashblocks polling');
             const receipt = await bundlerClient.waitForUserOperationReceipt({
                 hash: userOpHash as `0x${string}`,
-                pollingInterval: 200
+                pollingInterval: 100 // Optimized for flashblocks (faster than standard 200ms)
             });
 
+            console.log('UserOperation receipt received');
             return receipt;
 
         } catch (error: any) {
@@ -232,9 +244,10 @@ export async function waitForPaymasterTransactionReceipt(hash: string | UserOper
     // If it's a UserOperationReceipt, extract the transaction hash
     const txHash = typeof hash === 'string' ? hash : hash.receipt.transactionHash;
 
-    return await publicClient.waitForTransactionReceipt({
+    // Use flashblocks client for faster confirmation
+    return await flashblocksClient.waitForTransactionReceipt({
         hash: txHash as `0x${string}`,
         confirmations: 0,
-        pollingInterval: 200
+        pollingInterval: 100 // Optimized for flashblocks
     });
 }
