@@ -21,16 +21,11 @@ function getCoinbasePaymasterRpcUrl() {
     return COINBASE_PAYMASTER_RPC_URL;
 }
 
-// Create a public client for Coinbase Paymaster
-const paymasterPublicClient = createPublicClient({
-    chain: base,
-    transport: http(process.env.RPC_URL || 'https://mainnet.base.org')
-});
-
 // Create a dedicated flashblocks client with HTTP transport for faster confirmations
 const flashblocksClient = createPublicClient({
     chain: base,
-    transport: http(process.env.FLASHBLOCKS_RPC_URL)
+    transport: http(process.env.FLASHBLOCKS_RPC_URL),
+    pollingInterval: 100,
 });
 
 // Create smart account for Paymaster transactions
@@ -44,7 +39,7 @@ export async function createSmartAccount() {
 
     // Create Coinbase smart wallet using the EOA signer
     const smartAccount = await toCoinbaseSmartAccount({
-        client: paymasterPublicClient,
+        client: flashblocksClient,
         owners: [owner],
         version: '1.1' // Specify version as required
     });
