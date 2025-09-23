@@ -55,7 +55,7 @@ export async function createRelayerBundlerClient() {
         account: smartAccount,
         client: flashblocksClient, // Use flashblocks client for faster confirmations
         transport: http(getCoinbasePaymasterRpcUrl()),
-        chain: base,
+        chain: basePreconf,
     });
 }
 
@@ -66,7 +66,7 @@ export async function createRelayerClient() {
     // Return a wallet client that uses the smart account
     return createWalletClient({
         account: smartAccount,
-        chain: base,
+        chain: basePreconf,
         transport: http(getCoinbasePaymasterRpcUrl()),
     });
 }
