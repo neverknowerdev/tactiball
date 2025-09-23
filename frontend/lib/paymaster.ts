@@ -1,4 +1,5 @@
 "use server";
+import { createPaymasterClient } from 'viem/account-abstraction'
 import { createWalletClient, createPublicClient, http, type Hex } from 'viem';
 import { basePreconf } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -6,7 +7,6 @@ import { toCoinbaseSmartAccount } from 'viem/account-abstraction';
 import { createBundlerClient } from 'viem/account-abstraction';
 import { redis } from './redis';
 import { UserOperationReceipt } from 'viem/account-abstraction';
-import { publicClient } from './providers';
 import { CONTRACT_ABI } from './contract';
 
 function getCoinbasePaymasterRpcUrl() {
@@ -54,8 +54,11 @@ export async function createRelayerBundlerClient() {
     return createBundlerClient({
         account: smartAccount,
         client: flashblocksClient, // Use flashblocks client for faster confirmations
-        transport: http(getCoinbasePaymasterRpcUrl()),
+        transport: http(process.env.FLASHBLOCKS_RPC_URL),
         chain: basePreconf,
+        paymaster: createPaymasterClient({
+            transport: http(getCoinbasePaymasterRpcUrl())
+        })
     });
 }
 
@@ -67,7 +70,7 @@ export async function createRelayerClient() {
     return createWalletClient({
         account: smartAccount,
         chain: basePreconf,
-        transport: http(getCoinbasePaymasterRpcUrl()),
+        transport: http(process.env.FLASHBLOCKS_RPC_URL),
     });
 }
 
@@ -188,8 +191,7 @@ export async function sendTransactionWithRetry(request: any, maxRetries: number 
             console.log('Sending UserOperation with flashblocks optimization');
             userOpHash = await bundlerClient.sendUserOperation({
                 account: smartAccount,
-                calls: [call],
-                paymaster: true // Enable Paymaster sponsorship
+                calls: [call]
             });
 
             console.log('UserOperation sent successfully. UserOp hash:', userOpHash);
