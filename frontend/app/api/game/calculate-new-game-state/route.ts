@@ -11,6 +11,16 @@ import { sendWebhookMessage } from '@/lib/webhook';
 import { parseEventLogs } from 'viem';
 import { getGameFromContract } from '@/lib/contract';
 
+// Utility function for better error logging
+function logErrorWithContext(error: any, context: string) {
+    console.error(`[${context}] Error:`, error.message);
+    console.error(`[${context}] Stack trace:`, error.stack);
+    console.error(`[${context}] Error name:`, error.name);
+    if (error.cause) {
+        console.error(`[${context}] Error cause:`, error.cause);
+    }
+}
+
 interface CommitGameActionsRequest {
     game_id: string;
     team_id: string;
@@ -107,7 +117,7 @@ export async function POST(request: NextRequest) {
         try {
             gameResult = processGameMoves(gameInfo.data);
         } catch (error) {
-            console.error('Error processing game moves:', error);
+            logErrorWithContext(error, 'PROCESSING_GAME_MOVES');
             return NextResponse.json(
                 { error: 'Error processing game moves', errorName: 'ERROR_PROCESSING_MOVES' },
                 { status: 500 }
@@ -131,6 +141,14 @@ export async function POST(request: NextRequest) {
         }))
 
         console.log('simulating call to contract..');
+        console.log('Contract args:', {
+            gameId: gameInfo.data.gameId,
+            contractStateType,
+            clashRandomResults: gameResult.clashRandomResults,
+            team1ActionsLength: contractTeam1Actions.length,
+            team2ActionsLength: contractTeam2Actions.length,
+            boardState: gameResult.boardState
+        });
 
         // Call newGameState on smart contract to update game state
         let newGameStateRequest;
@@ -144,8 +162,9 @@ export async function POST(request: NextRequest) {
                 account: RELAYER_ADDRESS
             });
             newGameStateRequest = simulationResult.request;
+            console.log('Contract simulation successful');
         } catch (error) {
-            console.error('Error simulating contract call:', error);
+            logErrorWithContext(error, 'SIMULATING_CONTRACT_CALL');
             return NextResponse.json(
                 { error: 'Error simulating contract call', errorName: 'ERROR_SIMULATING_CONTRACT' },
                 { status: 500 }
@@ -159,7 +178,7 @@ export async function POST(request: NextRequest) {
             paymasterReceipt = await sendTransactionWithRetry(newGameStateRequest);
             console.log('New game state committed. Transaction hash:', paymasterReceipt.receipt.transactionHash);
         } catch (error) {
-            console.error('Error executing transaction:', error);
+            logErrorWithContext(error, 'EXECUTING_TRANSACTION');
             return NextResponse.json(
                 { error: 'Error executing transaction', errorName: 'ERROR_EXECUTING_TRANSACTION' },
                 { status: 500 }
@@ -184,7 +203,7 @@ export async function POST(request: NextRequest) {
             transactionHash: paymasterReceipt.receipt.transactionHash,
         });
     } catch (error) {
-        console.error('Error calculating game state:', error);
+        logErrorWithContext(error, 'CALCULATING_GAME_STATE');
         return NextResponse.json(
             { error: 'Error calculating game state', errorName: 'ERROR_CALCULATING_GAME_STATE' },
             { status: 500 }
