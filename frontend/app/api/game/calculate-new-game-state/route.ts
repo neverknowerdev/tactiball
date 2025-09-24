@@ -130,6 +130,8 @@ export async function POST(request: NextRequest) {
             teamEnum: toTeamEnum(action.teamEnum)
         }))
 
+        console.log('simulating call to contract..');
+
         // Call newGameState on smart contract to update game state
         let newGameStateRequest;
         try {
@@ -150,6 +152,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        console.log('executing call to contract..');
         // Execute newGameState transaction
         let paymasterReceipt;
         try {
@@ -163,13 +166,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        console.log('getting logs..');
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
             logs: paymasterReceipt.logs,
         });
 
+        console.log('sending webhook message..');
         await sendWebhookMessage(logs);
 
+        console.log('returning response..');
         return NextResponse.json({
             success: true,
             message: 'Game state calculated successfully',

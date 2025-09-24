@@ -85,6 +85,7 @@ export function processGameMoves(gameInfo: GameInfo) {
     game.commitMove(TeamEnum.TEAM2);
 
     const { newState, rendererStates } = game.calculateNewState();
+    console.log('newState', newState);
 
     let statesToSend: GameState[] = [];
 
@@ -111,6 +112,8 @@ export function processGameMoves(gameInfo: GameInfo) {
         history: game.history,
         clashRandomResults: newState.clashRandomResults
     }
+
+    console.log('gameResult', gameResult);
 
     return gameResult;
 }
