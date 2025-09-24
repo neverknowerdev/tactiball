@@ -69,6 +69,15 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Additional null check for gameInfo.data
+        if (!gameInfo.data) {
+            console.error('Game data is null for game ID:', body.game_id);
+            return NextResponse.json(
+                { error: 'Game data is null', errorName: 'GAME_DATA_NULL' },
+                { status: 500 }
+            );
+        }
+
         if (gameInfo.data.gameState.team1MovesEncrypted === BigInt(0) || gameInfo.data.gameState.team2MovesEncrypted === BigInt(0)) {
             return NextResponse.json(
                 { error: 'Game state cannot be calculated', errorName: 'GAME_STATE_CANNOT_BE_CALCULATED' },
@@ -94,7 +103,16 @@ export async function POST(request: NextRequest) {
         console.log('team1MovesEncrypted', gameInfo.data.gameState.team1MovesEncrypted, typeof gameInfo.data.gameState.team1MovesEncrypted, gameInfo.data.gameState.team1MovesEncrypted === BigInt(0));
         console.log('team2MovesEncrypted', gameInfo.data.gameState.team2MovesEncrypted, typeof gameInfo.data.gameState.team2MovesEncrypted, gameInfo.data.gameState.team2MovesEncrypted === BigInt(0));
 
-        const gameResult = processGameMoves(gameInfo.data);
+        let gameResult;
+        try {
+            gameResult = processGameMoves(gameInfo.data);
+        } catch (error) {
+            console.error('Error processing game moves:', error);
+            return NextResponse.json(
+                { error: 'Error processing game moves', errorName: 'ERROR_PROCESSING_MOVES' },
+                { status: 500 }
+            );
+        }
 
         const contractStateType = toContractStateType(gameResult.stateType)
         const contractTeam1Actions = gameResult.team1Actions.map((action: GameAction) => ({
@@ -113,18 +131,37 @@ export async function POST(request: NextRequest) {
         }))
 
         // Call newGameState on smart contract to update game state
-        const { request: newGameStateRequest } = await publicClient.simulateContract({
-            address: CONTRACT_ADDRESS,
-            abi: CONTRACT_ABI,
-            functionName: 'newGameState',
-            args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
-            chain: base,
-            account: RELAYER_ADDRESS
-        });
+        let newGameStateRequest;
+        try {
+            const simulationResult = await publicClient.simulateContract({
+                address: CONTRACT_ADDRESS,
+                abi: CONTRACT_ABI,
+                functionName: 'newGameState',
+                args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
+                chain: base,
+                account: RELAYER_ADDRESS
+            });
+            newGameStateRequest = simulationResult.request;
+        } catch (error) {
+            console.error('Error simulating contract call:', error);
+            return NextResponse.json(
+                { error: 'Error simulating contract call', errorName: 'ERROR_SIMULATING_CONTRACT' },
+                { status: 500 }
+            );
+        }
 
         // Execute newGameState transaction
-        const paymasterReceipt = await sendTransactionWithRetry(newGameStateRequest);
-        console.log('New game state committed. Transaction hash:', paymasterReceipt.receipt.transactionHash);
+        let paymasterReceipt;
+        try {
+            paymasterReceipt = await sendTransactionWithRetry(newGameStateRequest);
+            console.log('New game state committed. Transaction hash:', paymasterReceipt.receipt.transactionHash);
+        } catch (error) {
+            console.error('Error executing transaction:', error);
+            return NextResponse.json(
+                { error: 'Error executing transaction', errorName: 'ERROR_EXECUTING_TRANSACTION' },
+                { status: 500 }
+            );
+        }
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,

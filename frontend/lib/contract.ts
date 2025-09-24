@@ -94,6 +94,26 @@ export async function getGameFromContract(gameId: string): Promise<GameFetchResu
 
         console.log('Raw game data from contract:', gameInfo);
 
+        // Additional validation to ensure gameInfo has required properties
+        if (!gameInfo || typeof gameInfo !== 'object') {
+            console.log('Invalid game data structure returned from contract');
+            return {
+                success: false,
+                error: 'GAME_NOT_FOUND',
+                message: 'Invalid game data structure returned from contract'
+            };
+        }
+
+        // Check for required properties
+        if (gameInfo.gameId === undefined || gameInfo.gameId === null) {
+            console.log('Game ID is missing from contract data');
+            return {
+                success: false,
+                error: 'GAME_NOT_FOUND',
+                message: 'Game ID is missing from contract data'
+            };
+        }
+
         return {
             success: true,
             data: gameInfo
