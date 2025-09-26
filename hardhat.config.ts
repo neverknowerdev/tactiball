@@ -46,7 +46,7 @@ const config = {
     },
     baseSepolia: {
       url: process.env.BASE_SEPOLIA_RPC_URL || "",
-      accounts: process.env.WALLET_PRIVATE_KEY ? [process.env.WALLET_PRIVATE_KEY] : [],
+      accounts: process.env.TESTNET_WALLET_PRIVATE_KEY ? [process.env.TESTNET_WALLET_PRIVATE_KEY] : [],
       chainId: 84532,
     },
     baseMainnet: {
@@ -56,10 +56,7 @@ const config = {
     },
   },
   etherscan: {
-    apiKey: {
-      baseSepolia: process.env.BASESCAN_API_KEY || "",
-      baseMainnet: process.env.BASESCAN_API_KEY || "",
-    },
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
     customChains: [
       {
         network: "baseSepolia",
