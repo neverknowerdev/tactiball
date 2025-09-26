@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
             functionName: 'newGameState',
             args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
             chain: base,
-            account: RELAYER_ADDRESS
+            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
         });
 
         // Execute newGameState transaction

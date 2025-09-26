@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         console.log('Team:', body.team_enum === 1 ? 'Team 1' : 'Team 2');
         console.log('Number of moves:', body.moves.length);
 
-        const gameEnginePrivateKey = process.env.GAME_ENGINE_PRIVATE_KEY;
+        const gameEnginePrivateKey = process.env.GAME_ENGINE_PRIVATE_KEY || processGameMoves.env.TESTNET_GAME_ENGINE_PRIVATE_KEY;
         if (!gameEnginePrivateKey) {
             throw new Error('GAME_ENGINE_PRIVATE_KEY is not set');
         }
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
             functionName: 'commitGameActionsRelayer',
             args: [body.wallet_address, body.game_id, body.team_enum, encryptedMoves],
             chain: base,
-            account: RELAYER_ADDRESS
+            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
         });
 
         console.log('Transaction simulation successful, executing...');

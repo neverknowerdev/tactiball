@@ -1,7 +1,7 @@
 "use server";
 import { createPaymasterClient } from 'viem/account-abstraction'
 import { createWalletClient, createPublicClient, http, type Hex } from 'viem';
-import { basePreconf } from 'viem/chains';
+import { basePreconf, baseSepoliaPreconf, baseSepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toCoinbaseSmartAccount } from 'viem/account-abstraction';
 import { createBundlerClient } from 'viem/account-abstraction';
@@ -11,7 +11,7 @@ import { CONTRACT_ABI } from './contract';
 
 function getCoinbasePaymasterRpcUrl() {
     // Coinbase Paymaster Configuration
-    const COINBASE_PAYMASTER_RPC_URL = process.env.COINBASE_PAYMASTER_RPC_URL;
+    const COINBASE_PAYMASTER_RPC_URL = process.env.TESTNET_COINBASE_PAYMASTER_RPC_URL || process.env.COINBASE_PAYMASTER_RPC_URL;
 
     if (!COINBASE_PAYMASTER_RPC_URL) {
         throw new Error('COINBASE_PAYMASTER_RPC_URL environment variable is required');
@@ -23,14 +23,14 @@ function getCoinbasePaymasterRpcUrl() {
 
 // Create a dedicated flashblocks client with HTTP transport for faster confirmations
 const flashblocksClient = createPublicClient({
-    chain: basePreconf,
-    transport: http(process.env.FLASHBLOCKS_RPC_URL),
+    chain: baseSepolia,
+    transport: http(process.env.TESTNET_FLASHBLOCKS_RPC_URL || process.env.FLASHBLOCKS_RPC_URL),
     pollingInterval: 100,
 });
 
 // Create smart account for Paymaster transactions
 export async function createSmartAccount() {
-    const privateKey = process.env.RELAYER_PRIVATE_KEY;
+    const privateKey = process.env.TESTNET_RELAYER_PRIVATE_KEY || process.env.RELAYER_PRIVATE_KEY;
     if (!privateKey) {
         throw new Error('RELAYER_PRIVATE_KEY environment variable is required');
     }
@@ -54,8 +54,8 @@ export async function createRelayerBundlerClient() {
     return createBundlerClient({
         account: smartAccount,
         client: flashblocksClient, // Use flashblocks client for faster confirmations
-        transport: http(process.env.FLASHBLOCKS_RPC_URL),
-        chain: basePreconf,
+        transport: http(process.env.TESTNET_FLASHBLOCKS_RPC_URL || process.env.FLASHBLOCKS_RPC_URL),
+        chain: baseSepoliaPreconf,
         paymaster: createPaymasterClient({
             transport: http(getCoinbasePaymasterRpcUrl())
         })
@@ -69,8 +69,8 @@ export async function createRelayerClient() {
     // Return a wallet client that uses the smart account
     return createWalletClient({
         account: smartAccount,
-        chain: basePreconf,
-        transport: http(process.env.FLASHBLOCKS_RPC_URL),
+        chain: baseSepoliaPreconf,
+        transport: http(process.env.TESTNET_FLASHBLOCKS_RPC_URL || process.env.FLASHBLOCKS_RPC_URL),
     });
 }
 

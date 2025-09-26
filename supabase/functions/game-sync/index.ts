@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
         // 1. Get current game info from smart contract
         const publicClient = createPublicClient({
             chain: base,
-            transport: http(Deno.env.get('RPC_URL') || 'https://mainnet.base.org')
+            transport: http(Deno.env.get('RPC_URL') || Deno.env.get('TESTNET_RPC_URL') || 'https://mainnet.base.org')
         })
 
         const gameInfo = await publicClient.readContract({
