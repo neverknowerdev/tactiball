@@ -35,11 +35,9 @@ async function main() {
         const ChessBallGame = await ethers.getContractAt("ChessBallGame", deploymentInfo.proxyAddress);
         console.log("✅ ChessBallGame proxy accessible at:", deploymentInfo.proxyAddress);
 
-        const gelatoAddress = await ChessBallGame.gelatoAddress();
         const relayerAddress = await ChessBallGame.relayerAddress();
         const owner = await ChessBallGame.owner();
 
-        console.log("✅ Gelato address:", gelatoAddress);
         console.log("✅ Relayer address:", relayerAddress);
         console.log("✅ Owner:", owner);
     } catch (error: any) {
@@ -49,14 +47,14 @@ async function main() {
     // Step 2: Verify on Basescan (if API key is available)
     console.log("\n=== Step 2: Basescan Verification ===");
 
-    if (!process.env.BASESCAN_API_KEY) {
+    if (!process.env.ETHERSCAN_API_KEY) {
         console.log("ℹ️  BASESCAN_API_KEY not set. Skipping Basescan verification.");
         console.log("   To verify on Basescan, add your API key to .env file");
         console.log("   Get it from: https://basescan.org/apis");
         return;
     }
 
-    console.log("✅ BASESCAN_API_KEY found. Starting verification...");
+    console.log("✅ ETHERSCAN_API_KEY found. Starting verification...");
 
     // Verify GameLib
     try {

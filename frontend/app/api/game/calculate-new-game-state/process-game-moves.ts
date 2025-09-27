@@ -3,6 +3,23 @@ import { BoardState, GameInfo } from "@/lib/contract";
 import { decodeSymmetricKey, decodeData, bufferToBigint } from "@/lib/encrypting";
 
 export function processGameMoves(gameInfo: GameInfo) {
+    // Validate gameInfo structure
+    if (!gameInfo) {
+        throw new Error('GameInfo is null or undefined');
+    }
+
+    if (!gameInfo.gameId) {
+        throw new Error('GameInfo.gameId is null or undefined');
+    }
+
+    if (!gameInfo.lastBoardState) {
+        throw new Error('GameInfo.lastBoardState is null or undefined');
+    }
+
+    if (!gameInfo.gameState) {
+        throw new Error('GameInfo.gameState is null or undefined');
+    }
+
     let game = new Game(gameInfo.gameId)
     // Convert lastBoardState from contract to GameState format
     const lastBoardState: GameState = convertLastBoardStateToGameState(gameInfo.lastBoardState);
@@ -68,6 +85,7 @@ export function processGameMoves(gameInfo: GameInfo) {
     game.commitMove(TeamEnum.TEAM2);
 
     const { newState, rendererStates } = game.calculateNewState();
+    console.log('newState', newState);
 
     let statesToSend: GameState[] = [];
 
@@ -94,6 +112,8 @@ export function processGameMoves(gameInfo: GameInfo) {
         history: game.history,
         clashRandomResults: newState.clashRandomResults
     }
+
+    console.log('gameResult', gameResult);
 
     return gameResult;
 }
