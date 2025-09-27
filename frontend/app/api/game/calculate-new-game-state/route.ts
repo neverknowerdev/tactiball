@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
-import { publicClient, sendDirectTransaction } from '@/lib/providers';
+import { sendDirectTransaction } from '@/lib/providers';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
-import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS, TESTNET_RELAYER_ADDRESS } from '@/lib/contract';
+import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { processGameMoves } from './process-game-moves';
 import { toContractStateType, toContractMove, toTeamEnum } from './types';
 import { GameAction } from '@/lib/game';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { parseEventLogs, encodeFunctionData } from 'viem';
+import { parseEventLogs } from 'viem';
 import { getGameFromContract } from '@/lib/contract';
 
 // Utility function for better error logging
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
             functionName: 'newGameState',
             args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
             chain: base,
-            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
+            account: RELAYER_ADDRESS
         };
 
         console.log('Executing transaction to smart contract...');

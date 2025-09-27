@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { type Address, BaseError, ContractFunctionRevertedError, parseEventLogs } from 'viem';
 import { publicClient } from '@/lib/providers';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
-import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS, TESTNET_CONTRACT_ADDRESS, TESTNET_RELAYER_ADDRESS } from '@/lib/contract';
+import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -65,12 +65,12 @@ export async function POST(request: NextRequest) {
 
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
-            address: CONTRACT_ADDRESS || TESTNET_CONTRACT_ADDRESS,
+            address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'createGameRequestRelayer',
             args: [wallet_address as Address, team1_id, team2_id],
             chain: base,
-            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
+            account: RELAYER_ADDRESS
         });
 
         const paymasterReceipt = await sendTransactionWithRetry(simulation.request);
