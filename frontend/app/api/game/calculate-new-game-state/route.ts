@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
-import { sendDirectTransaction } from '@/lib/providers';
-import { sendTransactionWithRetry } from '@/lib/paymaster';
+import { publicClient } from '@/lib/providers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS } from '@/lib/contract';
-import { base } from 'viem/chains';
 import { processGameMoves } from './process-game-moves';
 import { toContractStateType, toContractMove, toTeamEnum } from './types';
 import { GameAction } from '@/lib/game';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { parseEventLogs } from 'viem';
+import { parseEventLogs, getContract, decodeErrorResult } from 'viem';
+import { basePreconf } from 'viem/chains';
 import { getGameFromContract } from '@/lib/contract';
+import { sendTransactionWithRetry } from '@/lib/paymaster';
 
 // Utility function for better error logging
 function logErrorWithContext(error: any, context: string) {
@@ -19,6 +19,22 @@ function logErrorWithContext(error: any, context: string) {
     if (error.cause) {
         console.error(`[${context}] Error cause:`, error.cause);
     }
+}
+
+// Function to decode custom errors from the contract
+function decodeCustomError(error: any): string {
+    try {
+        if (error?.data) {
+            const decoded = decodeErrorResult({
+                abi: CONTRACT_ABI,
+                data: error.data,
+            });
+            return `${decoded.errorName}(${decoded.args ? decoded.args.join(', ') : ''})`;
+        }
+    } catch (decodeError) {
+        console.error('Failed to decode custom error:', decodeError);
+    }
+    return 'Unknown custom error';
 }
 
 interface CommitGameActionsRequest {
@@ -151,58 +167,44 @@ export async function POST(request: NextRequest) {
         });
 
         // Call newGameState on smart contract to update game state
-        console.log('Preparing transaction request...');
-        const newGameStateRequest = {
-            address: CONTRACT_ADDRESS,
-            functionName: 'newGameState',
-            args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
-            chain: base,
-            account: RELAYER_ADDRESS
-        };
-
-        console.log('Executing transaction to smart contract...');
-        // Execute newGameState transaction with paymaster fallback
-        let transactionResult;
-        let transactionMethod = 'paymaster';
-
+        let newGameStateRequest;
         try {
-            // First attempt: Try with paymaster
-            console.log('Attempting transaction with paymaster...');
-            transactionResult = await sendTransactionWithRetry(newGameStateRequest);
-            console.log('New game state committed via paymaster. Transaction hash:', transactionResult.receipt.transactionHash);
-        } catch (paymasterError) {
-            logErrorWithContext(paymasterError, 'PAYMASTER_TRANSACTION_FAILED');
-            console.log('Paymaster transaction failed, attempting direct transaction as fallback...');
+            const simulationResult = await publicClient.simulateContract({
+                address: CONTRACT_ADDRESS,
+                abi: CONTRACT_ABI,
+                functionName: 'newGameState',
+                args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
+                chain: basePreconf,
+                account: RELAYER_ADDRESS
+            });
+            newGameStateRequest = simulationResult.request;
+            console.log('Contract simulation successful');
+        } catch (error) {
+            logErrorWithContext(error, 'SIMULATING_CONTRACT_CALL');
+            return NextResponse.json(
+                { error: 'Error simulating contract call', errorName: 'ERROR_SIMULATING_CONTRACT' },
+                { status: 500 }
+            );
+        }
 
-            try {
-                // Fallback: Try direct transaction without paymaster
-                transactionMethod = 'direct';
-                transactionResult = await sendDirectTransaction(newGameStateRequest);
-                console.log('New game state committed via direct transaction. Transaction hash:', transactionResult.receipt.transactionHash);
-            } catch (directError) {
-                logErrorWithContext(directError, 'DIRECT_TRANSACTION_FAILED');
-                console.error('Both paymaster and direct transaction failed');
-                console.error('Paymaster error:', paymasterError instanceof Error ? paymasterError.message : String(paymasterError));
-                console.error('Direct transaction error:', directError instanceof Error ? directError.message : String(directError));
-
-                return NextResponse.json(
-                    {
-                        error: 'Error executing transaction via both paymaster and direct methods',
-                        errorName: 'ERROR_EXECUTING_TRANSACTION',
-                        details: {
-                            paymasterError: paymasterError instanceof Error ? paymasterError.message : String(paymasterError),
-                            directError: directError instanceof Error ? directError.message : String(directError)
-                        }
-                    },
-                    { status: 500 }
-                );
-            }
+        console.log('executing call to contract..');
+        // Execute newGameState transaction
+        let paymasterReceipt;
+        try {
+            paymasterReceipt = await sendTransactionWithRetry(newGameStateRequest);
+            console.log('New game state committed. Transaction hash:', paymasterReceipt.receipt.transactionHash);
+        } catch (error) {
+            logErrorWithContext(error, 'EXECUTING_TRANSACTION');
+            return NextResponse.json(
+                { error: 'Error executing transaction', errorName: 'ERROR_EXECUTING_TRANSACTION' },
+                { status: 500 }
+            );
         }
 
         console.log('getting logs..');
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
-            logs: transactionResult.logs,
+            logs: paymasterReceipt.logs,
         });
 
         console.log('sending webhook message..');
@@ -214,8 +216,7 @@ export async function POST(request: NextRequest) {
             message: 'Game state calculated successfully',
             gameId: body.game_id,
             teamEnum: body.team_enum,
-            transactionHash: transactionResult.receipt.transactionHash,
-            transactionMethod: transactionMethod,
+            transactionHash: paymasterReceipt.receipt.transactionHash
         });
     } catch (error) {
         logErrorWithContext(error, 'CALCULATING_GAME_STATE');

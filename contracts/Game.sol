@@ -39,7 +39,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ========================================
 
     // Gelato address for automation
-    address public unused__gelatoAddress;
+    address public gelatoAddress;
     address public relayerAddress;
     address public gameEngineServerAddress;
 
@@ -346,12 +346,6 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         activeGames.push(game.gameId);
 
         emit GameStarted(game.gameId, team1id, team2id, GameLib.TeamEnum.TEAM1);
-        // // emit with empty arrays to trigger the game worker at the game start
-        // emit gameActionCommitted(game.gameId, block.timestamp);
-    }
-
-    function testTriggerGameActionCommitted(uint256 gameId) public onlyOwner {
-        emit gameActionCommitted(gameId, block.timestamp);
     }
 
     // Public wrapper that calls internal function with msg.sender
@@ -494,9 +488,9 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         );
 
         // Update ELO ratings if game finished normally (not by timeout)
-        if (finishReason == GameLib.FinishReason.MAX_MOVES_REACHED) {
-            _updateEloRatings(gameId);
-        }
+        // if (finishReason == GameLib.FinishReason.MAX_MOVES_REACHED) {
+        //     _updateEloRatings(gameId);
+        // }
 
         _removeGameFromActiveGames(gameId);
         emit GameFinished(gameId, game.winner, finishReason);
@@ -766,6 +760,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     modifier onlyGameEngine() {
         if (
             msg.sender != gameEngineServerAddress &&
+            msg.sender != relayerAddress &&
             msg.sender != relayerSmartAccountAddress
         ) revert OnlyGameEngineServerCanCall();
         _;
