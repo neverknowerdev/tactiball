@@ -25,15 +25,6 @@ async function main() {
     console.log("\n=== Step 1: On-Chain Deployment Verification ===");
 
     try {
-        const EloCalculationLib = await ethers.getContractAt("EloCalculationLib", deploymentInfo.libraries.eloCalculationLib);
-        console.log("✅ EloCalculationLib accessible at:", deploymentInfo.libraries.eloCalculationLib);
-        const defaultRating = await EloCalculationLib.getDefaultRating();
-        console.log("✅ Default ELO rating:", defaultRating.toString());
-    } catch (error: any) {
-        console.log("❌ EloCalculationLib verification failed:", error.message);
-    }
-
-    try {
         const GameLib = await ethers.getContractAt("GameLib", deploymentInfo.libraries.gameLib);
         console.log("✅ GameLib accessible at:", deploymentInfo.libraries.gameLib);
     } catch (error: any) {
@@ -44,11 +35,9 @@ async function main() {
         const ChessBallGame = await ethers.getContractAt("ChessBallGame", deploymentInfo.proxyAddress);
         console.log("✅ ChessBallGame proxy accessible at:", deploymentInfo.proxyAddress);
 
-        const gelatoAddress = await ChessBallGame.gelatoAddress();
         const relayerAddress = await ChessBallGame.relayerAddress();
         const owner = await ChessBallGame.owner();
 
-        console.log("✅ Gelato address:", gelatoAddress);
         console.log("✅ Relayer address:", relayerAddress);
         console.log("✅ Owner:", owner);
     } catch (error: any) {
@@ -58,31 +47,14 @@ async function main() {
     // Step 2: Verify on Basescan (if API key is available)
     console.log("\n=== Step 2: Basescan Verification ===");
 
-    if (!process.env.BASESCAN_API_KEY) {
+    if (!process.env.ETHERSCAN_API_KEY) {
         console.log("ℹ️  BASESCAN_API_KEY not set. Skipping Basescan verification.");
         console.log("   To verify on Basescan, add your API key to .env file");
         console.log("   Get it from: https://basescan.org/apis");
         return;
     }
 
-    console.log("✅ BASESCAN_API_KEY found. Starting verification...");
-
-    // Verify EloCalculationLib
-    try {
-        console.log("Verifying EloCalculationLib on Basescan...");
-        await run("verify:verify", {
-            address: deploymentInfo.libraries.eloCalculationLib,
-            contract: "contracts/EloCalculationLib.sol:EloCalculationLib",
-            network: "baseSepolia"
-        });
-        console.log("✅ EloCalculationLib verified on Basescan!");
-    } catch (error: any) {
-        if (error.message.includes("Already Verified")) {
-            console.log("ℹ️  EloCalculationLib already verified on Basescan");
-        } else {
-            console.log("❌ EloCalculationLib verification failed:", error.message);
-        }
-    }
+    console.log("✅ ETHERSCAN_API_KEY found. Starting verification...");
 
     // Verify GameLib
     try {
@@ -91,10 +63,7 @@ async function main() {
             address: deploymentInfo.libraries.gameLib,
             contract: "contracts/GameLib.sol:GameLib",
             constructorArguments: [],
-            libraries: {
-                EloCalculationLib: deploymentInfo.libraries.eloCalculationLib
-            },
-            network: "baseSepolia"
+            network: networkName
         });
         console.log("✅ GameLib verified on Basescan!");
     } catch (error: any) {
@@ -113,10 +82,9 @@ async function main() {
             contract: "contracts/Game.sol:ChessBallGame",
             constructorArguments: [],
             libraries: {
-                GameLib: deploymentInfo.libraries.gameLib,
-                EloCalculationLib: deploymentInfo.libraries.eloCalculationLib
+                GameLib: deploymentInfo.libraries.gameLib
             },
-            network: "baseSepolia"
+            network: networkName
         });
         console.log("✅ Implementation verified on Basescan!");
     } catch (error: any) {
@@ -135,10 +103,11 @@ async function main() {
     console.log(`   Proxy: ${deploymentInfo.proxyAddress}`);
 
     console.log("\n🌐 Basescan Explorer URLs:");
-    console.log(`   EloCalculationLib: https://sepolia.basescan.org/address/${deploymentInfo.libraries.eloCalculationLib}`);
-    console.log(`   GameLib: https://sepolia.basescan.org/address/${deploymentInfo.libraries.gameLib}`);
-    console.log(`   Implementation: https://sepolia.basescan.org/address/${deploymentInfo.implementationAddress}`);
-    console.log(`   Proxy: https://sepolia.basescan.org/address/${deploymentInfo.proxyAddress}`);
+    const baseUrl = networkName === 'baseMainnet' ? 'https://basescan.org' : 'https://sepolia.basescan.org';
+    console.log(`   EloCalculationLib: ${baseUrl}/address/${deploymentInfo.libraries.eloCalculationLib}`);
+    console.log(`   GameLib: ${baseUrl}/address/${deploymentInfo.libraries.gameLib}`);
+    console.log(`   Implementation: ${baseUrl}/address/${deploymentInfo.implementationAddress}`);
+    console.log(`   Proxy: ${baseUrl}/address/${deploymentInfo.proxyAddress}`);
 }
 
 // Run verification if this script is executed directly

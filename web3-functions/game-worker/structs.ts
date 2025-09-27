@@ -2,7 +2,7 @@
 // GAME WORKER STRUCTS AND MAPPINGS
 // ============================================================================
 
-import { MoveType, GameState, GameAction, Position, TeamPlayer, Team, TeamEnum } from '../../frontend/src/lib/game';
+import { MoveType, GameState, GameAction, Position, TeamPlayer, Team, TeamEnum } from '../../frontend/lib/game';
 
 // Constants for enum values to match Solidity contract
 export const CONTRACT_ENUMS = {
@@ -54,6 +54,8 @@ export interface ContractGameState {
     ballOwner: number; // TeamEnum as uint8
     clashRandomResults: number[];
     stateType: number; // StateType as uint8
+    team1Moves: ContractGameAction[];
+    team2Moves: ContractGameAction[];
 }
 
 // Smart contract TeamInfo structure
@@ -126,7 +128,9 @@ export function mapContractGameStateToTS(contractGameState: ContractGameState): 
         type: contractGameState.stateType === CONTRACT_ENUMS.STATE_TYPE.START_POSITIONS ? "startPositions" :
             contractGameState.stateType === CONTRACT_ENUMS.STATE_TYPE.MOVE ? "move" :
                 contractGameState.stateType === CONTRACT_ENUMS.STATE_TYPE.GOAL ? "goal" : "startPositions",
-        clashRandomResults: contractGameState.clashRandomResults
+        clashRandomResults: contractGameState.clashRandomResults,
+        team1Moves: contractGameState.team1Moves.map(mapContractActionToTS),
+        team2Moves: contractGameState.team2Moves.map(mapContractActionToTS)
     };
 }
 
@@ -150,7 +154,9 @@ export function mapGameStateToContract(tsGameState: TSGameState): ContractGameSt
         stateType: tsGameState.type === "startPositions" ? CONTRACT_ENUMS.STATE_TYPE.START_POSITIONS :
             tsGameState.type === "move" ? CONTRACT_ENUMS.STATE_TYPE.MOVE :
                 tsGameState.type === "goal" ? CONTRACT_ENUMS.STATE_TYPE.GOAL :
-                    CONTRACT_ENUMS.STATE_TYPE.START_POSITIONS
+                    CONTRACT_ENUMS.STATE_TYPE.START_POSITIONS,
+        team1Moves: tsGameState.team1Moves ? tsGameState.team1Moves.map(mapTSActionToContract) : [],
+        team2Moves: tsGameState.team2Moves ? tsGameState.team2Moves.map(mapTSActionToContract) : []
     };
 }
 
@@ -167,7 +173,8 @@ export function mapContractActionToTS(contractAction: ContractGameAction): GameA
         teamEnum: TeamEnum.TEAM1, // Default to TEAM1, will be overridden by the actual team
         moveType: getMoveTypeEnum(Number(contractAction.moveType)),
         oldPosition: convertPosition(contractAction.oldPosition),
-        newPosition: convertPosition(contractAction.newPosition)
+        newPosition: convertPosition(contractAction.newPosition),
+        playerKey: () => `player_${contractAction.playerId}`
     };
 }
 

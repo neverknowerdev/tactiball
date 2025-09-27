@@ -9,7 +9,10 @@ const config = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 1  // Minimal runs for maximum size reduction
+        runs: 1,  // Minimal runs for maximum size reduction
+        details: {
+          yul: true
+        }
       },
       viaIR: true,
       outputSelection: {
@@ -17,12 +20,17 @@ const config = {
           "*": ["storageLayout"],
         },
       },
+      // Additional size reduction options
+      evmVersion: "paris",
+      debug: {
+        revertStrings: "strip"
+      }
     }
   },
   w3f: {
     rootDir: "./web3-functions",
     debug: false,
-    networks: ["hardhat", "baseSepolia", "baseMainnet"],
+    networks: ["hardhat"],
   },
   defaultNetwork: "hardhat",
   networks: {
@@ -38,7 +46,7 @@ const config = {
     },
     baseSepolia: {
       url: process.env.BASE_SEPOLIA_RPC_URL || "",
-      accounts: process.env.WALLET_PRIVATE_KEY ? [process.env.WALLET_PRIVATE_KEY] : [],
+      accounts: process.env.TESTNET_WALLET_PRIVATE_KEY ? [process.env.TESTNET_WALLET_PRIVATE_KEY] : [],
       chainId: 84532,
     },
     baseMainnet: {
@@ -48,10 +56,7 @@ const config = {
     },
   },
   etherscan: {
-    apiKey: {
-      baseSepolia: process.env.BASESCAN_API_KEY || "",
-      baseMainnet: process.env.BASESCAN_API_KEY || "",
-    },
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
     customChains: [
       {
         network: "baseSepolia",

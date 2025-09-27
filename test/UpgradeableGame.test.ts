@@ -15,32 +15,26 @@ describe("ChessBallGame Upgradeable", function () {
 
     const GELATO_ADDRESS = "0x1234567890123456789012345678901234567890";
     const RELAYER_ADDRESS = "0x0987654321098765432109876543210987654321";
+    const GAME_ENGINE_SERVER_ADDRESS = "0x1234567890123456789012345678901234567890";
 
     beforeEach(async function () {
         [owner, user1, user2] = await ethers.getSigners();
 
-        // Deploy libraries first
-        eloLib = await ethers.deployContract("EloCalculationLib");
-        await eloLib.waitForDeployment();
-
-        gameLib = await ethers.deployContract("GameLib", {
-            libraries: {
-                EloCalculationLib: await eloLib.getAddress(),
-            },
-        });
+        gameLib = await ethers.deployContract("GameLib");
         await gameLib.waitForDeployment();
 
         // Deploy the initial implementation using the upgradeable pattern
         const ChessBallGame = await ethers.getContractFactory("ChessBallGame", {
             libraries: {
-                EloCalculationLib: await eloLib.getAddress(),
                 GameLib: await gameLib.getAddress(),
             },
         });
 
         chessBallGame = await upgrades.deployProxy(ChessBallGame, [
             GELATO_ADDRESS,
-            RELAYER_ADDRESS
+            RELAYER_ADDRESS,
+            GAME_ENGINE_SERVER_ADDRESS,
+            "test-public-key" // publicKey - using test key for testing
         ], {
             kind: 'uups',
             initializer: 'initialize',
@@ -59,7 +53,7 @@ describe("ChessBallGame Upgradeable", function () {
 
         it("Should not allow re-initialization", async function () {
             await expect(
-                chessBallGame.initialize(GELATO_ADDRESS, RELAYER_ADDRESS)
+                chessBallGame.initialize(GELATO_ADDRESS, RELAYER_ADDRESS, GAME_ENGINE_SERVER_ADDRESS, "test-public-key")
             ).to.be.reverted;
         });
     });
@@ -68,7 +62,6 @@ describe("ChessBallGame Upgradeable", function () {
         it("Should allow owner to upgrade implementation", async function () {
             const ChessBallGameV2 = await ethers.getContractFactory("ChessBallGame", {
                 libraries: {
-                    EloCalculationLib: await eloLib.getAddress(),
                     GameLib: await gameLib.getAddress(),
                 },
             });
@@ -92,7 +85,6 @@ describe("ChessBallGame Upgradeable", function () {
             // Upgrade the implementation
             const ChessBallGameV2 = await ethers.getContractFactory("ChessBallGame", {
                 libraries: {
-                    EloCalculationLib: await eloLib.getAddress(),
                     GameLib: await gameLib.getAddress(),
                 },
             });
@@ -111,7 +103,6 @@ describe("ChessBallGame Upgradeable", function () {
         it("Should not allow non-owner to upgrade", async function () {
             const ChessBallGameV2 = await ethers.getContractFactory("ChessBallGame", {
                 libraries: {
-                    EloCalculationLib: await eloLib.getAddress(),
                     GameLib: await gameLib.getAddress(),
                 },
             });

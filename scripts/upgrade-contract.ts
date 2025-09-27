@@ -2,7 +2,7 @@ import { ethers, upgrades } from "hardhat";
 import { createHash } from "crypto";
 import { readFileSync } from "fs";
 import { join } from "path";
-
+import hre from "hardhat";
 // Helper function to get source code hash
 function getSourceCodeHash(filePath: string): string {
     try {
@@ -56,32 +56,8 @@ async function main() {
     // Step 1: Check if libraries need updating using source code comparison
     console.log("\n=== Step 1: Library Source Code Analysis ===");
 
-    let eloCalculationLibAddress = deploymentInfo.libraries.eloCalculationLib;
     let gameLibAddress = deploymentInfo.libraries.gameLib;
     let librariesUpdated = false;
-
-    // Check if EloCalculationLib source code has changed
-    console.log("Checking EloCalculationLib source code...");
-    const eloLibPath = join(__dirname, '../contracts/EloCalculationLib.sol');
-    const currentEloHash = deploymentInfo.eloCalculationLibHash || 'unknown';
-    const newEloHash = getSourceCodeHash(eloLibPath);
-
-    if (newEloHash && newEloHash !== currentEloHash) {
-        console.log("🔄 EloCalculationLib source code changed - deploying updated version...");
-        console.log(`   Previous hash: ${currentEloHash.substring(0, 8)}...`);
-        console.log(`   New hash: ${newEloHash.substring(0, 8)}...`);
-
-        const EloCalculationLib = await ethers.getContractFactory("EloCalculationLib");
-        const eloCalculationLib = await EloCalculationLib.deploy({
-            gasPrice: adjustedGasPrice
-        });
-        await eloCalculationLib.waitForDeployment();
-        eloCalculationLibAddress = await eloCalculationLib.getAddress();
-        console.log("✅ Updated EloCalculationLib deployed to:", eloCalculationLibAddress);
-        librariesUpdated = true;
-    } else {
-        console.log("✅ EloCalculationLib source code unchanged - reusing existing:", eloCalculationLibAddress);
-    }
 
     // Check if GameLib source code has changed
     console.log("Checking GameLib source code...");
@@ -94,11 +70,7 @@ async function main() {
         console.log(`   Previous hash: ${currentGameHash.substring(0, 8)}...`);
         console.log(`   New hash: ${newGameHash.substring(0, 8)}...`);
 
-        const GameLib = await ethers.getContractFactory("GameLib", {
-            libraries: {
-                EloCalculationLib: eloCalculationLibAddress
-            }
-        });
+        const GameLib = await ethers.getContractFactory("GameLib");
         const gameLib = await GameLib.deploy({
             gasPrice: adjustedGasPrice
         });
@@ -115,21 +87,8 @@ async function main() {
     if (forceLibraryUpdate) {
         console.log("🔄 FORCE_LIBRARY_UPDATE flag detected - deploying new libraries...");
 
-        // Force deploy new EloCalculationLib
-        const EloCalculationLib = await ethers.getContractFactory("EloCalculationLib");
-        const eloCalculationLib = await EloCalculationLib.deploy({
-            gasPrice: adjustedGasPrice
-        });
-        await eloCalculationLib.waitForDeployment();
-        eloCalculationLibAddress = await eloCalculationLib.getAddress();
-        console.log("✅ Forced new EloCalculationLib deployed to:", eloCalculationLibAddress);
-
         // Force deploy new GameLib
-        const GameLib = await ethers.getContractFactory("GameLib", {
-            libraries: {
-                EloCalculationLib: eloCalculationLibAddress
-            }
-        });
+        const GameLib = await ethers.getContractFactory("GameLib");
         const gameLib = await GameLib.deploy({
             gasPrice: adjustedGasPrice
         });
@@ -150,18 +109,9 @@ async function main() {
 
     const ChessBallGameV2 = await ethers.getContractFactory("ChessBallGame", {
         libraries: {
-            GameLib: gameLibAddress,
-            EloCalculationLib: eloCalculationLibAddress
+            GameLib: gameLibAddress
         }
     });
-
-    const newImplementation = await ChessBallGameV2.deploy({
-        gasPrice: adjustedGasPrice
-    });
-    await newImplementation.waitForDeployment();
-    const newImplementationAddress = await newImplementation.getAddress();
-    console.log("✅ New implementation deployed to:", newImplementationAddress);
-
     // Wait a bit before upgrade
     console.log("⏳ Waiting 5 seconds before upgrade...");
     await new Promise(resolve => setTimeout(resolve, 5000));
@@ -179,6 +129,11 @@ async function main() {
     // Get the new implementation address from the proxy
     const actualImplementationAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
     console.log("New implementation address from proxy:", actualImplementationAddress);
+
+    if (actualImplementationAddress.toLowerCase() == deploymentInfo.implementationAddress.toLowerCase()) {
+        console.log("✅ No changes in implementation...");
+        return;
+    }
 
     // Step 4: Verify the upgrade
     console.log("\n=== Step 4: Verifying Upgrade ===");
@@ -204,10 +159,8 @@ async function main() {
         ...deploymentInfo,
         implementationAddress: actualImplementationAddress,
         libraries: {
-            eloCalculationLib: eloCalculationLibAddress,
             gameLib: gameLibAddress
         },
-        eloCalculationLibHash: newEloHash,
         gameLibHash: newGameHash,
         upgradeTimestamp: new Date().toISOString(),
         previousImplementation: deploymentInfo.implementationAddress,
@@ -223,7 +176,6 @@ async function main() {
     // Display upgrade summary
     console.log("\n=== Upgrade Summary ===");
     console.log("📋 Previous vs New:");
-    console.log(`   EloCalculationLib: ${deploymentInfo.libraries.eloCalculationLib} → ${eloCalculationLibAddress}`);
     console.log(`   GameLib: ${deploymentInfo.libraries.gameLib} → ${gameLibAddress}`);
     console.log(`   Implementation: ${deploymentInfo.implementationAddress} → ${actualImplementationAddress}`);
     console.log(`   Proxy: ${proxyAddress} (unchanged)`);
@@ -234,14 +186,18 @@ async function main() {
         console.log("\n✅ All libraries were unchanged - reused existing versions");
     }
 
+    console.log("Vefrifying implementation..");
+    await hre.run("verify:verify", {
+        address: actualImplementationAddress,
+    });
+
+
     console.log("\n🔗 Final Contract Addresses:");
-    console.log(`   EloCalculationLib: ${eloCalculationLibAddress}`);
     console.log(`   GameLib: ${gameLibAddress}`);
     console.log(`   Implementation: ${actualImplementationAddress}`);
     console.log(`   Proxy: ${proxyAddress}`);
 
     console.log("\n🌐 Basescan Explorer URLs:");
-    console.log(`   EloCalculationLib: https://sepolia.basescan.org/address/${eloCalculationLibAddress}`);
     console.log(`   GameLib: https://sepolia.basescan.org/address/${gameLibAddress}`);
     console.log(`   Implementation: https://sepolia.basescan.org/address/${actualImplementationAddress}`);
     console.log(`   Proxy: https://sepolia.basescan.org/address/${proxyAddress}`);

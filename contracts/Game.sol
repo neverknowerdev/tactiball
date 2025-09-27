@@ -5,7 +5,31 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./GameLib.sol";
-import "./EloCalculationLib.sol";
+import "./vendor/Elo.sol";
+
+// ========================================
+// CUSTOM ERRORS
+// ========================================
+
+error DoesNotExist();
+error InitAddressCannotBeZero();
+error CreateTeam_TeamAlreadyExists();
+error CreateTeam_NameIsRequired();
+error CreateTeam_TeamNameAlreadyExists();
+error TeamsCannotBeSame();
+error GameOwnerShouldCall();
+error TeamAlreadyHasActiveGame();
+error GameIsNotActive();
+error MovesAlreadyCommitted();
+error OnlyRelayerCanCall();
+error GameRequestNotExpired();
+error GameRequestTimeoutNotReached();
+error ActionsNotCommitted();
+error FinishGameByTimeout_NoLastMove();
+error GameHasNotReachedMaxMoves();
+error OnlyGameEngineServerCanCall();
+error InvalidTeam();
+error MovesEncryptedCannotBeZero();
 
 contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using GameLib for *;
@@ -17,6 +41,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // Gelato address for automation
     address public gelatoAddress;
     address public relayerAddress;
+    address public gameEngineServerAddress;
 
     // State variables
     mapping(uint256 => GameLib.Game) public games;
@@ -34,13 +59,22 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     mapping(string => bool) public teamNames;
 
-    uint256[200] private __gap;
+    string private publicKey;
+
+    address public relayerSmartAccountAddress;
+
+    uint256[99] private __gap;
 
     // ========================================
     // EVENTS
     // ========================================
 
-    event GameStarted(uint256 indexed gameId, GameLib.TeamEnum teamWithBall);
+    event GameStarted(
+        uint256 indexed gameId,
+        uint256 indexed team1id,
+        uint256 indexed team2id,
+        GameLib.TeamEnum teamWithBall
+    );
     event TeamCreated(
         uint256 indexed teamId,
         address indexed owner,
@@ -53,11 +87,16 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         GameLib.TeamEnum winner,
         GameLib.FinishReason finishReason
     );
-    event gameActionCommitted(uint256 indexed gameId);
+    event EloUpdated(uint256 indexed teamId, uint256 gameId, uint64 eloRating);
+    event gameActionCommitted(uint256 indexed gameId, uint256 timestamp);
     event NewGameState(
         uint256 indexed gameId,
+        GameLib.StateType stateType,
         uint256 time,
-        GameLib.GameState newGameState
+        uint8[] clashRandomNumbers,
+        GameLib.GameAction[] team1Actions,
+        GameLib.GameAction[] team2Actions,
+        GameLib.BoardState boardState
     );
     enum ErrorType {
         UNSPECIFIED,
@@ -70,8 +109,16 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 time,
         string errorMsg
     );
-    event GameRequestCreated(uint256 gameRequestId);
-
+    event GameRequestCreated(
+        uint256 gameRequestId,
+        uint256 team1id,
+        uint256 team2id
+    );
+    event GameRequestCancelled(
+        uint256 gameRequestId,
+        uint256 team1id,
+        uint256 team2id
+    );
     // ========================================
     // CONSTRUCTOR & INITIALIZATION
     // ========================================
@@ -81,22 +128,31 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         _disableInitializers();
     }
 
+    function gamePublicKey() public view returns (string memory) {
+        return publicKey;
+    }
+
     /**
      * @dev Initializer function to set the Gelato address
-     * @param _gelatoAddress The address of the Gelato automation service
      * @param _relayerAddress The address of the relayer service
+     * @param _relayerSmartAccountAddress The address of the relayer smart account
+     * @param _gameEngineServerAddress The address of the game engine server
      */
     function initialize(
-        address _gelatoAddress,
-        address _relayerAddress
+        address _relayerAddress,
+        address _relayerSmartAccountAddress,
+        address _gameEngineServerAddress,
+        string memory _publicKey
     ) public initializer {
-        require(_gelatoAddress != address(0), "Gelato address cannot be zero");
-        require(
-            _relayerAddress != address(0),
-            "Relayer address cannot be zero"
-        );
-        gelatoAddress = _gelatoAddress;
+        if (_relayerAddress == address(0)) revert InitAddressCannotBeZero();
+        if (_relayerSmartAccountAddress == address(0))
+            revert InitAddressCannotBeZero();
+        if (_gameEngineServerAddress == address(0))
+            revert InitAddressCannotBeZero();
         relayerAddress = _relayerAddress;
+        relayerSmartAccountAddress = _relayerSmartAccountAddress;
+        gameEngineServerAddress = _gameEngineServerAddress;
+        publicKey = _publicKey;
         __Ownable_init(msg.sender);
     }
 
@@ -117,11 +173,11 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         string memory name,
         uint8 country
     ) internal {
-        require(teamIdByWallet[sender] == 0, "Team already exists");
-        require(bytes(name).length > 0, "Name is required");
+        if (teamIdByWallet[sender] > 0) revert CreateTeam_TeamAlreadyExists();
+        if (bytes(name).length == 0) revert CreateTeam_NameIsRequired();
 
         name = GameLib.trimSpaces(name);
-        require(teamNames[name] == false, "Team name already exists");
+        if (teamNames[name]) revert CreateTeam_TeamNameAlreadyExists();
 
         nextTeamId++;
         GameLib.Team memory team = GameLib.createTeam(
@@ -141,7 +197,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     // Public wrapper that calls internal function with msg.sender
     function createTeam(string memory name, uint8 country) public {
-        return _createTeam(msg.sender, name, country);
+        _createTeam(msg.sender, name, country);
     }
 
     // Relayer version that can create team for any address
@@ -163,21 +219,12 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 team1id,
         uint256 team2id
     ) internal {
-        require(teams[team1id].id > 0, "Team 1 does not exist");
-        require(teams[team2id].id > 0, "Team 2 does not exist");
-        require(
-            teams[team1id].id != teams[team2id].id,
-            "Teams cannot be the same"
-        );
-        require(
-            teams[team1id].wallet == sender,
-            "Team1 owner should call createGameRequest"
-        );
+        if (teams[team1id].id == 0) revert DoesNotExist();
+        if (teams[team2id].id == 0) revert DoesNotExist();
+        if (teams[team1id].id == teams[team2id].id) revert TeamsCannotBeSame();
+        if (teams[team1id].wallet != sender) revert GameOwnerShouldCall();
 
-        require(
-            !teams[team2id].hasActiveGame,
-            "Team2 already has an active game"
-        );
+        if (teams[team2id].hasActiveGame) revert TeamAlreadyHasActiveGame();
 
         if (teams[team1id].gameRequestId > 0) {
             _cancelGameRequest(sender, teams[team1id].gameRequestId);
@@ -193,7 +240,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         gameRequests[request.gameRequestId] = request;
         teams[team1id].gameRequestId = request.gameRequestId;
 
-        emit GameRequestCreated(request.gameRequestId);
+        emit GameRequestCreated(request.gameRequestId, team1id, team2id);
     }
 
     // Public wrapper that calls internal function with msg.sender
@@ -215,21 +262,20 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address sender,
         uint256 gameRequestId
     ) internal {
-        require(gameRequestId > 0, "Game request does not exist");
-        require(
-            gameRequests[gameRequestId].createdAt > 0,
-            "Game request does not exist"
-        );
-        require(
-            teams[gameRequests[gameRequestId].team1id].wallet == sender,
-            "You are not the owner of request"
-        );
-        require(
-            gameRequests[gameRequestId].createdAt + 1 minutes < block.timestamp,
-            "Game request is not expired (1 minute)"
-        );
+        if (gameRequestId == 0) revert DoesNotExist();
+        if (gameRequests[gameRequestId].createdAt == 0) revert DoesNotExist();
+        if (teams[gameRequests[gameRequestId].team1id].wallet != sender)
+            revert GameOwnerShouldCall();
+        if (
+            gameRequests[gameRequestId].createdAt + 1 minutes >= block.timestamp
+        ) revert GameRequestNotExpired();
+
+        uint256 team1id = gameRequests[gameRequestId].team1id;
+        uint256 team2id = gameRequests[gameRequestId].team2id;
 
         GameLib.cancelGameRequest(gameRequests, teams, gameRequestId);
+
+        emit GameRequestCancelled(gameRequestId, team1id, team2id);
     }
 
     // Public wrapper that calls internal function with msg.sender
@@ -250,24 +296,19 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ========================================
 
     // Internal function that starts a game with a specified sender
-    function _startGame(address sender, uint256 gameRequestId) internal {
-        require(
-            gameRequests[gameRequestId].createdAt > 0,
-            "Game request does not exist"
-        );
-        require(
-            teams[gameRequests[gameRequestId].team2id].wallet == sender,
-            "Team2 owner should call startGame"
-        );
+    function _startGame(
+        address sender,
+        uint256 gameRequestId,
+        bytes calldata _encryptedKey
+    ) internal {
+        if (gameRequests[gameRequestId].createdAt == 0) revert DoesNotExist();
+        if (teams[gameRequests[gameRequestId].team2id].wallet != sender)
+            revert GameOwnerShouldCall();
 
-        require(
-            !teams[gameRequests[gameRequestId].team1id].hasActiveGame,
-            "Team1 have ongoing game already"
-        );
-        require(
-            !teams[gameRequests[gameRequestId].team2id].hasActiveGame,
-            "Team2 have ongoing game already"
-        );
+        if (teams[gameRequests[gameRequestId].team1id].hasActiveGame)
+            revert TeamAlreadyHasActiveGame();
+        if (teams[gameRequests[gameRequestId].team2id].hasActiveGame)
+            revert TeamAlreadyHasActiveGame();
 
         if (teams[gameRequests[gameRequestId].team2id].gameRequestId > 0) {
             GameLib.cancelGameRequest(
@@ -288,7 +329,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             team2id,
             nextGameId,
             teams[team1id].eloRating,
-            teams[team2id].eloRating
+            teams[team2id].eloRating,
+            _encryptedKey
         );
 
         games[game.gameId] = game;
@@ -303,22 +345,24 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         activeGames.push(game.gameId);
 
-        emit GameStarted(game.gameId, GameLib.TeamEnum.TEAM1);
-        // emit with empty arrays to trigger the game worker at the game start
-        emit gameActionCommitted(game.gameId);
+        emit GameStarted(game.gameId, team1id, team2id, GameLib.TeamEnum.TEAM1);
     }
 
     // Public wrapper that calls internal function with msg.sender
-    function startGame(uint256 gameRequestId) public {
-        _startGame(msg.sender, gameRequestId);
+    function startGame(
+        uint256 gameRequestId,
+        bytes calldata _encryptedKey
+    ) public {
+        _startGame(msg.sender, gameRequestId, _encryptedKey);
     }
 
     // Relayer version that can start game for any address
     function startGameRelayer(
         address sender,
-        uint256 gameRequestId
+        uint256 gameRequestId,
+        bytes calldata _encryptedKey
     ) public onlyRelayer {
-        _startGame(sender, gameRequestId);
+        _startGame(sender, gameRequestId, _encryptedKey);
     }
 
     // ========================================
@@ -330,54 +374,43 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address sender,
         uint256 gameId,
         GameLib.TeamEnum team,
-        GameLib.GameAction[] calldata actions
+        bytes32 movesEncrypted
     ) internal gameExists(gameId) {
         GameLib.Game storage game = games[gameId];
-        require(game.status == GameLib.GameStatus.ACTIVE, "Game is not active");
-        require(actions.length > 0, "No actions to commit");
+        if (game.status != GameLib.GameStatus.ACTIVE) revert GameIsNotActive();
+        if (team == GameLib.TeamEnum.NONE) revert InvalidTeam();
+        if (movesEncrypted == bytes32(0)) revert MovesEncryptedCannotBeZero();
+        if (
+            team == GameLib.TeamEnum.TEAM1 &&
+            game.gameState.team1MovesEncrypted != bytes32(0)
+        ) revert MovesAlreadyCommitted();
+        if (
+            team == GameLib.TeamEnum.TEAM2 &&
+            game.gameState.team2MovesEncrypted != bytes32(0)
+        ) revert MovesAlreadyCommitted();
 
         if (team == GameLib.TeamEnum.TEAM1) {
-            require(
-                teams[game.team1.teamId].wallet == sender,
-                "Your wallet is not participating in the game"
-            );
+            if (teams[game.team1.teamId].wallet != sender)
+                revert GameOwnerShouldCall();
         } else if (team == GameLib.TeamEnum.TEAM2) {
-            require(
-                teams[game.team2.teamId].wallet == sender,
-                "Your wallet is not participating in the game"
-            );
+            if (teams[game.team2.teamId].wallet != sender)
+                revert GameOwnerShouldCall();
         }
 
-        if (
-            game.lastMoveTeam != team &&
-            game.lastMoveAt + GameLib.MAX_MOVE_TIME < block.timestamp
-        ) {
-            _finishGame(gameId, GameLib.FinishReason.MOVE_TIMEOUT);
-            return;
-        }
-        if (game.movesMade > GameLib.MAX_MOVES) {
+        if (game.gameState.movesMade >= GameLib.MAX_MOVES) {
             _finishGame(gameId, GameLib.FinishReason.MAX_MOVES_REACHED);
             return;
         }
 
         bool bothTeamsCommitted = GameLib.commitGameActions(
-            game,
+            game.gameState,
             team,
-            actions
+            movesEncrypted
         );
 
         if (bothTeamsCommitted) {
-            emit gameActionCommitted(gameId);
+            emit gameActionCommitted(gameId, block.timestamp);
         }
-    }
-
-    // Public wrapper that calls internal function with msg.sender
-    function commitGameActions(
-        uint256 gameId,
-        GameLib.TeamEnum team,
-        GameLib.GameAction[] calldata actions
-    ) public gameExists(gameId) {
-        _commitGameActions(msg.sender, gameId, team, actions);
     }
 
     // Relayer version that can commit game actions for any address
@@ -385,9 +418,9 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address sender,
         uint256 gameId,
         GameLib.TeamEnum team,
-        GameLib.GameAction[] calldata actions
-    ) public onlyRelayer gameExists(gameId) {
-        _commitGameActions(sender, gameId, team, actions);
+        bytes32 movesEncrypted
+    ) public onlyRelayer {
+        _commitGameActions(sender, gameId, team, movesEncrypted);
     }
 
     // ========================================
@@ -400,24 +433,24 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 gameId
     ) internal gameExists(gameId) {
         GameLib.Game storage game = games[gameId];
-        require(game.status == GameLib.GameStatus.ACTIVE, "Game is not active");
-        require(
-            teams[game.team1.teamId].wallet == sender ||
-                teams[game.team2.teamId].wallet == sender,
-            "Your wallet is not participating in the game"
-        );
-        require(
-            game.team1.actions.length == 0 || game.team2.actions.length == 0,
-            "All moves has been made - cannot finish game by timeout"
-        );
-        require(
-            game.lastMoveAt + GameLib.MAX_MOVE_TIME < block.timestamp,
-            "Timeout is not reached"
-        );
-        require(
-            game.lastMoveTeam != GameLib.TeamEnum.NONE,
-            "Both teams have not made any moves"
-        );
+        if (game.status != GameLib.GameStatus.ACTIVE) revert GameIsNotActive();
+        if (
+            teams[game.team1.teamId].wallet != sender &&
+            teams[game.team2.teamId].wallet != sender
+        ) revert GameOwnerShouldCall();
+        if (
+            teams[game.team1.teamId].wallet == sender &&
+            game.gameState.team1MovesEncrypted == bytes32(0)
+        ) revert ActionsNotCommitted();
+        if (
+            teams[game.team2.teamId].wallet == sender &&
+            game.gameState.team2MovesEncrypted == bytes32(0)
+        ) revert ActionsNotCommitted();
+        if (
+            game.gameState.lastMoveAt + GameLib.MAX_MOVE_TIME >= block.timestamp
+        ) revert GameRequestTimeoutNotReached();
+        if (game.gameState.lastMoveTeam == GameLib.TeamEnum.NONE)
+            revert FinishGameByTimeout_NoLastMove();
 
         _finishGame(gameId, GameLib.FinishReason.MOVE_TIMEOUT);
     }
@@ -440,6 +473,13 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         GameLib.FinishReason finishReason
     ) internal {
         GameLib.Game storage game = games[gameId];
+        if (
+            finishReason == GameLib.FinishReason.MAX_MOVES_REACHED &&
+            game.gameState.movesMade < GameLib.MAX_MOVES
+        ) {
+            revert GameHasNotReachedMaxMoves();
+        }
+
         GameLib.finishGame(
             game,
             teams[game.team1.teamId],
@@ -448,9 +488,9 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         );
 
         // Update ELO ratings if game finished normally (not by timeout)
-        if (finishReason == GameLib.FinishReason.MAX_MOVES_REACHED) {
-            _updateEloRatings(gameId);
-        }
+        // if (finishReason == GameLib.FinishReason.MAX_MOVES_REACHED) {
+        //     _updateEloRatings(gameId);
+        // }
 
         _removeGameFromActiveGames(gameId);
         emit GameFinished(gameId, game.winner, finishReason);
@@ -472,21 +512,15 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     // ========================================
-    // GELATO ORACLE FUNCTIONS
+    // GAME ENGINE FUNCTIONS
     // ========================================
-
-    error GameError(
-        uint256 gameId,
-        GameLib.TeamEnum cauzedByTeam,
-        string errorMsg
-    );
 
     function setGameError(
         uint256 gameId,
         GameLib.TeamEnum cauzedByTeam,
         ErrorType errorType,
         string memory errorMsg
-    ) public onlyGelato {
+    ) public onlyGameEngine {
         if (
             errorType == ErrorType.MOVE_VALIDATION_ERROR &&
             cauzedByTeam != GameLib.TeamEnum.NONE
@@ -494,9 +528,9 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             GameLib.Game storage game = games[gameId];
 
             if (cauzedByTeam == GameLib.TeamEnum.TEAM1) {
-                game.lastMoveTeam = GameLib.TeamEnum.TEAM2;
+                game.gameState.lastMoveTeam = GameLib.TeamEnum.TEAM2;
             } else if (cauzedByTeam == GameLib.TeamEnum.TEAM2) {
-                game.lastMoveTeam = GameLib.TeamEnum.TEAM1;
+                game.gameState.lastMoveTeam = GameLib.TeamEnum.TEAM1;
             }
         }
 
@@ -511,29 +545,56 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     function newGameState(
         uint256 gameId,
-        GameLib.GameState calldata gameState
-    ) public gameExists(gameId) onlyGelato {
+        GameLib.StateType stateType,
+        uint8[] calldata clashRandomNumbers,
+        GameLib.GameAction[] calldata team1Actions,
+        GameLib.GameAction[] calldata team2Actions,
+        GameLib.BoardState calldata boardState
+    ) public gameExists(gameId) onlyGameEngine {
         GameLib.Game storage game = games[gameId];
 
-        require(game.status == GameLib.GameStatus.ACTIVE, "Game is not active");
+        if (game.status != GameLib.GameStatus.ACTIVE) revert GameIsNotActive();
 
-        if (game.history.length > 0) {
-            require(
-                game.team1.actions.length > 0 && game.team2.actions.length > 0,
-                "Actions are not committed"
-            );
+        if (game.gameState.movesMade > 0) {
+            if (
+                game.gameState.team1MovesEncrypted == bytes32(0) ||
+                game.gameState.team2MovesEncrypted == bytes32(0)
+            ) revert ActionsNotCommitted();
         }
 
-        GameLib.newGameState(game, gameState);
-        emit NewGameState(gameId, block.timestamp, gameState);
+        game.lastBoardState = boardState;
 
-        if (gameState.stateType == GameLib.StateType.GOAL_TEAM1) {
+        game.gameState = GameLib.GameState({
+            movesMade: game.gameState.movesMade + 1,
+            lastMoveAt: uint64(block.timestamp),
+            team1MovesEncrypted: bytes32(0),
+            team2MovesEncrypted: bytes32(0),
+            lastMoveTeam: GameLib.TeamEnum.NONE,
+            team1score: stateType == GameLib.StateType.GOAL_TEAM1
+                ? game.gameState.team1score + 1
+                : game.gameState.team1score,
+            team2score: stateType == GameLib.StateType.GOAL_TEAM2
+                ? game.gameState.team2score + 1
+                : game.gameState.team2score
+        });
+
+        if (stateType == GameLib.StateType.GOAL_TEAM1) {
             emit GoalScored(gameId, GameLib.TeamEnum.TEAM1);
-        } else if (gameState.stateType == GameLib.StateType.GOAL_TEAM2) {
+        } else if (stateType == GameLib.StateType.GOAL_TEAM2) {
             emit GoalScored(gameId, GameLib.TeamEnum.TEAM2);
         }
 
-        if (game.movesMade >= GameLib.MAX_MOVES) {
+        emit NewGameState(
+            game.gameId,
+            stateType,
+            block.timestamp,
+            clashRandomNumbers,
+            team1Actions,
+            team2Actions,
+            game.lastBoardState
+        );
+
+        if (game.gameState.movesMade >= GameLib.MAX_MOVES) {
             _finishGame(gameId, GameLib.FinishReason.MAX_MOVES_REACHED);
         }
     }
@@ -549,18 +610,21 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         return games[gameId];
     }
 
+    function getGameStatus(
+        uint256 gameId
+    ) public view gameExists(gameId) returns (GameLib.GameStatus) {
+        return games[gameId].status;
+    }
+
     function getTeam(uint256 teamId) public view returns (GameLib.Team memory) {
-        require(teams[teamId].id > 0, "Team does not exist");
+        if (teams[teamId].id == 0) revert DoesNotExist();
         return teams[teamId];
     }
 
     function getGameRequest(
         uint256 requestId
     ) public view returns (GameLib.GameRequest memory) {
-        require(
-            gameRequests[requestId].createdAt > 0,
-            "Game request does not exist"
-        );
+        if (gameRequests[requestId].createdAt == 0) revert DoesNotExist();
         return gameRequests[requestId];
     }
 
@@ -576,6 +640,44 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         return activeGames.length;
     }
 
+    /**
+     * @dev Get the last N games of a team
+     * @param teamId The ID of the team
+     * @param n The number of recent games to return
+     * @return An array of Game structs representing the last N games
+     */
+    function getLastNGames(
+        uint256 teamId,
+        uint256 n
+    ) public view teamExists(teamId) returns (GameLib.Game[] memory) {
+        GameLib.Team storage team = teams[teamId];
+        uint256 totalGames = team.games.length;
+
+        if (totalGames == 0) {
+            return new GameLib.Game[](0);
+        }
+
+        // If n is greater than total games, return all games
+        if (n >= totalGames) {
+            GameLib.Game[] memory allGames = new GameLib.Game[](totalGames);
+            for (uint256 i = 0; i < totalGames; i++) {
+                allGames[i] = games[team.games[i]];
+            }
+            return allGames;
+        }
+
+        // Create array for last N games
+        GameLib.Game[] memory lastNGames = new GameLib.Game[](n);
+
+        // Copy the last N games (games are stored in chronological order)
+        for (uint256 i = 0; i < n; i++) {
+            uint256 gameId = team.games[totalGames - n + i];
+            lastNGames[i] = games[gameId];
+        }
+
+        return lastNGames;
+    }
+
     // ========================================
     // ELO RATING
     // ========================================
@@ -589,22 +691,56 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         GameLib.Team storage team1 = teams[game.team1.teamId];
         GameLib.Team storage team2 = teams[game.team2.teamId];
 
-        // Calculate new ELO ratings
-        (uint64 team1EloRatingNew, uint64 team2EloRatingNew) = EloCalculationLib
-            .calculateNewRatings(
-                game.team1.eloRating,
-                game.team2.eloRating,
-                game.team1.score,
-                game.team2.score
-            );
+        uint256 result = 50;
+        if (game.gameState.team1score > game.gameState.team2score) {
+            result = 100;
+        } else if (game.gameState.team1score < game.gameState.team2score) {
+            result = 0;
+        }
 
-        // Update team ratings
-        team1.eloRating = team1EloRatingNew;
-        team2.eloRating = team2EloRatingNew;
+        if (team1.games.length == 0 && team1.eloRating == 100) {
+            team1.eloRating = 10000;
+            if (game.team1.eloRating == 100) {
+                game.team1.eloRating = 10000;
+            }
+        }
+        if (team2.games.length == 0 && team2.eloRating == 100) {
+            team2.eloRating = 10000;
+            if (game.team2.eloRating == 100) {
+                game.team2.eloRating = 10000;
+            }
+        }
+
+        (uint256 change, bool negative) = Elo.ratingChange(
+            game.team1.eloRating,
+            game.team2.eloRating,
+            result,
+            20
+        );
+
+        // team2 win
+        if (negative) {
+            team2.eloRating += uint64(change);
+            team1.eloRating -= uint64(change);
+        } else {
+            team1.eloRating += uint64(change);
+            team2.eloRating -= uint64(change);
+        }
+
+        // Apply minimum ELO limit (50 = 5000 with 2 decimal precision)
+        if (team1.eloRating < 5000) {
+            team1.eloRating = 5000;
+        }
+        if (team2.eloRating < 5000) {
+            team2.eloRating = 5000;
+        }
 
         // Update game team info
-        game.team1.eloRatingNew = team1EloRatingNew;
-        game.team2.eloRatingNew = team2EloRatingNew;
+        game.team1.eloRatingNew = team1.eloRating;
+        game.team2.eloRatingNew = team2.eloRating;
+
+        emit EloUpdated(team1.id, gameId, team1.eloRating);
+        emit EloUpdated(team2.id, gameId, team2.eloRating);
     }
 
     // ========================================
@@ -612,28 +748,29 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ========================================
 
     modifier gameExists(uint256 gameId) {
-        require(games[gameId].createdAt > 0, "Game does not exist");
+        if (games[gameId].createdAt == 0) revert DoesNotExist();
         _;
     }
 
     modifier teamExists(uint256 teamId) {
-        require(teams[teamId].id > 0, "Team does not exist");
+        if (teams[teamId].id == 0) revert DoesNotExist();
         _;
     }
 
-    modifier onlyGelato() {
-        require(
-            msg.sender == gelatoAddress,
-            "Only gelato can call this function"
-        );
+    modifier onlyGameEngine() {
+        if (
+            msg.sender != gameEngineServerAddress &&
+            msg.sender != relayerAddress &&
+            msg.sender != relayerSmartAccountAddress
+        ) revert OnlyGameEngineServerCanCall();
         _;
     }
 
     modifier onlyRelayer() {
-        require(
-            msg.sender == relayerAddress,
-            "Only relayer can call this function"
-        );
+        if (
+            msg.sender != relayerAddress &&
+            msg.sender != relayerSmartAccountAddress
+        ) revert OnlyRelayerCanCall();
         _;
     }
 }

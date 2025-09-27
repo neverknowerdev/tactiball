@@ -2,15 +2,31 @@
   "baseSepolia": {
     "network": "baseSepolia",
     "chainId": "84532",
-    "proxyAddress": "0x659e3755a8E491C652c560D093f7c5800d174FDD",
-    "implementationAddress": "0xcdc6271865eE9A570361698664E992d80b62767a",
+    "proxyAddress": "0x4385EBE9D693b205fdf5CCB552E912e0bf9B533c",
+    "implementationAddress": "0x9Caa63A0673019613FA91737ED34466672C37475",
     "libraries": {
-      "eloCalculationLib": "0xD4066959d297f9EA3444f26F7360E720905F49ad",
-      "gameLib": "0xb680Ee45015D402842bdF01849f48766A2d2620d"
+      "gameLib": "0x9780ec9Cca586b0AC4Aa80D1d68bBbB96093c3a7"
+    },
+    "deployer": "0x9B8af95247a68cE5dc38361D4A03f56bD8463D3f",
+    "timestamp": "2025-09-26T18:27:09.959Z",
+    "gameLibHash": "07269d7fdca6d85fff15e86bb7015b172dadc96d53ceac5a5ec4c7020ff6dd52"
+  },
+  "baseMainnet": {
+    "network": "baseMainnet",
+    "chainId": "8453",
+    "proxyAddress": "0x5582A4C5a7e1d1997189774Cb1785aCb3d1E063d",
+    "implementationAddress": "0xb6589Af8f89f10c5006F972d86d21847029c21da",
+    "libraries": {
+      "gameLib": "0xA8dD7Bac4AcA3dB1b9185b88207B85b2e0251B70"
     },
     "deployer": "0xf831c2F992866D01A2d66dB807adD7EEE8980914",
-    "timestamp": "2025-08-17T09:48:35.271Z",
-    "eloCalculationLibHash": "0cfad71c2351dfe78994e83a2d4e0025cbc8fc3e1a7878468ce423fdbb244d7e",
-    "gameLibHash": "c6b4b2d3232a564b4c9c9f99c69496dd796f3ecb529869a49b68a3d5e9a64192"
+    "timestamp": "2025-09-11T16:47:32.802Z",
+    "gameLibHash": "07269d7fdca6d85fff15e86bb7015b172dadc96d53ceac5a5ec4c7020ff6dd52",
+    "upgradeTimestamp": "2025-09-27T18:43:43.984Z",
+    "previousImplementation": "0xc9ABEE185a6Fc6C93eDbA526a97F1C0c7C9e6AE2",
+    "previousLibraries": {
+      "gameLib": "0xA8dD7Bac4AcA3dB1b9185b88207B85b2e0251B70"
+    },
+    "librariesUpdated": false
   }
 }
