@@ -8,8 +8,18 @@ import { processGameMoves } from './process-game-moves';
 import { toContractStateType, toContractMove, toTeamEnum } from './types';
 import { GameAction } from '@/lib/game';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { parseEventLogs } from 'viem';
+import { parseEventLogs, encodeFunctionData } from 'viem';
 import { getGameFromContract } from '@/lib/contract';
+
+// Utility function for better error logging
+function logErrorWithContext(error: any, context: string) {
+    console.error(`[${context}] Error:`, error.message);
+    console.error(`[${context}] Stack trace:`, error.stack);
+    console.error(`[${context}] Error name:`, error.name);
+    if (error.cause) {
+        console.error(`[${context}] Error cause:`, error.cause);
+    }
+}
 
 interface CommitGameActionsRequest {
     game_id: string;
@@ -69,6 +79,15 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Additional null check for gameInfo.data
+        if (!gameInfo.data) {
+            console.error('Game data is null for game ID:', body.game_id);
+            return NextResponse.json(
+                { error: 'Game data is null', errorName: 'GAME_DATA_NULL' },
+                { status: 500 }
+            );
+        }
+
         if (gameInfo.data.gameState.team1MovesEncrypted === BigInt(0) || gameInfo.data.gameState.team2MovesEncrypted === BigInt(0)) {
             return NextResponse.json(
                 { error: 'Game state cannot be calculated', errorName: 'GAME_STATE_CANNOT_BE_CALCULATED' },
@@ -94,7 +113,16 @@ export async function POST(request: NextRequest) {
         console.log('team1MovesEncrypted', gameInfo.data.gameState.team1MovesEncrypted, typeof gameInfo.data.gameState.team1MovesEncrypted, gameInfo.data.gameState.team1MovesEncrypted === BigInt(0));
         console.log('team2MovesEncrypted', gameInfo.data.gameState.team2MovesEncrypted, typeof gameInfo.data.gameState.team2MovesEncrypted, gameInfo.data.gameState.team2MovesEncrypted === BigInt(0));
 
-        const gameResult = processGameMoves(gameInfo.data);
+        let gameResult;
+        try {
+            gameResult = processGameMoves(gameInfo.data);
+        } catch (error) {
+            logErrorWithContext(error, 'PROCESSING_GAME_MOVES');
+            return NextResponse.json(
+                { error: 'Error processing game moves', errorName: 'ERROR_PROCESSING_MOVES' },
+                { status: 500 }
+            );
+        }
 
         const contractStateType = toContractStateType(gameResult.stateType)
         const contractTeam1Actions = gameResult.team1Actions.map((action: GameAction) => ({
@@ -112,27 +140,50 @@ export async function POST(request: NextRequest) {
             teamEnum: toTeamEnum(action.teamEnum)
         }))
 
+        console.log('simulating call to contract..');
+        console.log('Contract args:', {
+            gameId: gameInfo.data.gameId,
+            contractStateType,
+            clashRandomResults: gameResult.clashRandomResults,
+            team1ActionsLength: contractTeam1Actions.length,
+            team2ActionsLength: contractTeam2Actions.length,
+            boardState: gameResult.boardState
+        });
+
         // Call newGameState on smart contract to update game state
-        const { request: newGameStateRequest } = await publicClient.simulateContract({
+        console.log('Preparing transaction request...');
+        const newGameStateRequest = {
             address: CONTRACT_ADDRESS,
-            abi: CONTRACT_ABI,
             functionName: 'newGameState',
             args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
             chain: base,
             account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
-        });
+        };
 
+        console.log('Executing transaction to smart contract...');
         // Execute newGameState transaction
-        const paymasterReceipt = await sendTransactionWithRetry(newGameStateRequest);
-        console.log('New game state committed. Transaction hash:', paymasterReceipt.receipt.transactionHash);
+        let paymasterReceipt;
+        try {
+            paymasterReceipt = await sendTransactionWithRetry(newGameStateRequest);
+            console.log('New game state committed. Transaction hash:', paymasterReceipt.receipt.transactionHash);
+        } catch (error) {
+            logErrorWithContext(error, 'EXECUTING_TRANSACTION');
+            return NextResponse.json(
+                { error: 'Error executing transaction', errorName: 'ERROR_EXECUTING_TRANSACTION' },
+                { status: 500 }
+            );
+        }
 
+        console.log('getting logs..');
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
             logs: paymasterReceipt.logs,
         });
 
+        console.log('sending webhook message..');
         await sendWebhookMessage(logs);
 
+        console.log('returning response..');
         return NextResponse.json({
             success: true,
             message: 'Game state calculated successfully',
@@ -141,7 +192,7 @@ export async function POST(request: NextRequest) {
             transactionHash: paymasterReceipt.receipt.transactionHash,
         });
     } catch (error) {
-        console.error('Error calculating game state:', error);
+        logErrorWithContext(error, 'CALCULATING_GAME_STATE');
         return NextResponse.json(
             { error: 'Error calculating game state', errorName: 'ERROR_CALCULATING_GAME_STATE' },
             { status: 500 }

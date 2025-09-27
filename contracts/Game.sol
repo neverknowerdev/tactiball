@@ -22,7 +22,6 @@ error TeamAlreadyHasActiveGame();
 error GameIsNotActive();
 error MovesAlreadyCommitted();
 error OnlyRelayerCanCall();
-error OnlyGelatoCanCall();
 error GameRequestNotExpired();
 error GameRequestTimeoutNotReached();
 error ActionsNotCommitted();
@@ -40,7 +39,7 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // ========================================
 
     // Gelato address for automation
-    address public gelatoAddress;
+    address public unused__gelatoAddress;
     address public relayerAddress;
     address public gameEngineServerAddress;
 
@@ -135,25 +134,21 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     /**
      * @dev Initializer function to set the Gelato address
-     * @param _gelatoAddress The address of the Gelato automation service
      * @param _relayerAddress The address of the relayer service
      * @param _relayerSmartAccountAddress The address of the relayer smart account
      * @param _gameEngineServerAddress The address of the game engine server
      */
     function initialize(
-        address _gelatoAddress,
         address _relayerAddress,
         address _relayerSmartAccountAddress,
         address _gameEngineServerAddress,
         string memory _publicKey
     ) public initializer {
-        if (_gelatoAddress == address(0)) revert InitAddressCannotBeZero();
         if (_relayerAddress == address(0)) revert InitAddressCannotBeZero();
         if (_relayerSmartAccountAddress == address(0))
             revert InitAddressCannotBeZero();
         if (_gameEngineServerAddress == address(0))
             revert InitAddressCannotBeZero();
-        gelatoAddress = _gelatoAddress;
         relayerAddress = _relayerAddress;
         relayerSmartAccountAddress = _relayerSmartAccountAddress;
         gameEngineServerAddress = _gameEngineServerAddress;
@@ -768,16 +763,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         _;
     }
 
-    modifier onlyGelato() {
-        if (msg.sender != gelatoAddress) revert OnlyGelatoCanCall();
-        _;
-    }
-
     modifier onlyGameEngine() {
         if (
             msg.sender != gameEngineServerAddress &&
-            msg.sender != relayerSmartAccountAddress &&
-            msg.sender != gelatoAddress
+            msg.sender != relayerSmartAccountAddress
         ) revert OnlyGameEngineServerCanCall();
         _;
     }
