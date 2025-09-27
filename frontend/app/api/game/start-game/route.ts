@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         // Generate encryption keys for the game
         const symmetricKey = generateSymmetricKey();
 
-        const publicKey = process.env.NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY || process.env.TESTNET_NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY;
+        const publicKey = process.env.NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY || process.env.NEXT_PUBLIC_TESTNET_GAME_ENGINE_PUBLIC_KEY;
         if (!publicKey) {
             throw new Error('NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY is not set');
         }
