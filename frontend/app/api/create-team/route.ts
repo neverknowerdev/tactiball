@@ -107,7 +107,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             walletAddress,
             teamName,
             countryId,
-            TESTNET_CONTRACT_ADDRESS || CONTRACT_ADDRESS
+            contractAddress: CONTRACT_ADDRESS || TESTNET_CONTRACT_ADDRESS
         });
 
         console.log('Transaction sent successfully:', paymasterReceipt.receipt.transactionHash);
