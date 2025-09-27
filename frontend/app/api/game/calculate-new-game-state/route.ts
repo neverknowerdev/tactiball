@@ -8,7 +8,7 @@ import { processGameMoves } from './process-game-moves';
 import { toContractStateType, toContractMove, toTeamEnum } from './types';
 import { GameAction } from '@/lib/game';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { parseEventLogs } from 'viem';
+import { parseEventLogs, encodeFunctionData } from 'viem';
 import { getGameFromContract } from '@/lib/contract';
 
 // Utility function for better error logging
@@ -151,27 +151,14 @@ export async function POST(request: NextRequest) {
         });
 
         // Call newGameState on smart contract to update game state
-        let newGameStateRequest;
-        try {
-            const simulationResult = await publicClient.simulateContract({
-                address: CONTRACT_ADDRESS,
-                abi: CONTRACT_ABI,
-                functionName: 'newGameState',
-                args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
-                chain: base,
-                account: RELAYER_ADDRESS
-            });
-            newGameStateRequest = simulationResult.request;
-            console.log('Contract simulation successful');
-        } catch (error) {
-            logErrorWithContext(error, 'SIMULATING_CONTRACT_CALL');
-            return NextResponse.json(
-                { error: 'Error simulating contract call', errorName: 'ERROR_SIMULATING_CONTRACT' },
-                { status: 500 }
-            );
-        }
+        console.log('Preparing transaction request...');
+        const newGameStateRequest = {
+            address: CONTRACT_ADDRESS,
+            functionName: 'newGameState',
+            args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState]
+        };
 
-        console.log('executing call to contract..');
+        console.log('Executing transaction to smart contract...');
         // Execute newGameState transaction
         let paymasterReceipt;
         try {
