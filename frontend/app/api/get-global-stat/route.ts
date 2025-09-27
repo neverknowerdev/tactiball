@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CONTRACT_ADDRESS, TESTNET_CONTRACT_ADDRESS } from '@/lib/contract';
+import { CONTRACT_ADDRESS } from '@/lib/contract';
 import { createAnonClient } from '@/lib/supabase';
 import { redis } from '@/lib/redis';
 
 // Function to get transaction count from Basescan with caching
 async function getTransactionCountFromBasescan(): Promise<number> {
-    const cacheKey = `basescan-tx-count:${CONTRACT_ADDRESS || TESTNET_CONTRACT_ADDRESS}`;
+    const cacheKey = `basescan-tx-count:${CONTRACT_ADDRESS}`;
 
     // Check cache first
     if (redis) {
@@ -28,7 +28,7 @@ async function getTransactionCountFromBasescan(): Promise<number> {
         }
 
         // Get transaction list for the contract address
-        const url = `https://api.basescan.org/api?module=account&action=txlist&address=${CONTRACT_ADDRESS || TESTNET_CONTRACT_ADDRESS}&startblock=0&endblock=99999999&page=1&offset=10000&sort=desc&apikey=${apiKey}`;
+        const url = `https://api.basescan.org/api?module=account&action=txlist&address=${CONTRACT_ADDRESS}&startblock=0&endblock=99999999&page=1&offset=10000&sort=desc&apikey=${apiKey}`;
 
         const response = await fetch(url, {
             method: 'GET',
@@ -50,7 +50,7 @@ async function getTransactionCountFromBasescan(): Promise<number> {
 
         // Count transactions (result is an array of transactions)
         const transactionCount = Array.isArray(data.result) ? data.result.length : 0;
-        console.log(`Found ${transactionCount} transactions for contract ${CONTRACT_ADDRESS || TESTNET_CONTRACT_ADDRESS}`);
+        console.log(`Found ${transactionCount} transactions for contract ${CONTRACT_ADDRESS}`);
 
         // Cache the result for 10 minutes (600 seconds)
         if (redis) {

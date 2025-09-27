@@ -3,13 +3,13 @@ import gameArtifact from '../../artifacts/contracts/Game.sol/ChessBallGame.json'
 import { publicClient } from './providers';
 import { Position } from './game';
 
-export const TESTNET_CONTRACT_ADDRESS = '0x4385EBE9D693b205fdf5CCB552E912e0bf9B533c' as Address;
-export const CONTRACT_ADDRESS = '0x5582A4C5a7e1d1997189774Cb1785aCb3d1E063d' as Address;
+export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as Address || process.env.NEXT_PUBLIC_TESTNET_CONTRACT_ADDRESS as Address;
+//  || (process.env.ENV == 'prod' ? '0x5582A4C5a7e1d1997189774Cb1785aCb3d1E063d' as Address : '0x4385EBE9D693b205fdf5CCB552E912e0bf9B533c' as Address)
 // Import the ABI from the web3-functions directory
 export const CONTRACT_ABI = gameArtifact.abi as any[];
 
-export const TESTNET_RELAYER_ADDRESS = '0x9B8af95247a68cE5dc38361D4A03f56bD8463D3f' as Address;
-export const RELAYER_ADDRESS = '0xc510350904b2fD01D9af92342f49a3c7aEC47739' as Address;
+export const RELAYER_ADDRESS = process.env.NEXT_PUBLIC_RELAYER_ADDRESS as Address || process.env.NEXT_PUBLIC_TESTNET_RELAYER_ADDRESS as Address;
+//  || (process.env.ENV == 'prod' ? '0xc510350904b2fD01D9af92342f49a3c7aEC47739' as Address : '0x9B8af95247a68cE5dc38361D4A03f56bD8463D3f' as Address);
 
 export interface DecodedEvent {
     eventName: string;
@@ -77,7 +77,7 @@ export async function getGameFromContract(gameId: string): Promise<GameFetchResu
 
         // Call the getGame function on the smart contract
         const gameData = await publicClient.readContract({
-            address:  TESTNET_CONTRACT_ADDRESS || CONTRACT_ADDRESS,
+            address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'getGame',
             args: [BigInt(gameId)]

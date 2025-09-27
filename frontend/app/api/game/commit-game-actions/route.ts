@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient } from '@/lib/providers';
 import { parseEventLogs, Log } from 'viem';
-import { CONTRACT_ADDRESS, CONTRACT_ABI, getGameFromContract, RELAYER_ADDRESS, TESTNET_RELAYER_ADDRESS, TESTNET_CONTRACT_ADDRESS } from '@/lib/contract';
+import { CONTRACT_ADDRESS, CONTRACT_ABI, getGameFromContract, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { decodeSymmetricKey, encodeData, bigintToBuffer } from '@/lib/encrypting';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -155,12 +155,12 @@ export async function POST(request: NextRequest) {
         console.log('body.team_enum', body.team_enum);
         console.log('encryptedMoves', encryptedMoves);
         const { request: simulationRequest } = await publicClient.simulateContract({
-            address: CONTRACT_ADDRESS || TESTNET_CONTRACT_ADDRESS,
+            address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'commitGameActionsRelayer',
             args: [body.wallet_address, body.game_id, body.team_enum, encryptedMoves],
             chain: base,
-            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
+            account: RELAYER_ADDRESS
         });
 
         console.log('Transaction simulation successful, executing...');

@@ -25,7 +25,7 @@ export function processGameMoves(gameInfo: GameInfo) {
     const lastBoardState: GameState = convertLastBoardStateToGameState(gameInfo.lastBoardState);
     game.saveState(lastBoardState)
 
-    const gameEnginePrivateKey = process.env.GAME_ENGINE_PRIVATE_KEY || processGameMoves.env.TESTNET_GAME_ENGINE_PRIVATE_KEY;
+    const gameEnginePrivateKey = process.env.GAME_ENGINE_PRIVATE_KEY || process.env.TESTNET_GAME_ENGINE_PRIVATE_KEY;
     if (!gameEnginePrivateKey) {
         throw new Error('GAME_ENGINE_PRIVATE_KEY is not set');
     }
@@ -42,13 +42,13 @@ export function processGameMoves(gameInfo: GameInfo) {
     const team1MovesEncryptedBuffer = Buffer.from(team1MovesEncryptedHex.slice(2), 'hex'); // Remove '0x' prefix
     const team1MovesDecryptedBuffer = decodeData(team1MovesEncryptedBuffer, gameInfo.gameState.movesMade, symmetricKey);
     const team1MovesDecryptedBigInt = bufferToBigint(team1MovesDecryptedBuffer);
-    const team1Moves = deserializeMoves(team1MovesDecryptedBigInt.toString());
+    const team1Moves = deserializeMoves(team1MovesDecryptedBigInt.toString(), TeamEnum.TEAM1);
 
     const team2MovesEncryptedHex = gameInfo.gameState.team2MovesEncrypted.toString();
     const team2MovesEncryptedBuffer = Buffer.from(team2MovesEncryptedHex.slice(2), 'hex'); // Remove '0x' prefix
     const team2MovesDecryptedBuffer = decodeData(team2MovesEncryptedBuffer, gameInfo.gameState.movesMade, symmetricKey);
     const team2MovesDecryptedBigInt = bufferToBigint(team2MovesDecryptedBuffer);
-    const team2Moves = deserializeMoves(team2MovesDecryptedBigInt.toString());
+    const team2Moves = deserializeMoves(team2MovesDecryptedBigInt.toString(), TeamEnum.TEAM2);
 
     team1Moves.forEach((action: GameAction) => {
         // Find the player by ID in team1
