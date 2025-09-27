@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
         // Generate encryption keys for the game
         const symmetricKey = generateSymmetricKey();
 
-        const publicKey = process.env.NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY;
+        const publicKey = process.env.NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY || process.env.TESTNET_NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY;
         if (!publicKey) {
             throw new Error('NEXT_PUBLIC_GAME_ENGINE_PUBLIC_KEY is not set');
         }
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
             functionName: 'startGameRelayer',
             args: [wallet_address as Address, game_request_id, encryptedKeyHex],
             chain: base,
-            account: RELAYER_ADDRESS
+            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
         });
 
         const paymasterReceipt = await sendTransactionWithRetry(simulation.request);

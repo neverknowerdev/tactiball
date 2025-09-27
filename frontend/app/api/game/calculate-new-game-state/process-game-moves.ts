@@ -25,7 +25,7 @@ export function processGameMoves(gameInfo: GameInfo) {
     const lastBoardState: GameState = convertLastBoardStateToGameState(gameInfo.lastBoardState);
     game.saveState(lastBoardState)
 
-    const gameEnginePrivateKey = process.env.GAME_ENGINE_PRIVATE_KEY;
+    const gameEnginePrivateKey = process.env.GAME_ENGINE_PRIVATE_KEY || processGameMoves.env.TESTNET_GAME_ENGINE_PRIVATE_KEY;
     if (!gameEnginePrivateKey) {
         throw new Error('GAME_ENGINE_PRIVATE_KEY is not set');
     }

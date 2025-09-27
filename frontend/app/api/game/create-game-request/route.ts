@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
             functionName: 'createGameRequestRelayer',
             args: [wallet_address as Address, team1_id, team2_id],
             chain: base,
-            account: RELAYER_ADDRESS
+            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
         });
 
         const paymasterReceipt = await sendTransactionWithRetry(simulation.request);

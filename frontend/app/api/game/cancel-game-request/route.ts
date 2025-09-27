@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
             functionName: 'cancelGameRequestRelayer',
             args: [wallet_address as Address, game_request_id],
             chain: base,
-            account: RELAYER_ADDRESS
+            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
         });
 
         const paymasterReceipt = await sendTransactionWithRetry(simulation.request);

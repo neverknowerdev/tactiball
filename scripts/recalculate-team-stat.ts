@@ -78,7 +78,7 @@ function createSupabaseClient() {
 
 // Initialize Viem client
 function createViemClient() {
-    const rpcUrl = process.env.BASE_MAINNET_RPC_URL || process.env.RPC_URL || 'https://mainnet.base.org';
+    const rpcUrl = process.env.BASE_MAINNET_RPC_URL || process.env.RPC_URL || process.env.TESTNET_RPC_URL || 'https://mainnet.base.org';
 
     return createPublicClient({
         chain: base,

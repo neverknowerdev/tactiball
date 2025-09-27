@@ -813,7 +813,7 @@ export function serializeMoves(gameActions: GameAction[]): string {
 }
 
 // Deserialize a uint256-compatible string back to an array of GameAction objects
-export function deserializeMoves(serializedMoves: string): GameAction[] {
+export function deserializeMoves(serializedMoves: string, teamEnum: TeamEnum): GameAction[] {
     // Check if the string starts with '1' and has valid length (11 to 61 digits)
     if (!serializedMoves.startsWith('1') || serializedMoves.length < 11 || serializedMoves.length > 61) {
         throw new Error('Invalid serialized moves format: must start with 1 and have 11 to 61 digits');
@@ -845,7 +845,7 @@ export function deserializeMoves(serializedMoves: string): GameAction[] {
         const moveType = toMoveType(moveTypeDigit);
         const action: GameAction = {
             playerId,
-            teamEnum: TeamEnum.TEAM1, // Placeholder; teamEnum needs to be determined from context or additional data
+            teamEnum: teamEnum, // Placeholder; teamEnum needs to be determined from context or additional data
             moveType,
             oldPosition: { x: oldX, y: oldY },
             newPosition: { x: newX, y: newY },

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { type Address, parseEventLogs, Log } from 'viem';
 import { publicClient } from '@/lib/providers';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
-import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
+import { CONTRACT_ABI, CONTRACT_ADDRESS, TESTNET_CONTRACT_ADDRESS, RELAYER_ADDRESS, TESTNET_RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { BaseError, ContractFunctionRevertedError } from 'viem';
@@ -86,12 +86,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
-            address: CONTRACT_ADDRESS,
+            address: TESTNET_CONTRACT_ADDRESS || CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'createTeamRelayer',
             args: [walletAddress as Address, teamName, countryId],
             chain: base,
-            account: RELAYER_ADDRESS
+            account: TESTNET_RELAYER_ADDRESS || RELAYER_ADDRESS
         });
 
         const paymasterReceipt = await sendTransactionWithRetry(simulation.request);
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             walletAddress,
             teamName,
             countryId,
-            CONTRACT_ADDRESS
+            TESTNET_CONTRACT_ADDRESS || CONTRACT_ADDRESS
         });
 
         console.log('Transaction sent successfully:', paymasterReceipt.receipt.transactionHash);

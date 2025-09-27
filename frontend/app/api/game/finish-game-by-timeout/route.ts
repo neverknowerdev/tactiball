@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
             functionName: 'finishGameByTimeoutRelayer',
             args: [body.wallet_address, BigInt(body.game_id)],
             chain: base,
-            account: RELAYER_ADDRESS
+            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
         });
 
         console.log('Transaction simulation successful, executing...');

@@ -155,7 +155,9 @@ export async function POST(request: NextRequest) {
         const newGameStateRequest = {
             address: CONTRACT_ADDRESS,
             functionName: 'newGameState',
-            args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState]
+            args: [gameInfo.data.gameId, contractStateType, gameResult.clashRandomResults, contractTeam1Actions, contractTeam2Actions, gameResult.boardState],
+            chain: base,
+            account: RELAYER_ADDRESS || TESTNET_RELAYER_ADDRESS
         };
 
         console.log('Executing transaction to smart contract...');
