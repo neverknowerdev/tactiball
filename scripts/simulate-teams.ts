@@ -6,11 +6,12 @@
  */
 
 import { createPublicClient, http, encodeAbiParameters, parseAbiItem, encodeEventTopics } from 'viem';
+import { CONTRACT_ADDRESS, TESTNET_CONTRACT_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import gameArtifact from '../artifacts/contracts/Game.sol/ChessBallGame.json';
 
 // Configuration - UPDATE THESE VALUES
-const CONTRACT_ADDRESS = "0x08011cd93f958a01d8bF10CC6aAe507cA629b95C"; // Replace with your contract address
+const CONTRACT_ADDRESS = CONTRACT_ADDRESS || TESTNET_CONTRACT_ADDRESS; // Replace with your contract address
 const RPC_URL =  http(process.env.RPC_URL || process.env.TESTNET_RPC_URL || 'https://mainnet.base.org'); // Replace with your RPC URL
 
 // Create Viem client

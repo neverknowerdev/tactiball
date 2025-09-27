@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient } from '@/lib/providers';
 import { parseEventLogs, Log } from 'viem';
-import { CONTRACT_ADDRESS, CONTRACT_ABI, getGameFromContract, RELAYER_ADDRESS } from '@/lib/contract';
+import { CONTRACT_ADDRESS, CONTRACT_ABI, getGameFromContract, RELAYER_ADDRESS, TESTNET_RELAYER_ADDRESS, TESTNET_CONTRACT_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { decodeSymmetricKey, encodeData, bigintToBuffer } from '@/lib/encrypting';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         console.log('Team:', body.team_enum === 1 ? 'Team 1' : 'Team 2');
         console.log('Number of moves:', body.moves.length);
 
-        const gameEnginePrivateKey = process.env.GAME_ENGINE_PRIVATE_KEY || processGameMoves.env.TESTNET_GAME_ENGINE_PRIVATE_KEY;
+        const gameEnginePrivateKey = process.env.GAME_ENGINE_PRIVATE_KEY || process.env.TESTNET_GAME_ENGINE_PRIVATE_KEY;
         if (!gameEnginePrivateKey) {
             throw new Error('GAME_ENGINE_PRIVATE_KEY is not set');
         }
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
         console.log('body.team_enum', body.team_enum);
         console.log('encryptedMoves', encryptedMoves);
         const { request: simulationRequest } = await publicClient.simulateContract({
-            address: CONTRACT_ADDRESS,
+            address: CONTRACT_ADDRESS || TESTNET_CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'commitGameActionsRelayer',
             args: [body.wallet_address, body.game_id, body.team_enum, encryptedMoves],

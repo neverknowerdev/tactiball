@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient } from '@/lib/providers';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
-import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS } from '@/lib/contract';
+import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS, TESTNET_RELAYER_ADDRESS, TESTNET_CONTRACT_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { parseEventLogs } from 'viem';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         // Simulate the transaction first to ensure it will succeed
         console.log('Simulating finishGameByTimeoutRelayer transaction...');
         const { request: simulationRequest } = await publicClient.simulateContract({
-            address: CONTRACT_ADDRESS,
+            address: CONTRACT_ADDRESS || TESTNET_CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'finishGameByTimeoutRelayer',
             args: [body.wallet_address, BigInt(body.game_id)],
