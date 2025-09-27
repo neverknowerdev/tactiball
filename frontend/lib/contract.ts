@@ -4,7 +4,7 @@ import { publicClient } from './providers';
 import { Position } from './game';
 
 export const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS as Address || process.env.TESTNET_CONTRACT_ADDRESS as Address;
-console.log('CONTRACT_ADDRESS', CONTRACT_ADDRESS);
+console.log('CONTRACT_ADDRESS', process.env.CONTRACT_ADDRESS, CONTRACT_ADDRESS);
 //  || (process.env.ENV == 'prod' ? '0x5582A4C5a7e1d1997189774Cb1785aCb3d1E063d' as Address : '0x4385EBE9D693b205fdf5CCB552E912e0bf9B533c' as Address)
 // Import the ABI from the web3-functions directory
 export const CONTRACT_ABI = gameArtifact.abi as any[];
