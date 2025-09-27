@@ -3,12 +3,12 @@ import gameArtifact from '../../artifacts/contracts/Game.sol/ChessBallGame.json'
 import { publicClient } from './providers';
 import { Position } from './game';
 
-export const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || process.env.TESTNET_CONTRACT_ADDRESS;
+export const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS as Address || process.env.TESTNET_CONTRACT_ADDRESS as Address;
 //  || (process.env.ENV == 'prod' ? '0x5582A4C5a7e1d1997189774Cb1785aCb3d1E063d' as Address : '0x4385EBE9D693b205fdf5CCB552E912e0bf9B533c' as Address)
 // Import the ABI from the web3-functions directory
 export const CONTRACT_ABI = gameArtifact.abi as any[];
 
-export const RELAYER_ADDRESS = process.env.RELAYER_ADDRESS || process.env.TESTNET_RELAYER_ADDRESS;
+export const RELAYER_ADDRESS = process.env.RELAYER_ADDRESS as Address || process.env.TESTNET_RELAYER_ADDRESS as Address;
 //  || (process.env.ENV == 'prod' ? '0xc510350904b2fD01D9af92342f49a3c7aEC47739' as Address : '0x9B8af95247a68cE5dc38361D4A03f56bD8463D3f' as Address);
 
 export interface DecodedEvent {
