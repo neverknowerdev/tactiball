@@ -1,8 +1,9 @@
+// app/layout.tsx
 import "./theme.css";
 import "@coinbase/onchainkit/styles.css";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { MiniKitContextProvider } from "./miniKitProvider";
+import { Providers } from "./providers";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -13,8 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const URL = process.env.NEXT_PUBLIC_URL;
   return {
     title: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
-    description:
-      process.env.NEXT_PUBLIC_APP_DESCRIPTION,
+    description: process.env.NEXT_PUBLIC_APP_DESCRIPTION,
     other: {
       "fc:frame": JSON.stringify({
         version: "next",
@@ -43,7 +43,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <MiniKitContextProvider>{children}</MiniKitContextProvider>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

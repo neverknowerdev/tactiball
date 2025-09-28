@@ -1,33 +1,14 @@
 "use client";
 
-import {
-  useMiniKit,
-  useAuthenticate,
-  useAddFrame,
-  useOpenUrl,
-} from "@coinbase/onchainkit/minikit";
-import {
-  Name,
-  Identity,
-  Address,
-  Avatar,
-  EthBalance,
-} from "@coinbase/onchainkit/identity";
-import {
-  ConnectWallet,
-  Wallet,
-  WalletDropdown,
-  WalletDropdownDisconnect,
-} from "@coinbase/onchainkit/wallet";
+import { MiniKit } from "@worldcoin/minikit-js";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi"; // Keep useAccount/useSignMessage for now, will remove if not needed after World App fully integrates signing
 import { CreateTeamModal } from "./components/CreateTeamModal";
 import { SearchOpponentModal } from "./components/SearchOpponentModal";
 import { GameRequestModal } from "./components/GameRequestModal";
 import { subscribeToTeamChannel, unsubscribeFromTeamChannel } from "@/lib/ably";
-import { getName } from "@coinbase/onchainkit/identity";
 import { base } from "viem/chains";
-import { authUserWithSignature } from "@/lib/auth";
+import { authenticateWithWorldApp, useWorldApp } from "@/lib/auth";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import countryList from "../public/countryList.json";
@@ -38,10 +19,17 @@ import { GlobalStats } from "./components/GlobalStats";
 import moment from "moment";
 
 export default function App() {
-  const { setFrameReady, isFrameReady, context } = useMiniKit();
-  const [frameAdded, setFrameAdded] = useState(false);
-  const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const {
+    isInstalled: isWorldAppInstalled,
+    user: worldAppUser,
+    isAuthenticated: isWorldAppAuthenticated,
+    authenticate: authenticateWorldApp,
+    signMessage: worldAppSignMessage, // New: World App sign message
+  } = useWorldApp();
+
+  const { address: wagmiAddress, isConnected: isWagmiConnected } = useAccount();
+  const { signMessageAsync: wagmiSignMessageAsync } = useSignMessage();
+
   const [teamInfo, setTeamInfo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,100 +44,85 @@ export default function App() {
     team2_info: any;
   } | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
-  const addFrame = useAddFrame();
-  const openUrl = useOpenUrl();
+  // Determine the active wallet address and connection status
+  const currentAddress = worldAppUser?.walletAddress || wagmiAddress;
+  const isConnected = isWorldAppAuthenticated || isWagmiConnected;
 
-  // Load stats from localStorage on mount
+  // Function to sign messages: prioritize World App's signMessage
+  const signMessage = useCallback(
+    async (message: string) => {
+      if (isWorldAppAuthenticated && worldAppSignMessage) {
+        return worldAppSignMessage(message);
+      }
+      // Fallback to wagmi if World App is not authenticated or signMessage is not available
+      if (isWagmiConnected && wagmiSignMessageAsync) {
+        return wagmiSignMessageAsync({ message });
+      }
+      throw new Error("No connected wallet or signing method available.");
+    },
+    [isWorldAppAuthenticated, worldAppSignMessage, isWagmiConnected, wagmiSignMessageAsync],
+  );
+
   useEffect(() => {
-    try {
-      if (localStorage.getItem("userTeam")) {
-        setTeamInfo(JSON.parse(localStorage.getItem("userTeam") || "{}"));
-      }
-    } catch (error) {
-      console.error("Error loading team from localStorage:", error);
-    }
+    setIsMounted(true);
   }, []);
 
-  // Fetch global statistics
+  // Fetch username: prioritize World App username
+  const fetchUsername = useCallback(
+    async (walletAddress: string) => {
+      console.log("fetchUsername", walletAddress);
 
-  // Fetch username from onchain identity
-  const fetchUsername = useCallback(async (walletAddress: string) => {
-    console.log("fetchUsername", walletAddress);
-
-    console.log("context", context);
-    if (context?.user?.username) {
-      setUsername(context?.user?.username);
-      return;
-    }
-
-    const savedUsername = localStorage.getItem("user_basename");
-    const savedAddress = localStorage.getItem("user_address");
-    if (savedAddress && savedAddress === walletAddress.toLowerCase()) {
-      setUsername(savedUsername);
-      return;
-    }
-
-    try {
-      let nameResult = await getName({
-        address: walletAddress as `0x${string}`,
-        chain: base,
-      });
-      console.log("nameResult", nameResult);
-      // Trim .eth and .base suffixes if present
-      if (nameResult && typeof nameResult === "string") {
-        if (nameResult) {
-          nameResult = nameResult
-            .replace(/\.eth$/i, "")
-            .replace(/\.base$/i, "");
-        }
-        setUsername(nameResult);
-      } else {
-        // Fallback to shortened address if no name found
-        nameResult = `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
-        setUsername(nameResult);
+      if (worldAppUser?.username) {
+        setUsername(worldAppUser.username);
+        return;
       }
 
-      localStorage.setItem("user_basename", nameResult);
-      localStorage.setItem("user_address", walletAddress.toLowerCase());
-    } catch (error) {
-      console.error("Error fetching username:", error);
-      // Fallback to shortened address on error
+      // Fallback for getting username, can be removed if World App is the only source
       setUsername(`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`);
-    }
-  }, []);
+    },
+    [worldAppUser?.username],
+  );
 
-  // Fetch team info when wallet connects
-  const fetchTeamInfo = useCallback(async (walletAddress: string) => {
-    setLoading(true);
-    setError(null);
+  // Fetch team info when wallet connects (World App or otherwise)
+  const fetchTeamInfo = useCallback(
+    async (walletAddress: string) => {
+      setLoading(true);
+      setError(null);
 
-    try {
-      const response = await fetch(
-        `/api/get-team-info?wallet=${walletAddress}`,
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      try {
+        const response = await fetch(
+          `/api/get-team-info?wallet=${walletAddress}`,
+        );
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log("teamInfo", data);
+
+        if (data.is_found) {
+          setTeamInfo(data.team);
+          if (isMounted) {
+            localStorage.setItem("user_team_id", data.team.id);
+            localStorage.setItem("userTeam", JSON.stringify(data.team));
+          }
+        } else {
+          setTeamInfo(null);
+          if (isMounted) {
+            localStorage.removeItem("user_team_id");
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching team info:", err);
+        setError("Failed to fetch team information");
+      } finally {
+        setLoading(false);
       }
-
-      const data = await response.json();
-      console.log("teamInfo", data);
-
-      if (data.is_found) {
-        setTeamInfo(data.team);
-        localStorage.setItem("user_team_id", data.team.id);
-        localStorage.setItem("userTeam", JSON.stringify(data.team));
-      } else {
-        setTeamInfo(null);
-        localStorage.removeItem("user_team_id");
-      }
-    } catch (err) {
-      console.error("Error fetching team info:", err);
-      setError("Failed to fetch team information");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [isMounted],
+  );
 
   const handlePlayNow = useCallback(() => {
     if (!teamInfo) {
@@ -183,7 +156,7 @@ export default function App() {
 
   const handleCreateTeam = useCallback(
     async (teamName: string, countryIndex: string) => {
-      if (!address) {
+      if (!currentAddress) {
         alert("Please connect your wallet first");
         return;
       }
@@ -192,20 +165,19 @@ export default function App() {
       try {
         console.log("Creating team:", { teamName, countryIndex });
 
-        // Convert country index string to number
         const countryIndexNum = parseInt(countryIndex);
         if (isNaN(countryIndexNum) || countryIndexNum <= 0) {
           throw new Error("Invalid country selection");
         }
 
-        console.log("Creating team for address:", address);
+        console.log("Creating team for address:", currentAddress);
 
-        // Get or create authentication signature
-        const authSignature = await authUserWithSignature(
-          address,
-          signMessageAsync,
-        );
-        console.log("Authentication signature obtained:", authSignature);
+        // Use World App authentication directly
+        const authResult = await authenticateWorldApp(); // Call World App auth if not already authenticated
+
+        if (!authResult) {
+          throw new Error("World App authentication failed.");
+        }
 
         // Call the API endpoint
         const response = await fetch("/api/create-team", {
@@ -214,9 +186,9 @@ export default function App() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            walletAddress: address,
-            signature: authSignature.signature,
-            message: authSignature.message,
+            walletAddress: authResult.address,
+            signature: authResult.signature,
+            message: authResult.message,
             teamName: teamName,
             countryId: countryIndexNum,
           }),
@@ -227,9 +199,7 @@ export default function App() {
         console.log("response", response.status, result);
 
         if (!response.ok || !result.success) {
-          console.log("Toast here");
           setIsCreateTeamModalOpen(false);
-
           let errorMessage = "Failed to create team: " + result.error;
           if (result.errorName) {
             errorMessage += " (ERR:" + result.errorName + ")";
@@ -242,13 +212,11 @@ export default function App() {
             draggable: true,
             progress: undefined,
           });
-
           return;
         }
 
         console.log("Team created successfully:", result);
 
-        // Show success toast notification
         toast.success(`Team "${teamName}" created successfully!`, {
           position: "top-center",
           autoClose: 3000,
@@ -257,52 +225,40 @@ export default function App() {
           progress: undefined,
         });
 
-        if (address) {
-          fetchTeamInfo(address);
+        if (currentAddress) {
+          fetchTeamInfo(currentAddress);
         }
 
-        // Close modal and show success message
         setIsCreateTeamModalOpen(false);
       } catch (error) {
         console.error("Error creating team:", error);
-
-        // Provide user-friendly error messages
         let errorMessage = "Failed to create team. Please try again.";
         console.log("Error creating team:", error);
-
         alert(errorMessage);
       } finally {
         setIsCreatingTeam(false);
       }
     },
-    [address, fetchTeamInfo],
+    [currentAddress, fetchTeamInfo, authenticateWorldApp],
   );
 
-  // Watch for wallet connection changes
+  // Watch for connection changes and World App authentication status
   useEffect(() => {
-    if (isConnected && address) {
-      fetchTeamInfo(address);
-      fetchUsername(address);
+    if (isConnected && currentAddress) {
+      fetchTeamInfo(currentAddress);
+      fetchUsername(currentAddress);
     } else {
       setTeamInfo(null);
-
       setError(null);
       setUsername(null);
-
-      // Disconnect from team channel when wallet disconnects
       unsubscribeFromTeamChannel();
     }
-  }, [isConnected, address]);
+  }, [isConnected, currentAddress, fetchTeamInfo, fetchUsername]);
 
-  useEffect(() => {
-    if (!isFrameReady) {
-      setFrameReady();
-    }
-  }, [setFrameReady, isFrameReady]);
 
   // Subscribe to team channel when team info is available
   useEffect(() => {
-    if (teamInfo?.id && isConnected && address) {
+    if (teamInfo?.id && isConnected && currentAddress) {
       const connectToTeam = async () => {
         try {
           await subscribeToTeamChannel(teamInfo.id);
@@ -314,12 +270,11 @@ export default function App() {
 
       connectToTeam();
 
-      // Cleanup function to disconnect when component unmounts or team changes
       return () => {
         unsubscribeFromTeamChannel();
       };
     }
-  }, [teamInfo?.id, isConnected, address]);
+  }, [teamInfo?.id, isConnected, currentAddress]);
 
   // Listen for game events from team channel
   useEffect(() => {
@@ -329,7 +284,6 @@ export default function App() {
 
       if (gameEvent.type === "GAME_REQUEST_CREATED") {
         console.log("GAME_REQUEST_CREATED event received:", gameEvent);
-        // Close search opponent modal if it's open
         setIsSearchOpponentModalOpen(false);
         setIsGameRequestModalOpen(true);
 
@@ -340,13 +294,10 @@ export default function App() {
         });
       } else if (gameEvent.type === "GAME_REQUEST_CANCELLED") {
         console.log("GAME_REQUEST_CANCELLED event received:", gameEvent);
-
-        // Close search opponent modal if it's open
         setIsSearchOpponentModalOpen(false);
         setIsGameRequestModalOpen(false);
         setGameRequestData(null);
 
-        // Show success toast notification
         toast.error(`Game request ${gameEvent.game_request_id} cancelled!`, {
           position: "top-center",
           autoClose: 3000,
@@ -357,104 +308,56 @@ export default function App() {
       } else if (gameEvent.type === "GAME_STARTED") {
         console.log("GAME_STARTED event received:", gameEvent);
 
-        // Handle game started event
-        // Check if this event is relevant to the current user's team
         if (
           gameEvent.team1_id === teamInfo?.id ||
           gameEvent.team2_id === teamInfo?.id
         ) {
           console.log("Game started for current team:", gameEvent);
-
-          // Redirect to the game page
           const gameUrl = `/game/${gameEvent.game_id}/`;
           console.log("Redirecting to game:", gameUrl);
-
-          // // Close any open modals
-          // setIsGameRequestModalOpen(false);
-          // setIsSearchOpponentModalOpen(false);
-          // setGameRequestData(null);
-
-          // Use window.location for navigation
           window.location.href = gameUrl;
         }
       }
     };
 
-    // Add event listener for game events
     window.addEventListener("game-event", handleGameEvent as EventListener);
 
-    // Cleanup function that runs when the component unmounts or when dependencies change
-    // This removes the event listener to prevent memory leaks and duplicate listeners
     return () => {
       window.removeEventListener(
         "game-event",
         handleGameEvent as EventListener,
       );
     };
-  }, [teamInfo, username, address, signMessageAsync]);
+  }, [teamInfo, username, currentAddress, signMessage]);
 
-  const handleAddFrame = useCallback(async () => {
-    const frameAdded = await addFrame();
-    setFrameAdded(Boolean(frameAdded));
-  }, [addFrame]);
-
-  const saveFrameButton = useMemo(() => {
-    if (context && !context.client.added) {
-      return (
-        <button
-          onClick={handleAddFrame}
-          className="text-[#0052FF] p-4 text-sm font-medium hover:bg-blue-50 rounded-lg transition-colors"
-        >
-          Save Frame
-        </button>
-      );
-    }
-
-    if (frameAdded) {
-      return (
-        <div className="flex items-center space-x-1 text-sm font-medium text-[#0052FF]">
-          <span>✓ Saved</span>
-        </div>
-      );
-    }
-
-    return null;
-  }, [context, frameAdded, handleAddFrame]);
 
   const countryFlagCache = React.useMemo(() => new Map<number, string>(), []);
 
-  // Helper function to format ELO rating from 1000 format to 10.00 format
   const formatElo = (elo: number): string => {
     return (elo / 100).toFixed(2);
   };
 
-  // Helper function to get country flag emoji
   const getCountryFlag = React.useCallback(
     (countryIndex: number) => {
-      // Check cache first
       if (countryFlagCache.has(countryIndex)) {
         return countryFlagCache.get(countryIndex)!;
       }
 
-      // Find the country by index in the country list
       const country = countryList.find((c) => c.index === countryIndex);
 
       if (country && country.code) {
-        // Convert country code to flag emoji using Unicode regional indicator symbols
         const codePoints = country.code
           .toUpperCase()
           .split("")
-          .map((char) => char.charCodeAt(0) + 127397); // 127397 is the offset from 'A' to 🇦
+          .map((char) => char.charCodeAt(0) + 127397);
 
         const flag = String.fromCodePoint(...codePoints);
 
-        // Cache the result
         countryFlagCache.set(countryIndex, flag);
 
         return flag;
       }
 
-      // Fallback for invalid country index
       const fallback = `#${countryIndex}`;
       countryFlagCache.set(countryIndex, fallback);
       return fallback;
@@ -462,28 +365,34 @@ export default function App() {
     [countryFlagCache],
   );
 
+  if (!isMounted) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans mini-app-theme relative">
-      {/* Wallet connection - fixed to right corner */}
+      {/* World App Connection Indicator & Authentication Button */}
       <div className="absolute top-4 right-4 z-20">
         <div className="flex items-center space-x-2">
-          <Wallet className="z-10">
-            <ConnectWallet
-              className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
-              disconnectedLabel="Connect Wallet"
+          {isWorldAppInstalled ? (
+            <button
+              onClick={authenticateWorldApp}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
             >
-              <Name className="text-white" />
-            </ConnectWallet>
-            <WalletDropdown>
-              <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                <Avatar />
-                <Name />
-                <Address />
-                <EthBalance />
-              </Identity>
-              <WalletDropdownDisconnect />
-            </WalletDropdown>
-          </Wallet>
+              {isWorldAppAuthenticated
+                ? `Connected: ${worldAppUser?.username || currentAddress?.slice(0, 6)}...`
+                : "Connect World App"}
+            </button>
+          ) : (
+            <a
+              href="https://worldcoin.org/download"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm"
+            >
+              Get World App
+            </a>
+          )}
         </div>
       </div>
 
@@ -492,23 +401,6 @@ export default function App() {
         <div className="flex flex-col items-center">
           <img src="/logo-white.png" alt="ChessBall Logo" className="h-42" />
         </div>
-      </div>
-
-      {/* How to Play link */}
-      <div className="w-full max-w-md flex justify-end mb-3">
-        <button
-          onClick={() => openUrl(`${window.location.origin}/rules-of-game`)}
-          className="flex items-center gap-1 text-sm text-gray-300 hover:text-white underline transition-colors"
-        >
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"
-              clipRule="evenodd"
-            />
-          </svg>
-          How to Play?
-        </button>
       </div>
 
       {/* Main content */}
@@ -564,7 +456,7 @@ export default function App() {
                 </div>
                 <p className="text-red-500 text-sm mb-3">{error}</p>
                 <button
-                  onClick={() => address && fetchTeamInfo(address)}
+                  onClick={() => currentAddress && fetchTeamInfo(currentAddress)}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
                 >
                   Retry
@@ -598,10 +490,20 @@ export default function App() {
 
                     {/* Player info */}
                     <div className="flex justify-between items-center mb-2">
-                      <Identity className="bg-white px-0 space-x-1 team-coach-username">
-                        <Avatar className="w-6 h-6" />
-                        <Name className="text-black ml-0" />
-                      </Identity>
+                      <div className="flex items-center space-x-1 team-coach-username">
+                        {/* World App User Avatar (if available) */}
+                        {worldAppUser?.profilePictureUrl && (
+                          <img
+                            src={worldAppUser.profilePictureUrl}
+                            alt="Profile"
+                            className="w-6 h-6 rounded-full"
+                          />
+                        )}
+                        <span className="text-black ml-0">
+                          {username ||
+                            `${currentAddress?.slice(0, 6)}...${currentAddress?.slice(-4)}`}
+                        </span>
+                      </div>
                       <div
                         className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded"
                         title={`Position: ${teamInfo.league_position}th in ${teamInfo.country} / ${teamInfo.global_position}th globally`}
@@ -664,13 +566,27 @@ export default function App() {
               </div>
               <div className="text-gray-500 mb-4">
                 <p className="text-sm">
-                  Connect your wallet to view your team information
+                  Connect your World App wallet to view your team information
                 </p>
               </div>
               <div className="flex justify-center">
-                <ConnectWallet className="bg-black px-4 py-2 rounded-lg hover:bg-gray-800 custom-connect-wallet">
-                  Connect Wallet
-                </ConnectWallet>
+                {isWorldAppInstalled ? (
+                  <button
+                    onClick={authenticateWorldApp}
+                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    Connect World App
+                  </button>
+                ) : (
+                  <a
+                    href="https://worldcoin.org/download"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm"
+                  >
+                    Get World App to Connect
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -695,10 +611,6 @@ export default function App() {
               </button>
             )}
           </div>
-          {/* <div className="flex items-center justify-between mt-2">
-            <div className="text-sm text-gray-700">🔥 32 players online now</div>
-            <button className="text-sm text-gray-600 hover:text-gray-800">Share to Feed</button>
-          </div> */}
         </div>
 
         {/* Global game stats */}
@@ -737,11 +649,11 @@ export default function App() {
         onClose={() => setIsSearchOpponentModalOpen(false)}
         onCancel={handleCancelSearch}
         userInfo={
-          teamInfo
+          teamInfo && currentAddress
             ? {
                 team_name: teamInfo.name,
                 team_id: teamInfo.id,
-                user_wallet_address: address || "",
+                user_wallet_address: currentAddress,
                 username: username || "",
                 elo_rating: teamInfo.elo_rating,
               }
@@ -761,7 +673,7 @@ export default function App() {
           team1_info={gameRequestData.team1_info}
           team2_info={gameRequestData.team2_info}
           current_team_id={teamInfo?.id || null}
-          current_user_wallet={address as `0x${string}`}
+          current_user_wallet={currentAddress as `0x${string}`}
         />
       )}
       {/* Toast notifications container */}
