@@ -90,7 +90,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             abi: CONTRACT_ABI,
             functionName: 'createTeamRelayer',
             args: [walletAddress as Address, teamName, countryId],
-            chain: baseSepoliaPreconf,
+            chain: base,
             account: RELAYER_ADDRESS
         });
 

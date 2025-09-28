@@ -377,7 +377,7 @@ export default function App() {
           {isWorldAppInstalled ? (
             <button
               onClick={authenticateWorldApp}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+              className="px-8 text-base py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
             >
               {isWorldAppAuthenticated
                 ? `Connected: ${worldAppUser?.username || currentAddress?.slice(0, 6)}...`
