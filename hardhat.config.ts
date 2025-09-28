@@ -54,6 +54,11 @@ const config = {
       accounts: process.env.WALLET_PRIVATE_KEY ? [process.env.WALLET_PRIVATE_KEY] : [],
       chainId: 8453,
     },
+    worldchain: {
+      url: process.env.WORLDCHAIN_RPC_URL || "",
+      accounts: process.env.WALLET_PRIVATE_KEY ? [process.env.WALLET_PRIVATE_KEY] : [],
+      chainId: 480,
+    },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY || "",
@@ -72,6 +77,14 @@ const config = {
         urls: {
           apiURL: "https://api.basescan.org/api",
           browserURL: "https://basescan.org"
+        }
+      },
+      {
+        network: "worldchain",
+        chainId: 480,
+        urls: {
+          apiURL: "https://worldscan.org/api",
+          browserURL: "https://worldscan.org"
         }
       }
     ]

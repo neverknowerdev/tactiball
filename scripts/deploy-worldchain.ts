@@ -36,13 +36,14 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Deploying contracts with the account:", deployer.address);
 
-    if (!process.env.RELAYER_PRIVATE_KEY) {
-        console.log("RELAYER_PRIVATE_KEY is not set");
+    if (hre.network.name !== "worldchain") {
+        console.log("Not deploying to worldchain");
         return;
     }
 
     const GAME_ENGINE_ADDRESS = process.env.GAME_ENGINE_ADDRESS;
     const PUBLIC_KEY = process.env.PUBLIC_KEY;
+    const RELAYER_ADDRESS = process.env.RELAYER_ADDRESS;
 
     if (!GAME_ENGINE_ADDRESS) {
         console.log("GAME_ENGINE_ADDRESS env is not set");
@@ -54,31 +55,10 @@ async function main() {
         return;
     }
 
-    const RPC_URL = process.env.RPC_URL;
-    if (!RPC_URL) {
-        console.log("RPC_URL env is not set");
+    if (!RELAYER_ADDRESS) {
+        console.log("RELAYER_ADDRESS env is not set");
         return;
     }
-
-    const owner = privateKeyToAccount(process.env.RELAYER_PRIVATE_KEY as Hex);
-
-    const publicClient = createPublicClient({
-        chain: baseSepolia,
-        transport: http(RPC_URL)
-    });
-
-    const relayerAddress = owner.address;
-
-    // Create Coinbase smart wallet using the EOA signer
-    const smartAccount = await toCoinbaseSmartAccount({
-        client: publicClient,
-        owners: [owner],
-        version: '1.1' // Specify version as required
-    });
-
-    const relayerSmartAccountAddress = await smartAccount.getAddress();
-
-    console.log("Relayer smart account address:", relayerSmartAccountAddress);
 
     // Step 1: Deploy libraries first
     console.log("\n=== Deploying Libraries ===");
@@ -123,8 +103,8 @@ async function main() {
     console.log("\n=== Deploying Proxy Contract ===");
 
     const constructorArgs = [
-        relayerAddress,
-        relayerSmartAccountAddress,
+        RELAYER_ADDRESS,
+        RELAYER_ADDRESS,
         GAME_ENGINE_ADDRESS,
         PUBLIC_KEY
     ];

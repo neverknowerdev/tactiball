@@ -28,5 +28,17 @@
       "gameLib": "0xA8dD7Bac4AcA3dB1b9185b88207B85b2e0251B70"
     },
     "librariesUpdated": false
+  },
+  "worldchain": {
+    "network": "worldchain",
+    "chainId": "480",
+    "proxyAddress": "0x237e559Ae791f04E38371A841F3b25A9622fbdEe",
+    "implementationAddress": "0xa4702f8bb9AeBCcE6B9345E9351d15FBDf0e373F",
+    "libraries": {
+      "gameLib": "0xc7724161412445c6Ee291c3B736c17AF510B4656"
+    },
+    "deployer": "0xf831c2F992866D01A2d66dB807adD7EEE8980914",
+    "timestamp": "2025-09-28T12:24:07.899Z",
+    "gameLibHash": "07269d7fdca6d85fff15e86bb7015b172dadc96d53ceac5a5ec4c7020ff6dd52"
   }
 }
