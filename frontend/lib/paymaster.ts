@@ -1,7 +1,7 @@
 "use server";
 import { createPaymasterClient } from 'viem/account-abstraction'
 import { createWalletClient, createPublicClient, http, type Hex } from 'viem';
-import { basePreconf, baseSepoliaPreconf, baseSepolia } from 'viem/chains';
+import { basePreconf } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { toCoinbaseSmartAccount } from 'viem/account-abstraction';
 import { createBundlerClient } from 'viem/account-abstraction';
@@ -25,7 +25,7 @@ function getCoinbasePaymasterRpcUrl() {
 
 // Create a dedicated flashblocks client with HTTP transport for faster confirmations
 const flashblocksClient = createPublicClient({
-    chain: baseSepolia,
+    chain: basePreconf,
     transport: http(FLASHBLOCKS_RPC_URL),
     pollingInterval: 100,
 });
@@ -57,7 +57,7 @@ export async function createRelayerBundlerClient() {
         account: smartAccount,
         client: flashblocksClient, // Use flashblocks client for faster confirmations
         transport: http(FLASHBLOCKS_RPC_URL),
-        chain: baseSepoliaPreconf,
+        chain: basePreconf,
         paymaster: createPaymasterClient({
             transport: http(getCoinbasePaymasterRpcUrl())
         })
@@ -71,7 +71,7 @@ export async function createRelayerClient() {
     // Return a wallet client that uses the smart account
     return createWalletClient({
         account: smartAccount,
-        chain: baseSepoliaPreconf,
+        chain: basePreconf,
         transport: http(FLASHBLOCKS_RPC_URL),
     });
 }
