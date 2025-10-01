@@ -1,252 +1,409 @@
 "use server";
-import { createPaymasterClient } from 'viem/account-abstraction'
-import { createWalletClient, createPublicClient, http, type Hex } from 'viem';
-import { basePreconf } from 'viem/chains';
-import { privateKeyToAccount } from 'viem/accounts';
-import { toCoinbaseSmartAccount } from 'viem/account-abstraction';
-import { createBundlerClient } from 'viem/account-abstraction';
-import { redis } from './redis';
-import { UserOperationReceipt } from 'viem/account-abstraction';
-import { CONTRACT_ABI } from './contract';
+import { createPaymasterClient } from "viem/account-abstraction";
+import { createWalletClient, createPublicClient, http, type Hex } from "viem";
+import { basePreconf } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+import { toCoinbaseSmartAccount } from "viem/account-abstraction";
+import { createBundlerClient } from "viem/account-abstraction";
+import { redis } from "./redis";
+import { UserOperationReceipt } from "viem/account-abstraction";
+import { CONTRACT_ABI } from "./contract";
 
-const COINBASE_PAYMASTER_RPC_URL = process.env.COINBASE_PAYMASTER_RPC_URL || process.env.TESTNET_COINBASE_PAYMASTER_RPC_URL;
-const FLASHBLOCKS_RPC_URL = process.env.FLASHBLOCKS_RPC_URL || process.env.TESTNET_FLASHBLOCKS_RPC_URL;
-const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY || process.env.TESTNET_RELAYER_PRIVATE_KEY;
+const COINBASE_PAYMASTER_RPC_URL =
+  process.env.COINBASE_PAYMASTER_RPC_URL ||
+  process.env.TESTNET_COINBASE_PAYMASTER_RPC_URL;
+const FLASHBLOCKS_RPC_URL =
+  process.env.FLASHBLOCKS_RPC_URL || process.env.TESTNET_FLASHBLOCKS_RPC_URL;
+const RELAYER_PRIVATE_KEY =
+  process.env.RELAYER_PRIVATE_KEY || process.env.TESTNET_RELAYER_PRIVATE_KEY;
+
+// OPTIMIZATION: Aggressive polling for flashblocks
+const FLASHBLOCKS_POLLING_INTERVAL = 50; // 50ms for ultra-fast confirmation
+const FLASHBLOCKS_TIMEOUT = 5000; // 5 second timeout
 
 function getCoinbasePaymasterRpcUrl() {
-    // Coinbase Paymaster Configuration
-    if (!COINBASE_PAYMASTER_RPC_URL) {
-        throw new Error('COINBASE_PAYMASTER_RPC_URL environment variable is required');
-    }
-
-    console.log('Using Coinbase Paymaster for transaction sponsorship');
-    return COINBASE_PAYMASTER_RPC_URL;
+  if (!COINBASE_PAYMASTER_RPC_URL) {
+    throw new Error(
+      "COINBASE_PAYMASTER_RPC_URL environment variable is required",
+    );
+  }
+  return COINBASE_PAYMASTER_RPC_URL;
 }
 
-// Create a dedicated flashblocks client with HTTP transport for faster confirmations
-const flashblocksClient = createPublicClient({
-    chain: basePreconf,
-    transport: http(FLASHBLOCKS_RPC_URL),
-    pollingInterval: 100,
-});
+// OPTIMIZATION: Create persistent clients to avoid recreation overhead
+let _flashblocksClient: ReturnType<typeof createPublicClient> | null = null;
+let _smartAccount: Awaited<ReturnType<typeof toCoinbaseSmartAccount>> | null =
+  null;
+let _bundlerClient: Awaited<ReturnType<typeof createBundlerClient>> | null =
+  null;
 
-// Create smart account for Paymaster transactions
+function getFlashblocksClient() {
+  if (!_flashblocksClient) {
+    _flashblocksClient = createPublicClient({
+      chain: basePreconf,
+      transport: http(FLASHBLOCKS_RPC_URL, {
+        // OPTIMIZATION: Configure HTTP transport for speed
+        timeout: FLASHBLOCKS_TIMEOUT,
+        retryCount: 2,
+        retryDelay: 100,
+      }),
+      pollingInterval: FLASHBLOCKS_POLLING_INTERVAL,
+      // OPTIMIZATION: Batch requests when possible
+      batch: {
+        multicall: {
+          batchSize: 1024,
+          wait: 0, // Don't wait to batch - send immediately
+        },
+      },
+    });
+  }
+  return _flashblocksClient;
+}
+
+// OPTIMIZATION: Cache smart account to avoid recreation
 export async function createSmartAccount() {
-    const privateKey = RELAYER_PRIVATE_KEY;
-    if (!privateKey) {
-        throw new Error('RELAYER_PRIVATE_KEY environment variable is required');
-    }
+  if (_smartAccount) {
+    return _smartAccount;
+  }
 
-    const owner = privateKeyToAccount(privateKey as Hex);
+  const privateKey = RELAYER_PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("RELAYER_PRIVATE_KEY environment variable is required");
+  }
 
-    // Create Coinbase smart wallet using the EOA signer
-    const smartAccount = await toCoinbaseSmartAccount({
-        client: flashblocksClient,
-        owners: [owner],
-        version: '1.1' // Specify version as required
-    });
+  const owner = privateKeyToAccount(privateKey as Hex);
+  const client = getFlashblocksClient();
 
-    return smartAccount;
+  _smartAccount = await toCoinbaseSmartAccount({
+    client,
+    owners: [owner],
+    version: "1.1",
+  });
+
+  return _smartAccount;
 }
 
-// Create bundler client for UserOperations
+// OPTIMIZATION: Cache bundler client
 export async function createRelayerBundlerClient() {
-    const smartAccount = await createSmartAccount();
+  if (_bundlerClient) {
+    return _bundlerClient;
+  }
 
-    return createBundlerClient({
-        account: smartAccount,
-        client: flashblocksClient, // Use flashblocks client for faster confirmations
-        transport: http(FLASHBLOCKS_RPC_URL),
-        chain: basePreconf,
-        paymaster: createPaymasterClient({
-            transport: http(getCoinbasePaymasterRpcUrl())
-        })
-    });
+  const smartAccount = await createSmartAccount();
+
+  _bundlerClient = createBundlerClient({
+    account: smartAccount,
+    client: getFlashblocksClient(),
+    transport: http(FLASHBLOCKS_RPC_URL, {
+      timeout: FLASHBLOCKS_TIMEOUT,
+      retryCount: 2,
+      retryDelay: 100,
+    }),
+    chain: basePreconf,
+    paymaster: createPaymasterClient({
+      transport: http(getCoinbasePaymasterRpcUrl(), {
+        timeout: FLASHBLOCKS_TIMEOUT,
+      }),
+    }),
+  });
+
+  return _bundlerClient;
 }
 
-// Legacy function for backward compatibility (now uses smart account)
+// Legacy function for backward compatibility
 export async function createRelayerClient() {
-    const smartAccount = await createSmartAccount();
+  const smartAccount = await createSmartAccount();
 
-    // Return a wallet client that uses the smart account
-    return createWalletClient({
-        account: smartAccount,
-        chain: basePreconf,
-        transport: http(FLASHBLOCKS_RPC_URL),
-    });
+  return createWalletClient({
+    account: smartAccount,
+    chain: basePreconf,
+    transport: http(FLASHBLOCKS_RPC_URL, {
+      timeout: FLASHBLOCKS_TIMEOUT,
+    }),
+  });
 }
 
-// Redis-based nonce management for relayer
+// Redis-based nonce management (kept same, but using cached client)
 export async function getNextRelayerNonce(account: Hex): Promise<bigint> {
-    const nonceKey = `relayer_nonce:${account}`;
+  const nonceKey = `relayer_nonce:${account}`;
 
-    try {
-        if (!redis) {
-            throw new Error('Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables');
-        }
-
-        // Use Redis INCR for atomic increment
-        const nonceStr = await redis.incr(nonceKey);
-        const nonce = Number(nonceStr);
-
-        // If this is the first time (nonce === 1), get the current nonce from blockchain
-        if (nonce === 1) {
-            console.log('Fetching initial nonce using flashblocks client');
-            const blockchainNonce = await flashblocksClient.getTransactionCount({
-                address: account,
-                blockTag: 'pending'
-            });
-
-            // Set the nonce to blockchain nonce + 1
-            await redis.set(nonceKey, Number(blockchainNonce) + 1);
-            return BigInt(blockchainNonce as number);
-        }
-
-        return BigInt(nonce - 1); // Redis INCR returns the new value, so subtract 1
-    } catch (error) {
-        console.error('Error getting next relayer nonce:', error);
-        throw new Error(`Failed to get next nonce: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  try {
+    if (!redis) {
+      throw new Error(
+        "Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables",
+      );
     }
+
+    const nonceStr = await redis.incr(nonceKey);
+    const nonce = Number(nonceStr);
+
+    if (nonce === 1) {
+      const client = getFlashblocksClient();
+      const blockchainNonce = await client.getTransactionCount({
+        address: account,
+        blockTag: "pending",
+      });
+
+      await redis.set(nonceKey, Number(blockchainNonce) + 1);
+      return BigInt(blockchainNonce as number);
+    }
+
+    return BigInt(nonce - 1);
+  } catch (error) {
+    console.error("Error getting next relayer nonce:", error);
+    throw new Error(
+      `Failed to get next nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
 }
 
-// Reset nonce counter (useful for testing or if nonce gets out of sync)
 export async function resetRelayerNonce(account: Hex): Promise<void> {
-    const nonceKey = `relayer_nonce:${account}`;
+  const nonceKey = `relayer_nonce:${account}`;
 
-    try {
-        if (!redis) {
-            throw new Error('Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables');
-        }
-
-        // Get current nonce from blockchain using flashblocks
-        console.log('Resetting nonce using flashblocks client');
-        const blockchainNonce = await flashblocksClient.getTransactionCount({
-            address: account,
-            blockTag: 'pending'
-        });
-
-        // Reset to blockchain nonce
-        await redis.set(nonceKey, Number(blockchainNonce));
-        console.log(`Reset nonce for ${account} to ${blockchainNonce}`);
-    } catch (error) {
-        console.error('Error resetting relayer nonce:', error);
-        throw new Error(`Failed to reset nonce: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-}
-
-// Get current nonce without incrementing (for debugging)
-export async function getCurrentRelayerNonce(account: Hex): Promise<bigint> {
-    const nonceKey = `relayer_nonce:${account}`;
-
-    try {
-        if (!redis) {
-            throw new Error('Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables');
-        }
-
-        const nonceStr = await redis.get(nonceKey);
-        const nonce = nonceStr !== null ? Number(nonceStr) : null;
-
-        if (nonce === null) {
-            // No nonce stored, get from blockchain using flashblocks
-            console.log('Fetching current nonce using flashblocks client');
-            const blockchainNonce = await flashblocksClient.getTransactionCount({
-                address: account,
-                blockTag: 'pending'
-            });
-            return BigInt(blockchainNonce as number);
-        }
-
-        return BigInt(nonce);
-    } catch (error) {
-        console.error('Error getting current relayer nonce:', error);
-        throw new Error(`Failed to get current nonce: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-}
-
-// Generic function to send transactions with retry logic using UserOperations
-export async function sendTransactionWithRetry(request: any, maxRetries: number = 3): Promise<UserOperationReceipt> {
-    const bundlerClient = await createRelayerBundlerClient();
-    const smartAccount = await createSmartAccount();
-    const accountAddress = smartAccount.address;
-
-    console.log('Sending UserOperation for smart account:', accountAddress);
-    console.log('Transaction will be sponsored by Coinbase Paymaster');
-    console.log('Using flashblocks client for transaction processing');
-
-    // Convert the contract call request to a UserOperation call
-    const call = {
-        abi: CONTRACT_ABI,
-        functionName: request.functionName,
-        to: request.address,
-        args: request.args,
-    };
-
-    // Let the bundler handle gas estimation automatically
-    // The bundler will estimate gas and apply Paymaster sponsorship
-
-    let userOpHash: string;
-    let retryCount = 0;
-
-    while (retryCount < maxRetries) {
-        try {
-            // Send UserOperation with Paymaster sponsorship
-            console.log('Sending UserOperation with flashblocks optimization');
-            userOpHash = await bundlerClient.sendUserOperation({
-                account: smartAccount,
-                calls: [call]
-            });
-
-            console.log('UserOperation sent successfully. UserOp hash:', userOpHash);
-            console.log('Transaction sponsored by Coinbase Paymaster: YES');
-
-            // Wait for UserOperation receipt with flashblocks optimization
-            console.log('Waiting for UserOperation receipt with flashblocks polling');
-            const receipt = await bundlerClient.waitForUserOperationReceipt({
-                hash: userOpHash as `0x${string}`,
-                pollingInterval: 100 // Optimized for flashblocks (faster than standard 200ms)
-            });
-
-            console.log('UserOperation receipt received');
-            return receipt;
-
-        } catch (error: any) {
-            retryCount++;
-            console.error(`UserOperation attempt ${retryCount} failed:`, error.message);
-
-            // Paymaster specific error handling
-            if (error.message?.includes('insufficient funds') ||
-                error.message?.includes('gas estimation failed') ||
-                error.message?.includes('execution reverted') ||
-                error.message?.includes('paymaster') ||
-                error.message?.includes('sponsor')) {
-                console.error('Paymaster UserOperation failed:', error.message);
-                throw error; // Don't retry for these errors
-            }
-
-            if (error.message?.includes('replacement transaction underpriced') && retryCount < maxRetries) {
-                // Wait a bit before retry to let the previous transaction settle
-                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-                continue;
-            }
-
-            throw error;
-        }
+  try {
+    if (!redis) {
+      throw new Error(
+        "Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables",
+      );
     }
 
-    throw new Error('Failed to commit UserOperation after maximum retries');
-}
-
-export async function waitForPaymasterTransactionReceipt(hash: string | UserOperationReceipt) {
-    console.log('UserOperation sent successfully. UserOp hash:', hash);
-    console.log('Transaction sponsored by Coinbase Paymaster: YES');
-
-    // If it's a UserOperationReceipt, extract the transaction hash
-    const txHash = typeof hash === 'string' ? hash : hash.receipt.transactionHash;
-
-    // Use flashblocks client for faster confirmation
-    return await flashblocksClient.waitForTransactionReceipt({
-        hash: txHash as `0x${string}`,
-        confirmations: 0,
-        pollingInterval: 100 // Optimized for flashblocks
+    const client = getFlashblocksClient();
+    const blockchainNonce = await client.getTransactionCount({
+      address: account,
+      blockTag: "pending",
     });
+
+    await redis.set(nonceKey, Number(blockchainNonce));
+    console.log(`Reset nonce for ${account} to ${blockchainNonce}`);
+  } catch (error) {
+    console.error("Error resetting relayer nonce:", error);
+    throw new Error(
+      `Failed to reset nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+}
+
+export async function getCurrentRelayerNonce(account: Hex): Promise<bigint> {
+  const nonceKey = `relayer_nonce:${account}`;
+
+  try {
+    if (!redis) {
+      throw new Error(
+        "Redis client not available - check REDIS_URL and REDIS_TOKEN environment variables",
+      );
+    }
+
+    const nonceStr = await redis.get(nonceKey);
+    const nonce = nonceStr !== null ? Number(nonceStr) : null;
+
+    if (nonce === null) {
+      const client = getFlashblocksClient();
+      const blockchainNonce = await client.getTransactionCount({
+        address: account,
+        blockTag: "pending",
+      });
+      return BigInt(blockchainNonce as number);
+    }
+
+    return BigInt(nonce);
+  } catch (error) {
+    console.error("Error getting current relayer nonce:", error);
+    throw new Error(
+      `Failed to get current nonce: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+}
+
+// OPTIMIZATION: Enhanced transaction sending with detailed timing
+export async function sendTransactionWithRetry(
+  request: any,
+  maxRetries: number = 2, // Reduced retries since flashblocks is fast
+): Promise<UserOperationReceipt> {
+  const startTime = performance.now();
+
+  const bundlerClient = await createRelayerBundlerClient();
+  const smartAccount = await createSmartAccount();
+  const accountAddress = smartAccount.address;
+
+  const setupTime = performance.now() - startTime;
+  console.log(`⚡ Client setup: ${setupTime.toFixed(2)}ms`);
+
+  // Convert the contract call request to a UserOperation call
+  const call = {
+    abi: CONTRACT_ABI,
+    functionName: request.functionName,
+    to: request.address,
+    args: request.args,
+  };
+
+  let userOpHash: string;
+  let retryCount = 0;
+
+  while (retryCount < maxRetries) {
+    try {
+      // OPTIMIZATION: Measure send time
+      const sendStart = performance.now();
+
+      userOpHash = await bundlerClient.sendUserOperation({
+        account: smartAccount,
+        calls: [call],
+      });
+
+      const sendTime = performance.now() - sendStart;
+      console.log(
+        `⚡ UserOp sent: ${sendTime.toFixed(2)}ms | Hash: ${userOpHash.slice(0, 10)}...`,
+      );
+
+      // OPTIMIZATION: Measure receipt wait time with aggressive polling
+      const receiptStart = performance.now();
+
+      const receipt = await bundlerClient.waitForUserOperationReceipt({
+        hash: userOpHash as `0x${string}`,
+        pollingInterval: FLASHBLOCKS_POLLING_INTERVAL,
+        timeout: FLASHBLOCKS_TIMEOUT,
+      });
+
+      const receiptTime = performance.now() - receiptStart;
+      const totalTime = performance.now() - startTime;
+
+      console.log(`⚡ Receipt received: ${receiptTime.toFixed(2)}ms`);
+      console.log(`🎯 Total time: ${totalTime.toFixed(2)}ms`);
+      console.log(`💰 Sponsored by Coinbase Paymaster: YES`);
+
+      return receipt;
+    } catch (error: any) {
+      retryCount++;
+      const errorTime = performance.now() - startTime;
+      console.error(
+        `❌ Attempt ${retryCount} failed (${errorTime.toFixed(2)}ms):`,
+        error.message,
+      );
+
+      // Don't retry for certain errors
+      if (
+        error.message?.includes("insufficient funds") ||
+        error.message?.includes("execution reverted") ||
+        error.message?.includes("paymaster") ||
+        error.message?.includes("sponsor")
+      ) {
+        throw error;
+      }
+
+      if (
+        error.message?.includes("replacement transaction underpriced") &&
+        retryCount < maxRetries
+      ) {
+        // Minimal wait before retry
+        await new Promise((resolve) => setTimeout(resolve, 200 * retryCount));
+        continue;
+      }
+
+      // Timeout errors - might want to retry
+      if (error.message?.includes("timeout") && retryCount < maxRetries) {
+        console.log(`⏱️ Timeout, retrying with extended timeout...`);
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw new Error("Failed to commit UserOperation after maximum retries");
+}
+
+// OPTIMIZATION: Fast receipt confirmation with flashblocks
+export async function waitForPaymasterTransactionReceipt(
+  hash: string | UserOperationReceipt,
+) {
+  const startTime = performance.now();
+
+  const txHash = typeof hash === "string" ? hash : hash.receipt.transactionHash;
+  console.log(`⏳ Waiting for final confirmation: ${txHash.slice(0, 10)}...`);
+
+  const client = getFlashblocksClient();
+  const receipt = await client.waitForTransactionReceipt({
+    hash: txHash as `0x${string}`,
+    confirmations: 0, // Flashblocks provides instant finality
+    pollingInterval: FLASHBLOCKS_POLLING_INTERVAL,
+    timeout: FLASHBLOCKS_TIMEOUT,
+  });
+
+  const confirmTime = performance.now() - startTime;
+  console.log(`✅ Final confirmation: ${confirmTime.toFixed(2)}ms`);
+
+  return receipt;
+}
+
+// OPTIMIZATION: Parallel transaction sending for commit + calculate
+export async function sendParallelTransactions(
+  commitRequest: any,
+  calculateRequest: any,
+): Promise<{
+  commitReceipt: UserOperationReceipt;
+  calculateReceipt: UserOperationReceipt;
+}> {
+  const startTime = performance.now();
+  console.log(`🚀 Starting parallel transactions...`);
+
+  try {
+    // Send both transactions in parallel
+    const [commitReceipt, calculateReceipt] = await Promise.all([
+      sendTransactionWithRetry(commitRequest),
+      sendTransactionWithRetry(calculateRequest),
+    ]);
+
+    const totalTime = performance.now() - startTime;
+    console.log(
+      `🎉 Both transactions completed in parallel: ${totalTime.toFixed(2)}ms`,
+    );
+
+    return { commitReceipt, calculateReceipt };
+  } catch (error) {
+    console.error(`❌ Parallel transaction failed:`, error);
+    throw error;
+  }
+}
+
+// OPTIMIZATION: Batch multiple calls into a single UserOp
+export async function sendBatchedTransaction(
+  requests: Array<{ address: Hex; functionName: string; args: any[] }>,
+): Promise<UserOperationReceipt> {
+  const startTime = performance.now();
+  console.log(
+    `📦 Starting batched transaction with ${requests.length} calls...`,
+  );
+
+  const bundlerClient = await createRelayerBundlerClient();
+  const smartAccount = await createSmartAccount();
+
+  const calls = requests.map((req) => ({
+    abi: CONTRACT_ABI,
+    functionName: req.functionName,
+    to: req.address,
+    args: req.args,
+  }));
+
+  const sendStart = performance.now();
+  const userOpHash = await bundlerClient.sendUserOperation({
+    account: smartAccount,
+    calls, // Multiple calls in one UserOp
+  });
+
+  const sendTime = performance.now() - sendStart;
+  console.log(`⚡ Batched UserOp sent: ${sendTime.toFixed(2)}ms`);
+
+  const receiptStart = performance.now();
+  const receipt = await bundlerClient.waitForUserOperationReceipt({
+    hash: userOpHash as `0x${string}`,
+    pollingInterval: FLASHBLOCKS_POLLING_INTERVAL,
+    timeout: FLASHBLOCKS_TIMEOUT,
+  });
+
+  const receiptTime = performance.now() - receiptStart;
+  const totalTime = performance.now() - startTime;
+
+  console.log(`⚡ Batched receipt: ${receiptTime.toFixed(2)}ms`);
+  console.log(`🎯 Total batched time: ${totalTime.toFixed(2)}ms`);
+
+  return receipt;
 }
