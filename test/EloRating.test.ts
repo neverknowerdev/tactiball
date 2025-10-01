@@ -8,10 +8,10 @@ describe("ELO Library Tests", function () {
   beforeEach(async function () {
     const EloTester = await ethers.getContractFactory("EloTester");
     eloTester = await EloTester.deploy();
-    await eloTester.deployed();
+    await eloTester.waitForDeployment();
 
     // Fetch MAX_DELTA from the contract for dynamic testing
-    MAX_DELTA_SCALED = (await eloTester.getMaxDelta()).toNumber();
+    MAX_DELTA_SCALED = Number(await eloTester.getMaxDelta());
   });
 
   describe("ELO Rating Calculations", function () {

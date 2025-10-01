@@ -488,9 +488,9 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         );
 
         // Update ELO ratings if game finished normally (not by timeout)
-        // if (finishReason == GameLib.FinishReason.MAX_MOVES_REACHED) {
-        //     _updateEloRatings(gameId);
-        // }
+        if (finishReason == GameLib.FinishReason.MAX_MOVES_REACHED) {
+            _updateEloRatings(gameId);
+        }
 
         _removeGameFromActiveGames(gameId);
         emit GameFinished(gameId, game.winner, finishReason);
