@@ -23,9 +23,8 @@ describe("ELO Rating System", function () {
         });
 
         game = await upgrades.deployProxy(ChessBallGame, [
-            owner.address, // gelatoAddress - using owner for testing
             owner.address,  // relayerAddress - using owner for testing
-            owner.address,  // gameEngineAddress - using owner for testing
+            owner.address,  // relayerAdressSmartContract - using owner for testing
             owner.address,  // gameEngineAddress - using owner for testing
             "test-public-key" // publicKey - using test key for testing
         ], {
