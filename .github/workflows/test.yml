@@ -1,0 +1,49 @@
+name: Tests & CI/CD
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'yarn'
+        
+    - name: Install dependencies
+      run: yarn install --frozen-lockfile
+      
+    - name: Compile contracts
+      run: yarn hardhat compile
+      
+    - name: Run linting
+      run: yarn lint
+      
+    - name: Run all Hardhat tests
+      run: yarn test
+      env:
+        # Use hardhat network for testing - no external RPC needed
+        HARDHAT_NETWORK: hardhat
+      
+    - name: Generate test coverage report
+      run: yarn test:coverage
+      env:
+        HARDHAT_NETWORK: hardhat
+      
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false

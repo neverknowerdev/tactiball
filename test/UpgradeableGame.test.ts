@@ -13,7 +13,7 @@ describe("ChessBallGame Upgradeable", function () {
     let eloLib: any;
     let gameLib: any;
 
-    const GELATO_ADDRESS = "0x1234567890123456789012345678901234567890";
+    const RELAYER_SMART_ACCOUNT_ADDRESS = "0x1234567890123456789012345678901234567890";
     const RELAYER_ADDRESS = "0x0987654321098765432109876543210987654321";
     const GAME_ENGINE_SERVER_ADDRESS = "0x1234567890123456789012345678901234567890";
 
@@ -31,8 +31,8 @@ describe("ChessBallGame Upgradeable", function () {
         });
 
         chessBallGame = await upgrades.deployProxy(ChessBallGame, [
-            GELATO_ADDRESS,
             RELAYER_ADDRESS,
+            RELAYER_SMART_ACCOUNT_ADDRESS,
             GAME_ENGINE_SERVER_ADDRESS,
             "test-public-key" // publicKey - using test key for testing
         ], {
@@ -46,14 +46,13 @@ describe("ChessBallGame Upgradeable", function () {
 
     describe("Initial Deployment", function () {
         it("Should deploy with correct initial values", async function () {
-            expect(await chessBallGame.gelatoAddress()).to.equal(GELATO_ADDRESS);
             expect(await chessBallGame.relayerAddress()).to.equal(RELAYER_ADDRESS);
             expect(await chessBallGame.owner()).to.equal(owner.address);
         });
 
         it("Should not allow re-initialization", async function () {
             await expect(
-                chessBallGame.initialize(GELATO_ADDRESS, RELAYER_ADDRESS, GAME_ENGINE_SERVER_ADDRESS, "test-public-key")
+                chessBallGame.initialize(RELAYER_ADDRESS, RELAYER_SMART_ACCOUNT_ADDRESS, GAME_ENGINE_SERVER_ADDRESS, "test-public-key")
             ).to.be.reverted;
         });
     });
