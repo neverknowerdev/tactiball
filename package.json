@@ -15,7 +15,8 @@
     "db:clear": "./migrations/clean-db.sh",
     "fetch:game": "ts-node scripts/fetch-game.ts",
     "fetch:team": "ts-node scripts/fetch-team.ts",
-    "recalculate:team-stat": "ts-node scripts/recalculate-team-stat.ts"
+    "recalculate:team-stat": "ts-node scripts/recalculate-team-stat.ts",
+    "compile": "hardhat compile"
   },
   "dependencies": {
     "@ethersproject/bignumber": "^5.8.0",

@@ -1,74 +1,139 @@
-// Copied from https://github.com/saucepoint/elo-lib/
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {FixedPointMathLib as fp} from "solmate/src/utils/FixedPointMathLib.sol";
-
+/**
+ * @title Elo
+ * @notice A simplified and more robust ELO rating calculation library
+ * @dev Uses lookup tables and bounded arithmetic to avoid overflow/underflow issues
+ */
 library Elo {
-    /// @notice Get the 16th root of a number, used in ELO calculations
-    /// @dev Elo calculations require the 400th root (10 ^ (x / 400)), however this can be simplified to the 16th root (10 ^ ((x / 25) / 16))
-    function sixteenthRoot(uint256 x) internal pure returns (uint256) {
-        return fp.sqrt(fp.sqrt(fp.sqrt(fp.sqrt(x))));
+    /// @notice Maximum rating difference we can handle (prevents overflow)
+    uint256 private constant MAX_RATING_DIFF = 800;
+
+    /// @notice Scale factor for precision (2 decimal places)
+    uint256 private constant SCALE = 100;
+
+    /// @notice Lookup table for expected scores based on rating difference
+    /// @dev Maps rating difference (in steps of 25) to expected score * 100
+    /// Based on formula: 1 / (1 + 10^(ratingDiff/400))
+    function getExpectedScore(
+        uint256 ratingDiff
+    ) private pure returns (uint256) {
+        // For rating differences, we use a piecewise approximation
+        // This avoids complex power calculations that cause overflows
+
+        if (ratingDiff == 0) return 50; // Equal ratings = 50% expected
+        if (ratingDiff >= 800) return ratingDiff == 800 ? 1 : 0; // Extreme difference
+
+        // Lookup table for common rating differences (every 25 points)
+        // Values represent expected score * 100
+        if (ratingDiff <= 25) return 46;
+        if (ratingDiff <= 50) return 42;
+        if (ratingDiff <= 75) return 39;
+        if (ratingDiff <= 100) return 36;
+        if (ratingDiff <= 125) return 33;
+        if (ratingDiff <= 150) return 30;
+        if (ratingDiff <= 175) return 27;
+        if (ratingDiff <= 200) return 24;
+        if (ratingDiff <= 225) return 22;
+        if (ratingDiff <= 250) return 20;
+        if (ratingDiff <= 275) return 18;
+        if (ratingDiff <= 300) return 16;
+        if (ratingDiff <= 350) return 13;
+        if (ratingDiff <= 400) return 10;
+        if (ratingDiff <= 450) return 8;
+        if (ratingDiff <= 500) return 6;
+        if (ratingDiff <= 600) return 4;
+        if (ratingDiff <= 700) return 2;
+
+        return 1; // rating diff between 700-800
     }
 
-    /// @notice Calculates the change in ELO rating, after a given outcome.
-    /// @param ratingA the ELO rating of the player A
-    /// @param ratingB the ELO rating of the player B
-    /// @param score the score of the player A, scaled by 100. 100 = win, 50 = draw, 0 = loss
-    /// @param kFactor the k-factor or development multiplier used to calculate the change in ELO rating. 20 is the typical value
-    /// @return change the change in ELO rating of player A, with 2 decimals of precision. 1501 = 15.01 ELO change
-    /// @return negative the directional change of player A's ELO. Opposite sign for player B
+    /**
+     * @notice Calculates the change in ELO rating after a game outcome
+     * @param ratingA The ELO rating of player A
+     * @param ratingB The ELO rating of player B
+     * @param score The score of player A, scaled by 100. 100 = win, 50 = draw, 0 = loss
+     * @param kFactor The k-factor or development multiplier (typically 20-32)
+     * @return change The change in ELO rating of player A, with 2 decimals of precision
+     * @return negative Whether the change is negative (rating decreased)
+     */
     function ratingChange(
         uint256 ratingA,
         uint256 ratingB,
         uint256 score,
         uint256 kFactor
     ) internal pure returns (uint256 change, bool negative) {
-        uint256 _kFactor; // scaled up `kFactor` by 100
-        bool _negative = ratingB < ratingA;
-        uint256 ratingDiff; // absolute value difference between `ratingA` and `ratingB`
+        require(score <= 100, "Score must be <= 100");
+        require(kFactor > 0 && kFactor <= 100, "Invalid K-factor");
+
+        // Calculate rating difference (absolute value)
+        uint256 ratingDiff;
+        bool aIsHigher = ratingA > ratingB;
 
         unchecked {
-            // scale up the inputs by a factor of 100
-            // since our elo math is scaled up by 100 (to avoid low precision integer division)
-            _kFactor = kFactor * 10_000;
-            ratingDiff = _negative ? ratingA - ratingB : ratingB - ratingA;
+            ratingDiff = aIsHigher ? ratingA - ratingB : ratingB - ratingA;
         }
 
-        // checks against overflow/underflow, discovered via fuzzing
-        // large rating diffs leads to 10^ratingDiff being too large to fit in a uint256
-        require(ratingDiff < 1126, "Rating difference too large");
-        // large rating diffs when applying the scale factor leads to underflow (800 - ratingDiff)
-        if (_negative) require(ratingDiff < 800, "Rating difference too large");
+        // Bound the rating difference to prevent overflow
+        if (ratingDiff > MAX_RATING_DIFF) {
+            ratingDiff = MAX_RATING_DIFF;
+        }
 
-        // ----------------------------------------------------------------------
-        // Below, we'll be running simplified versions of the following formulas:
-        // expected score = 1 / (1 + 10 ^ (ratingDiff / 400))
-        // elo change = kFactor * (score - expectedScore)
+        // Get expected score for player A (scaled by 100)
+        // If A is higher rated, they're expected to win more
+        // If B is higher rated, A is expected to win less
+        uint256 expectedScore = aIsHigher
+            ? (100 - getExpectedScore(ratingDiff)) // A expected to win
+            : getExpectedScore(ratingDiff); // B expected to win
 
-        uint256 n; // numerator of the power, with scaling, (numerator of `ratingDiff / 400`)
-        uint256 _powered; // the value of 10 ^ numerator
-        uint256 powered; // the value of 16th root of 10 ^ numerator (fully resolved 10 ^ (ratingDiff / 400))
-        uint256 kExpectedScore; // the expected score with K factor distributed
-        uint256 kScore; // the actual score with K factor distributed
+        // Calculate rating change: kFactor * (actualScore - expectedScore)
+        // Both score and expectedScore are already scaled by 100
+        uint256 scoreDiff;
 
         unchecked {
-            // apply offset of 800 to scale the result by 100
-            n = _negative ? 800 - ratingDiff : 800 + ratingDiff;
+            if (score >= expectedScore) {
+                negative = false;
+                scoreDiff = score - expectedScore;
+            } else {
+                negative = true;
+                scoreDiff = expectedScore - score;
+            }
 
-            // (x / 400) is the same as ((x / 25) / 16))
-            _powered = fp.rpow(10, n / 25, 1); // divide by 25 to avoid reach uint256 max
-            powered = sixteenthRoot(_powered); // x ^ (1 / 16) is the same as 16th root of x
+            // change = kFactor * scoreDiff / 100 (to account for score scaling)
+            // Result is scaled by 100 for 2 decimal precision
+            change = (kFactor * scoreDiff);
+        }
+    }
 
-            // given `change = kFactor * (score - expectedScore)` we can distribute kFactor to both terms
-            kExpectedScore = _kFactor / (100 + powered); // both numerator and denominator scaled up by 100
-            kScore = kFactor * score; // input score is already scaled up by 100
+    /**
+     * @notice Apply rating change to a player's current rating
+     * @param currentRating The current ELO rating
+     * @param change The rating change amount (scaled by 100)
+     * @param negative Whether the change is negative
+     * @return newRating The updated rating
+     */
+    function applyRatingChange(
+        uint256 currentRating,
+        uint256 change,
+        bool negative
+    ) internal pure returns (uint256 newRating) {
+        // Unscale the change (divide by 100 for 2 decimal precision)
+        uint256 actualChange = change / SCALE;
 
-            // determines the sign of the ELO change
-            negative = kScore < kExpectedScore;
-            change = negative
-                ? kExpectedScore - kScore
-                : kScore - kExpectedScore;
+        unchecked {
+            if (negative) {
+                // Prevent underflow - minimum rating of 0
+                newRating = actualChange > currentRating
+                    ? 0
+                    : currentRating - actualChange;
+            } else {
+                // Cap maximum rating to prevent overflow
+                uint256 maxRating = type(uint256).max - actualChange;
+                newRating = currentRating > maxRating
+                    ? type(uint256).max
+                    : currentRating + actualChange;
+            }
         }
     }
 }
