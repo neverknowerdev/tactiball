@@ -43,8 +43,6 @@ jobs:
       
     - name: Generate test coverage report
       run: yarn hardhat coverage
-      env:
-        HARDHAT_NETWORK: hardhat
       
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
