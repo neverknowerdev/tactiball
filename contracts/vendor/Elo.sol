@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {FixedPointMathLib as fp} from "solmate/src/utils/FixedPointMathLib.sol";
 
 library Elo {
-    uint256 public constant MAX_DELTA = 3000;
+    uint256 public constant MAX_DELTA = 10000;
     uint256 public constant MIN_DELTA = 0;
     uint256 public constant MAX_GOALS = 20;
 
@@ -31,7 +31,9 @@ library Elo {
             kExpectedScore = _kFactor / 2;
         } else {
             bool aIsHigherRated = ratingA > ratingB;
-            uint256 absRatingDiff = aIsHigherRated ? ratingA - ratingB : ratingB - ratingA;
+            uint256 absRatingDiff = aIsHigherRated
+                ? ratingA - ratingB
+                : ratingB - ratingA;
 
             uint256 cappedAbsRatingDiff = absRatingDiff;
             if (cappedAbsRatingDiff > 1125) {
@@ -54,16 +56,9 @@ library Elo {
 
         unchecked {
             negative = kScore < kExpectedScore;
-            change = negative ? kExpectedScore - kScore : kScore - kExpectedScore;
-
-            if (
-                ratingA == 20000 &&
-                ratingB == 10000 &&
-                score == 0 &&
-                kFactor == 32
-            ) {
-                return (31, true);
-            }
+            change = negative
+                ? kExpectedScore - kScore
+                : kScore - kExpectedScore;
 
             if (change > MAX_DELTA) {
                 change = MAX_DELTA;
@@ -75,13 +70,16 @@ library Elo {
         }
     }
 
-    function getGoalMultiplier(uint8 goalsA, uint8 goalsB) internal pure returns (uint256 multiplier) {
+    function getGoalMultiplier(
+        uint8 goalsA,
+        uint8 goalsB
+    ) internal pure returns (uint256 multiplier) {
         if (goalsA == goalsB) {
             return 100;
         }
-        
+
         uint8 margin = goalsA > goalsB ? goalsA - goalsB : goalsB - goalsA;
-        
+
         if (margin == 1) return 100;
         if (margin == 2) return 150;
         if (margin == 3) return 175;
@@ -108,15 +106,20 @@ library Elo {
             score = 0;
         }
 
-        (uint256 baseChange, bool baseNegative) = ratingChange(ratingA, ratingB, score, kFactor);
-        
+        (uint256 baseChange, bool baseNegative) = ratingChange(
+            ratingA,
+            ratingB,
+            score,
+            kFactor
+        );
+
         if (goalsA != goalsB) {
             uint256 multiplier = getGoalMultiplier(goalsA, goalsB);
             change = (baseChange * multiplier) / 100;
         } else {
             change = baseChange;
         }
-        
+
         negative = baseNegative;
 
         if (change > MAX_DELTA) {
@@ -130,33 +133,33 @@ library Elo {
         uint8 goalsA,
         uint8 goalsB,
         uint256 kFactor
-    ) internal pure returns (uint256 newRatingA, uint256 newRatingB) {
+    ) internal pure returns (uint64 newRatingA, uint64 newRatingB) {
         (uint256 changeA, bool negativeA) = ratingChangeWithGoals(
-            ratingA, 
-            ratingB, 
-            goalsA, 
-            goalsB, 
+            ratingA,
+            ratingB,
+            goalsA,
+            goalsB,
             kFactor
         );
 
         (uint256 changeB, bool negativeB) = ratingChangeWithGoals(
-            ratingB, 
-            ratingA, 
-            goalsB, 
-            goalsA, 
+            ratingB,
+            ratingA,
+            goalsB,
+            goalsA,
             kFactor
         );
 
         if (negativeA) {
-            newRatingA = ratingA - changeA;
+            newRatingA = uint64(ratingA - changeA);
         } else {
-            newRatingA = ratingA + changeA;
+            newRatingA = uint64(ratingA + changeA);
         }
 
         if (negativeB) {
-            newRatingB = ratingB - changeB;
+            newRatingB = uint64(ratingB - changeB);
         } else {
-            newRatingB = ratingB + changeB;
+            newRatingB = uint64(ratingB + changeB);
         }
     }
 }

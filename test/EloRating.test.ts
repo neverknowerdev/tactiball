@@ -21,12 +21,14 @@ describe("Enhanced Elo Library Tests", function () {
       [10500, 10000, 100, 20, 1710, false, "Higher rated wins"],
       [10000, 11000, 100, 20, 1996, false, "Underdog wins"],
       [20000, 10000, 0, 32, 31, true, "Special case with kFactor 32"],
+      [90000, 10000, 0, 32, 2772, true, "Big ELO difference, win"],
+      [10000, 90000, 100, 32, 3000, false, "Big ELO difference, loss"],
     ];
 
     it("Should maintain backwards compatibility", async function () {
       for (const [ratingA, ratingB, score, kFactor, expectedChange, isNegative, description] of testCases) {
         const result = await eloTester.ratingChange(ratingA, ratingB, score, kFactor);
-        
+
         console.log(`${description} - Change: ${result.change}, Negative: ${result.negative}`);
 
         expect(result.negative).to.equal(isNegative, `Incorrect negative flag: ${description}`);
@@ -62,6 +64,8 @@ describe("Enhanced Elo Library Tests", function () {
       [10000, 10000, 3, 0, 20, 1750, false, "Equal teams, 3-0 win"],
       [10000, 10000, 1, 1, 20, 0, false, "Equal teams, 1-1 draw"],
       [10000, 10000, 0, 2, 20, 1500, true, "Equal teams, 0-2 loss"],
+      [190000, 10000, 5, 0, 32, 856, false, "Very big ELO diff, 5-0 win"],
+      [190000, 10000, 0, 5, 32, 5544, true, "Very big ELO diff, 0-5 loss"],
     ];
 
     it("Should apply goal difference multipliers correctly", async function () {
@@ -72,7 +76,7 @@ describe("Enhanced Elo Library Tests", function () {
 
         console.log(`${description} - Change: ${result.change}, Negative: ${result.negative}`);
 
-        expect(result.negative).to.equal(isNegative);
+        expect(result.negative).to.equal(isNegative, `Incorrect negative flag: ${description}`);
         expect(Number(result.change)).to.equal(expectedChange);
         expect(Number(result.change)).to.be.lte(MAX_DELTA_SCALED);
       }

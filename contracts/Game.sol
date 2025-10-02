@@ -711,21 +711,13 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             }
         }
 
-        (uint256 change, bool negative) = Elo.ratingChange(
+        (team1.eloRating, team2.eloRating) = Elo.calculateNewRatingsWithGoals(
             game.team1.eloRating,
             game.team2.eloRating,
-            result,
-            20
+            game.gameState.team1score,
+            game.gameState.team2score,
+            32
         );
-
-        // team2 win
-        if (negative) {
-            team2.eloRating += uint64(change);
-            team1.eloRating -= uint64(change);
-        } else {
-            team1.eloRating += uint64(change);
-            team2.eloRating -= uint64(change);
-        }
 
         // Apply minimum ELO limit (50 = 5000 with 2 decimal precision)
         if (team1.eloRating < 5000) {
