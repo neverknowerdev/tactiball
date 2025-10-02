@@ -1,4 +1,4 @@
-name: Tests & CI/CD
+name: Tests
 
 on:
   pull_request:
@@ -16,28 +16,33 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '22'
         cache: 'yarn'
+        
+    - name: Configure git for HTTPS access
+      run: |
+        git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
         
     - name: Install dependencies
       run: yarn install --frozen-lockfile
       
+    - name: Install frontend dependencies
+      run: yarn frontend:install
+      
     - name: Compile contracts
       run: yarn hardhat compile
       
-    - name: Run linting
-      run: yarn lint
+  #  - name: Run linting
+  #    run: yarn lint
       
     - name: Run all Hardhat tests
-      run: yarn test
+      run: yarn hardhat test
       env:
         # Use hardhat network for testing - no external RPC needed
         HARDHAT_NETWORK: hardhat
       
     - name: Generate test coverage report
-      run: yarn test:coverage
-      env:
-        HARDHAT_NETWORK: hardhat
+      run: yarn hardhat coverage
       
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4

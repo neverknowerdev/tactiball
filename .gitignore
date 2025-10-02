@@ -157,3 +157,4 @@ supabase/.temp
 
 .tmp
 .openzeppelin
+!.openzeppelin/base.json

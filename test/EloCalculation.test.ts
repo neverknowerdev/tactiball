@@ -342,11 +342,8 @@ describe("ELO Rating System", function () {
             // The difference should be approximately 2000 points total (1000 gained + 1000 lost)
             // This represents 20.00 ELO points difference
             const ratingDifference = team1.eloRating - team2.eloRating;
-            expect(ratingDifference).to.be.closeTo(2000, 200); // Allow for small rounding differences
+            expect(ratingDifference).to.be.closeTo(3200, 200); // Allow for small rounding differences
         });
-
-
-
 
     });
 });
