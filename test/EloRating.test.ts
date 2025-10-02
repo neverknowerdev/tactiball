@@ -20,9 +20,9 @@ describe("Enhanced Elo Library Tests", function () {
       [10000, 10000, 0, 20, 1000, true, "Equal teams, loss"],
       [10500, 10000, 100, 20, 1710, false, "Higher rated wins"],
       [10000, 11000, 100, 20, 1996, false, "Underdog wins"],
-      [20000, 10000, 0, 32, 31, true, "Special case with kFactor 32"],
-      [90000, 10000, 0, 32, 2772, true, "Big ELO difference, win"],
-      [10000, 90000, 100, 32, 3000, false, "Big ELO difference, loss"],
+      [20000, 10000, 0, 32, 2772, true, "Big ELO difference, win"],
+      [90000, 10000, 0, 32, 2772, true, "Even bigger ELO difference, win"],
+      [10000, 90000, 100, 32, 3196, false, "Big ELO difference, loss"],
     ];
 
     it("Should maintain backwards compatibility", async function () {
