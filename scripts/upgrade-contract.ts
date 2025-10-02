@@ -186,10 +186,30 @@ async function main() {
         console.log("\n✅ All libraries were unchanged - reused existing versions");
     }
 
-    console.log("Vefrifying implementation..");
-    await hre.run("verify:verify", {
-        address: actualImplementationAddress,
-    });
+    console.log("Verifying implementation...");
+    try {
+        // Wait a bit for the contract to propagate on Basescan
+        console.log("⏳ Waiting 3 seconds for contract propagation...");
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        await hre.run("verify:verify", {
+            address: actualImplementationAddress,
+            libraries: {
+                GameLib: gameLibAddress
+            },
+            constructorArguments: [],
+            contract: "contracts/Game.sol:ChessBallGame"
+        });
+        console.log("✅ Contract verification successful!");
+    } catch (error: any) {
+        console.log("⚠️  Contract verification failed:", error.message);
+        console.log("\n💡 Manual verification options:");
+        console.log("1. Try verifying the proxy (which will verify the implementation):");
+        console.log(`   yarn hardhat verify --network baseMainnet ${proxyAddress}`);
+        console.log("\n2. If that fails, try manual verification on Basescan:");
+        console.log(`   https://basescan.org/address/${actualImplementationAddress}#code`);
+        console.log("\n3. The contract is working correctly - verification is optional for functionality.");
+    }
 
 
     console.log("\n🔗 Final Contract Addresses:");
@@ -198,12 +218,12 @@ async function main() {
     console.log(`   Proxy: ${proxyAddress}`);
 
     console.log("\n🌐 Basescan Explorer URLs:");
-    console.log(`   GameLib: https://sepolia.basescan.org/address/${gameLibAddress}`);
-    console.log(`   Implementation: https://sepolia.basescan.org/address/${actualImplementationAddress}`);
-    console.log(`   Proxy: https://sepolia.basescan.org/address/${proxyAddress}`);
+    console.log(`   GameLib: https://basescan.org/address/${gameLibAddress}`);
+    console.log(`   Implementation: https://basescan.org/address/${actualImplementationAddress}`);
+    console.log(`   Proxy: https://basescan.org/address/${proxyAddress}`);
 
     console.log("\n🎉 Upgrade completed successfully!");
-    console.log("💡 Run 'yarn hardhat run scripts/verify.ts --network baseSepolia' to verify the upgrade");
+    console.log("💡 Run 'yarn hardhat run scripts/verify.ts --network baseMainnet' to verify the upgrade");
 }
 
 // Run upgrade if this script is executed directly

@@ -22,9 +22,6 @@ const config = {
       },
       // Additional size reduction options
       evmVersion: "paris",
-      debug: {
-        revertStrings: "strip"
-      }
     }
   },
   w3f: {
