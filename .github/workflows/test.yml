@@ -16,7 +16,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         cache: 'yarn'
         
     - name: Configure git for HTTPS access
@@ -39,7 +39,7 @@ jobs:
         HARDHAT_NETWORK: hardhat
       
     - name: Generate test coverage report
-      run: yarn test:coverage
+      run: yarn hardhat coverage
       env:
         HARDHAT_NETWORK: hardhat
       
