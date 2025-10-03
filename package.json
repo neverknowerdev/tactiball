@@ -11,6 +11,7 @@
     "deploy:upgradeable": "hardhat run scripts/deploy-upgradeable.ts",
     "upgrade:contract": "hardhat run scripts/upgrade-contract.ts",
     "test:upgradeable": "hardhat test test/UpgradeableGame.test.ts",
+    "test:paymaster": "tsx test/Paymaster.test.ts",
     "db:migrate": "./migrations/run-migrations.sh",
     "db:clear": "./migrations/clean-db.sh",
     "fetch:game": "ts-node scripts/fetch-game.ts",
