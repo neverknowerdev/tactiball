@@ -27,7 +27,7 @@ import { GameRequestModal } from "./components/GameRequestModal";
 import { subscribeToTeamChannel, unsubscribeFromTeamChannel } from '@/lib/ably';
 import { getName } from "@coinbase/onchainkit/identity";
 import { base } from 'viem/chains';
-import { authUserWithSignature } from '@/lib/auth';
+import { authUserWithSignature, clearCachedAuthSignature } from '@/lib/auth';
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import countryList from '../public/countryList.json';
@@ -226,6 +226,16 @@ export default function App() {
         if (result.errorName) {
           errorMessage += " (ERR:" + result.errorName + ")";
         }
+
+        // Check if this is a signature verification error and automatically clear cache
+        const isSignatureError = result.error && result.error.includes("Signature verification failed");
+
+        if (isSignatureError) {
+          clearCachedAuthSignature();
+          console.log("Signature verification failed - cleared cached signature");
+        }
+
+        // Show error toast
         toast.error(errorMessage, {
           position: "top-center",
           autoClose: 5000,
@@ -234,6 +244,20 @@ export default function App() {
           draggable: true,
           progress: undefined,
         });
+
+        // Show follow-up toast only for signature errors
+        if (isSignatureError) {
+          setTimeout(() => {
+            toast.info("Your signature was cleared, try your action again to generate new", {
+              position: "top-center",
+              autoClose: 4000,
+              closeOnClick: true,
+              hideProgressBar: false,
+              draggable: true,
+              progress: undefined,
+            });
+          }, 1000);
+        }
 
         return;
       }
