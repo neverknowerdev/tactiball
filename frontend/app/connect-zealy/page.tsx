@@ -95,7 +95,7 @@ export default function ConnectZealyPage() {
         throw new Error("Failed to authenticate wallet");
       }
 
-      const response = await fetch("/api/link-zealy-user", {
+      const response = await fetch("/api/zealy/link-zealy-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -155,7 +155,7 @@ export default function ConnectZealyPage() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        const response = await fetch("/api/check-zealy-link", {
+        const response = await fetch("/api/zealy/check-zealy-link", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ walletAddress: address }),
