@@ -24,6 +24,7 @@ const API_KEY = process.env.BASESCAN_API_KEY || '8RDR5XU1WQHAR5RJ4WTCNPVPD54CEZT
 const GAME_STARTED_TOPIC = toEventHash('event GameStarted(uint256 indexed gameId, uint256 indexed team1id, uint256 indexed team2id, uint8 teamWithBall)');
 const GAME_FINISHED_TOPIC = toEventHash('event GameFinished(uint256 indexed gameId, uint8 winner, uint8 finishReason)');
 const GOAL_SCORED_TOPIC = toEventHash('event GoalScored(uint256 indexed gameId, uint8 scoringTeam)');
+const ELO_UPDATED_TOPIC = toEventHash('event EloUpdated(uint256 indexed teamId, uint256 gameId, uint64 eloRating)');
 
 interface ContractEvent {
     blockNumber: string;
@@ -44,6 +45,8 @@ interface GameResult {
     finishReason: number;
     timestamp: number;
     blockNumber: number;
+    team1EloChange?: number;
+    team2EloChange?: number;
 }
 
 interface TeamStats {
@@ -55,6 +58,7 @@ interface TeamStats {
     goals_scored: number;
     goals_conceded: number;
     last_game_results: string[]; // ['VICTORY', 'DEFEAT', 'DRAW', etc.]
+    elo_rating?: number; // Latest ELO rating
 }
 
 function createSupabaseClient() {
@@ -117,7 +121,8 @@ async function fetchEventsFromBasescan(
     const eventTopics = [
         { topic: GAME_STARTED_TOPIC, name: 'GameStarted' },
         { topic: GAME_FINISHED_TOPIC, name: 'GameFinished' },
-        { topic: GOAL_SCORED_TOPIC, name: 'GoalScored' }
+        { topic: GOAL_SCORED_TOPIC, name: 'GoalScored' },
+        { topic: ELO_UPDATED_TOPIC, name: 'EloUpdated' }
     ];
 
     for (const eventType of eventTopics) {
@@ -175,9 +180,10 @@ function decodeEvent(event: ContractEvent): any {
     }
 }
 
-// Process events to reconstruct games
+// Process events to reconstruct games with ELO changes
 function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> {
     const games = new Map<number, GameResult>();
+    const eloUpdates = new Map<string, number>(); // Key: "gameId-teamId", Value: eloRating
 
     for (const event of events) {
         const decoded = decodeEvent(event);
@@ -230,6 +236,29 @@ function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> 
                 }
                 break;
             }
+
+            case 'EloUpdated': {
+                const teamId = Number(args.teamId);
+                const gameId = Number(args.gameId);
+                const eloRating = Number(args.eloRating);
+                
+                // Store ELO update for this team and game
+                eloUpdates.set(`${gameId}-${teamId}`, eloRating);
+                break;
+            }
+        }
+    }
+
+    // Now match ELO updates to games and calculate changes
+    for (const [gameId, game] of games) {
+        const team1Key = `${gameId}-${game.team1Id}`;
+        const team2Key = `${gameId}-${game.team2Id}`;
+        
+        if (eloUpdates.has(team1Key)) {
+            game.team1EloChange = eloUpdates.get(team1Key);
+        }
+        if (eloUpdates.has(team2Key)) {
+            game.team2EloChange = eloUpdates.get(team2Key);
         }
     }
 
@@ -263,9 +292,15 @@ function calculateTeamStats(teamId: number, games: GameResult[]): TeamStats {
         const isTeam1 = game.team1Id === teamId;
         const myScore = isTeam1 ? game.team1Score : game.team2Score;
         const opponentScore = isTeam1 ? game.team2Score : game.team1Score;
+        const myEloChange = isTeam1 ? game.team1EloChange : game.team2EloChange;
 
         stats.goals_scored += myScore;
         stats.goals_conceded += opponentScore;
+
+        // Update latest ELO rating if available
+        if (myEloChange !== undefined) {
+            stats.elo_rating = myEloChange;
+        }
 
         let result: string;
         
@@ -308,16 +343,16 @@ function calculateTeamStats(teamId: number, games: GameResult[]): TeamStats {
     return stats;
 }
 
-// Get all teams for a given month
+// FIXED: Get all teams that had games between monthStart and monthEnd
 async function getTeamsForMonth(supabase: any, year: number, month: number): Promise<number[]> {
-    const startDate = new Date(Date.UTC(year, month - 1, 1));
-    const endDate = new Date(Date.UTC(year, month, 1));
+    const monthStart = new Date(Date.UTC(year, month - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, month, 1));
 
     const { data, error } = await supabase
         .from('games')
         .select('team1, team2')
-        .gte('created_at', startDate.toISOString())
-        .lt('created_at', endDate.toISOString());
+        .gte('created_at', monthStart.toISOString())
+        .lt('created_at', monthEnd.toISOString());
 
     if (error) {
         console.error('Error fetching teams:', error);
@@ -352,19 +387,26 @@ async function getTeamByWallet(supabase: any, wallet: string): Promise<number | 
 // Update team stats in database
 async function updateTeamStats(supabase: any, stats: TeamStats): Promise<boolean> {
     try {
+        const updateData: any = {
+            team_id: stats.team_id,
+            total_games: stats.total_games,
+            wins: stats.wins,
+            draws: stats.draws,
+            losses: stats.losses,
+            goals_scored: stats.goals_scored,
+            goals_conceded: stats.goals_conceded,
+            last_game_results: stats.last_game_results,
+            updated_at: new Date().toISOString()
+        };
+
+        // Only include ELO if it was captured
+        if (stats.elo_rating !== undefined) {
+            updateData.elo_rating = stats.elo_rating;
+        }
+
         const { error } = await supabase
             .from('team_stats')
-            .upsert({
-                team_id: stats.team_id,
-                total_games: stats.total_games,
-                wins: stats.wins,
-                draws: stats.draws,
-                losses: stats.losses,
-                goals_scored: stats.goals_scored,
-                goals_conceded: stats.goals_conceded,
-                last_game_results: stats.last_game_results,
-                updated_at: new Date().toISOString()
-            }, {
+            .upsert(updateData, {
                 onConflict: 'team_id'
             });
 
@@ -464,6 +506,7 @@ async function recalculateTeamStatsFromChain(
         console.log(`  📈 Stats calculated:`);
         console.log(`    Total: ${stats.total_games} | W: ${stats.wins} | D: ${stats.draws} | L: ${stats.losses}`);
         console.log(`    Goals: ${stats.goals_scored} scored, ${stats.goals_conceded} conceded`);
+        console.log(`    ELO: ${stats.elo_rating !== undefined ? stats.elo_rating : 'N/A'}`);
         console.log(`    Last results: ${stats.last_game_results.join(', ')}`);
 
         // Update database

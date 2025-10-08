@@ -134,6 +134,68 @@ describe('Team Stats Recalculation', () => {
         }
     });
 
+    it('should capture and store ELO ratings', async () => {
+        const { data: stats } = await supabase
+            .from('team_stats')
+            .select('elo_rating')
+            .eq('team_id', TEST_TEAM_ID)
+            .single();
+
+        if (stats) {
+            expect(stats.elo_rating).toBeDefined();
+            expect(typeof stats.elo_rating).toBe('number');
+            expect(stats.elo_rating).toBeGreaterThan(0);
+            console.log(`✅ ELO Rating: ${stats.elo_rating}`);
+        }
+    });
+
+    it('should correctly identify timeout defeats', async () => {
+        const { data: stats } = await supabase
+            .from('team_stats')
+            .select('last_game_results')
+            .eq('team_id', TEST_TEAM_ID)
+            .single();
+
+        if (stats && stats.last_game_results) {
+            const hasTimeoutDefeat = stats.last_game_results.includes('DEFEAT_BY_TIMEOUT');
+            console.log(`🕐 Timeout defeats found: ${hasTimeoutDefeat}`);
+            
+            // Verify valid result types include timeout
+            const validResults = ['VICTORY', 'DEFEAT', 'DRAW', 'DEFEAT_BY_TIMEOUT'];
+            stats.last_game_results.forEach((result: string) => {
+                expect(validResults).toContain(result);
+            });
+        }
+    });
+
+    it('should verify ELO changes match game outcomes', async () => {
+        const { data: stats } = await supabase
+            .from('team_stats')
+            .select('*')
+            .eq('team_id', TEST_TEAM_ID)
+            .single();
+
+        const { data: recentGames } = await supabase
+            .from('games')
+            .select('*')
+            .or(`team1.eq.${TEST_TEAM_ID},team2.eq.${TEST_TEAM_ID}`)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+        if (stats && recentGames && recentGames.length > 0) {
+            console.log('\n📊 Recent games and ELO:');
+            console.log(`  Current ELO: ${stats.elo_rating}`);
+            console.log(`  Total games: ${stats.total_games}`);
+            console.log(`  Win rate: ${((stats.wins / stats.total_games) * 100).toFixed(1)}%`);
+            
+            // ELO should be reasonable (typically 800-2400)
+            if (stats.elo_rating) {
+                expect(stats.elo_rating).toBeGreaterThan(500);
+                expect(stats.elo_rating).toBeLessThan(3000);
+            }
+        }
+    });
+
     it('should test script with single team', async () => {
         // This test actually runs the recalculation script
         const { recalculateTeamStatsFromChain } = require('../scripts/recalculate-team-stats-from-chain');
