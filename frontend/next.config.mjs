@@ -6,10 +6,20 @@ const nextConfig = {
   },
   // Enable source maps for better error tracking
   productionBrowserSourceMaps: true,
+  // Enable server-side source maps for TypeScript stack traces
+  experimental: {
+    serverSourceMaps: true,
+  },
   // Silence warnings
   // https://github.com/WalletConnect/walletconnect-monorepo/issues/1908
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
+
+    // Ensure source maps are generated for TypeScript files
+    if (config.mode === 'production') {
+      config.devtool = 'source-map';
+    }
+
     return config;
   },
 };
@@ -18,12 +28,15 @@ export default withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
-  org: "gmgmgm",
+  org: process.env.SENTRY_ORG || "gmgmgm",
 
-  project: "chessball",
+  project: process.env.SENTRY_PROJECT || "chessball",
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
+
+  // Only upload source maps if auth token is provided
+  authToken: process.env.SENTRY_AUTH_TOKEN,
 
   // For all available options, see:
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
