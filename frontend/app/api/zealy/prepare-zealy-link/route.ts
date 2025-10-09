@@ -55,8 +55,8 @@ export async function POST(req: NextRequest) {
     // Check if team exists
     const { data: team, error } = await supabase
       .from("teams")
-      .select("id, name, coach_wallet_address, zealy_user_id")
-      .eq("coach_wallet_address", walletAddress)
+      .select("id, name, primary_wallet, zealy_user_id")
+      .eq("primary_wallet", walletAddress)
       .maybeSingle();
 
     if (error) {
