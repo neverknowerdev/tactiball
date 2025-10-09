@@ -15,7 +15,7 @@ import {
   EthBalance,
 } from "@coinbase/onchainkit/identity";
 import { useAccount, useSignMessage } from "wagmi";
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import crypto from "crypto";
 import { authUserWithSignature } from "@/lib/auth";
@@ -24,7 +24,8 @@ const ZEALY_COMMUNITY_SECRET =
   process.env.NEXT_PUBLIC_ZEALY_COMMUNITY_SECRET ||
   "bf4227ba5e04c8c2a1c8be09d53232caed908783200f882133776aeaab6edbfc";
 
-export default function ConnectZealyPage() {
+// Separate component that uses useSearchParams
+function ConnectZealyContent() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -113,9 +114,8 @@ export default function ConnectZealyPage() {
       }
 
       setSuccess(true);
-      setIsLinked(true); // Update the linked state immediately
+      setIsLinked(true);
 
-      // Send user's wallet address back to Zealy as the identifier
       const platformUserId = address;
       const newSignature = generateCallbackSignature(
         callbackUrl,
@@ -143,7 +143,6 @@ export default function ConnectZealyPage() {
     generateCallbackSignature,
   ]);
 
-  // Check if already linked - and poll if in callback mode
   useEffect(() => {
     let isActive = true;
 
@@ -151,7 +150,6 @@ export default function ConnectZealyPage() {
       if (!address || !isActive) return;
 
       try {
-        // Add timeout to the fetch request
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
 
@@ -164,7 +162,7 @@ export default function ConnectZealyPage() {
 
         clearTimeout(timeoutId);
 
-        if (!isActive) return; // Component unmounted
+        if (!isActive) return;
 
         if (!response.ok) {
           console.error("Check link response not OK:", response.status);
@@ -175,12 +173,11 @@ export default function ConnectZealyPage() {
         const wasLinked = isLinked;
         setIsLinked(data.isLinked);
 
-        // If we're in callback mode and the link status changed to true, show success
         if (zealyUserId && callbackUrl && !wasLinked && data.isLinked) {
           setSuccess(true);
         }
       } catch (err: any) {
-        if (!isActive) return; // Component unmounted
+        if (!isActive) return;
         
         if (err.name === 'AbortError') {
           console.log("Check link request timeout - will retry");
@@ -193,7 +190,6 @@ export default function ConnectZealyPage() {
     if (address) {
       checkLink();
 
-      // If we have Zealy params (callback mode), poll every 3 seconds to check link status
       if (zealyUserId && callbackUrl && !success) {
         const interval = setInterval(checkLink, 3000);
         return () => {
@@ -208,7 +204,6 @@ export default function ConnectZealyPage() {
     };
   }, [address, zealyUserId, callbackUrl, success, isLinked]);
 
-  // Verify Zealy signature when params are present
   useEffect(() => {
     if (zealyUserId && callbackUrl && zealySignature) {
       if (typeof window !== "undefined") {
@@ -221,7 +216,6 @@ export default function ConnectZealyPage() {
     }
   }, [zealyUserId, callbackUrl, zealySignature, verifyZealySignature]);
 
-  // Auto-connect when wallet is connected and Zealy params are present
   useEffect(() => {
     if (
       isConnected &&
@@ -231,7 +225,7 @@ export default function ConnectZealyPage() {
       !success &&
       !isLoading &&
       !error &&
-      isLinked === false // Only auto-connect if not already linked
+      isLinked === false
     ) {
       handleZealyConnect();
     }
@@ -259,7 +253,6 @@ export default function ConnectZealyPage() {
     return `base://app.minikit.frames.coinbase.com/${encodeURIComponent(window.location.origin + currentPath)}`;
   }, []);
 
-  // MODE 1: Direct access (no Zealy params) - Info page only
   if (!zealyUserId || !callbackUrl) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans">
@@ -370,7 +363,6 @@ export default function ConnectZealyPage() {
     );
   }
 
-  // MODE 2: Callback from Zealy (has params) - Handle the connection
   return (
     <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans">
       <div className="absolute top-4 right-4 z-20">
@@ -473,5 +465,23 @@ export default function ConnectZealyPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Loading fallback component
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+    </div>
+  );
+}
+
+// Main component that wraps everything in Suspense
+export default function ConnectZealyPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ConnectZealyContent />
+    </Suspense>
   );
 }
