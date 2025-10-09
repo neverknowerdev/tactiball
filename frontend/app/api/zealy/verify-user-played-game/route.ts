@@ -60,11 +60,19 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Verify the Zealy user ID matches
+    // Verify the Zealy user ID matches or set it if not set
     if (team.zealy_user_id && team.zealy_user_id !== userId) {
       return NextResponse.json({
         message: `Account mismatch detected. Please reconnect your account.`
       }, { status: 400 });
+    }
+
+    // Update zealy_user_id if not set
+    if (!team.zealy_user_id) {
+      await supabase
+        .from('teams')
+        .update({ zealy_user_id: userId })
+        .eq('id', team.id);
     }
 
     // Get today's start time (00:00:00 UTC)
@@ -72,13 +80,13 @@ export async function POST(req: NextRequest) {
     todayStart.setUTCHours(0, 0, 0, 0);
     const todayStartISO = todayStart.toISOString();
 
-    // Query for games played today
+    // Query for games played today - using correct schema column names
     const { data: games, error: gamesError } = await supabase
       .from('games')
-      .select('id, status, started_at, home_team_id, away_team_id')
-      .or(`home_team_id.eq.${team.id},away_team_id.eq.${team.id}`)
+      .select('id, status, created_at, team1, team2')
+      .or(`team1.eq.${team.id},team2.eq.${team.id}`)
       .eq('status', 'finished')
-      .gte('started_at', todayStartISO)
+      .gte('created_at', todayStartISO)
       .limit(1);
 
     if (gamesError) {
