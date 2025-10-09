@@ -13,8 +13,8 @@ describe('Team Stats Recalculation', () => {
     let supabase: any;
 
     beforeAll(() => {
-        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
         if (!supabaseUrl || !supabaseKey) {
             throw new Error('Missing Supabase environment variables');
         }
@@ -259,8 +259,8 @@ describe('Quick Validation Tests', () => {
     let supabase: any;
 
     beforeAll(() => {
-        const supabaseUrl = "https://fbczuemyuopzctgztsxc.supabase.co";
-        const supabaseKey ="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiY3p1ZW15dW9wemN0Z3p0c3hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4MTQ2MzEsImV4cCI6MjA3NDM5MDYzMX0.VUSlFSCN7rRtn4fR_ulH_Asw2J1F5Vsv5ZSiVuWnMu0";
+        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
         supabase = createClient(supabaseUrl, supabaseKey);
     });
 
