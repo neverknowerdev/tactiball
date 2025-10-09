@@ -8,6 +8,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    environment: test
     
     steps:
     - name: Checkout code
@@ -17,32 +18,48 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '22'
-        cache: 'yarn'
+        cache: 'npm'
         
     - name: Configure git for HTTPS access
       run: |
         git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
         
     - name: Install dependencies
-      run: yarn install --frozen-lockfile
+      run: npm ci
       
     - name: Install frontend dependencies
-      run: yarn frontend:install
+      run: npm run frontend:install
       
     - name: Compile contracts
-      run: yarn hardhat compile
+      run: npm run hardhat:compile
+      
+    - name: Build frontend
+      run: npm run build
+      env:
+        # Required environment variables for build
+        NEXT_PUBLIC_ABLY_API_KEY: ${{ secrets.NEXT_PUBLIC_ABLY_API_KEY }}
+        ABLY_BROADCASTING_API_KEY: ${{ secrets.ABLY_BROADCASTING_API_KEY }}
+        UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+        UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        COINBASE_PAYMASTER_RPC_URL: ${{ secrets.COINBASE_PAYMASTER_RPC_URL }}
+        # Sentry configuration
+        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        SENTRY_ORG: gmgmgm
+        SENTRY_PROJECT: chessball
       
   #  - name: Run linting
-  #    run: yarn lint
+  #    run: npm run lint
       
     - name: Run all Hardhat tests
-      run: yarn hardhat test
+      run: npm run hardhat:test
       env:
         # Use hardhat network for testing - no external RPC needed
         HARDHAT_NETWORK: hardhat
       
     - name: Generate test coverage report
-      run: yarn hardhat coverage
+      run: npm run hardhat:coverage
       
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
