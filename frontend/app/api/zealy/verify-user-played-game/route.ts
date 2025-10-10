@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     // Verify API key from Zealy
     const apiKey = req.headers.get('x-api-key');
+    console.log('apiKey received', apiKey);
     if (apiKey !== ZEALY_API_KEY) {
       console.error('Invalid API key received');
       return NextResponse.json({
