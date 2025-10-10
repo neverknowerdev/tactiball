@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAnonClient } from "@/lib/supabase";
 
 const ZEALY_API_KEY =
-  process.env.ZEALY_API_KEY || "eb50c37i_YJBlFllX6ojkZycqFd";
+  process.env.ZEALY_API_KEY;
 
 // Handle GET requests - return 405
 export async function GET(req: NextRequest) {
@@ -17,11 +17,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID();
   console.log(`[${requestId}] Zealy verification request received`);
-  
+
+  if (!ZEALY_API_KEY) {
+    throw new Error("ZEALY_API_KEY is not set");
+  }
+
   try {
     // Verify API key from Zealy
     const apiKey = req.headers.get("x-api-key");
-    
+
     if (!apiKey) {
       console.error(`[${requestId}] No API key provided`);
       return NextResponse.json(
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
         { status: 401 },
       );
     }
-    
+
     if (apiKey !== ZEALY_API_KEY) {
       console.error(`[${requestId}] Invalid API key`);
       return NextResponse.json(
@@ -98,11 +102,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[${requestId}] Team found:`, { 
-      id: team.id, 
-      name: team.name, 
+    console.log(`[${requestId}] Team found:`, {
+      id: team.id,
+      name: team.name,
       zealyUserId: team.zealy_user_id,
-      requestUserId: userId 
+      requestUserId: userId
     });
 
     // If zealy_user_id is not set, this shouldn't happen (user should link first)
@@ -115,7 +119,7 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    
+
     // Verify the Zealy user ID matches
     if (team.zealy_user_id !== userId) {
       console.log(`[${requestId}] Zealy user ID mismatch. Expected: ${team.zealy_user_id}, Got: ${userId}`);

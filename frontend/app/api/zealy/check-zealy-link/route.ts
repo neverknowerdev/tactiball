@@ -4,7 +4,7 @@ import { createAnonClient } from "@/lib/supabase";
 export async function POST(req: NextRequest) {
   try {
     let walletAddress;
-    
+
     try {
       const body = await req.json();
       walletAddress = body.walletAddress;
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     }
 
     const isLinked = !!(team && team.zealy_user_id);
-    
+
     console.log(`Zealy link check for ${walletAddress}: ${isLinked ? 'linked' : 'not linked'}`);
 
     return NextResponse.json(

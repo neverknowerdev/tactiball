@@ -17,12 +17,7 @@ import {
 import { useAccount, useSignMessage } from "wagmi";
 import React, { useEffect, useState, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import crypto from "crypto";
 import { authUserWithSignature } from "@/lib/auth";
-
-const ZEALY_COMMUNITY_SECRET =
-  process.env.NEXT_PUBLIC_ZEALY_COMMUNITY_SECRET ||
-  "bf4227ba5e04c8c2a1c8be09d53232caed908783200f882133776aeaab6edbfc";
 
 // Separate component that uses useSearchParams
 function ConnectZealyContent() {
@@ -46,18 +41,22 @@ function ConnectZealyContent() {
   }, [context]);
 
   const verifyZealySignature = useCallback(
-    (url: string, signature: string | null) => {
+    async (url: string, signature: string | null) => {
       if (!signature) return false;
 
       try {
-        const fullUrl = new URL(url);
-        fullUrl.searchParams.delete("signature");
+        const response = await fetch("/api/zealy/signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "verify",
+            url,
+            signature,
+          }),
+        });
 
-        const hmac = crypto.createHmac("sha256", ZEALY_COMMUNITY_SECRET);
-        hmac.update(fullUrl.toString());
-        const generatedSignature = hmac.digest("hex");
-
-        return generatedSignature === signature;
+        const result = await response.json();
+        return result.success && result.isValid;
       } catch (err) {
         console.error("Error verifying signature:", err);
         return false;
@@ -67,13 +66,27 @@ function ConnectZealyContent() {
   );
 
   const generateCallbackSignature = useCallback(
-    (url: string, identifier: string) => {
-      const callbackWithParams = new URL(url);
-      callbackWithParams.searchParams.append("identifier", identifier);
+    async (url: string, identifier: string) => {
+      try {
+        const response = await fetch("/api/zealy/signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "generate",
+            url,
+            identifier,
+          }),
+        });
 
-      const hmac = crypto.createHmac("sha256", ZEALY_COMMUNITY_SECRET);
-      hmac.update(callbackWithParams.toString());
-      return hmac.digest("hex");
+        const result = await response.json();
+        if (result.success) {
+          return result.signature;
+        }
+        throw new Error(result.error || "Failed to generate signature");
+      } catch (err) {
+        console.error("Error generating signature:", err);
+        throw err;
+      }
     },
     [],
   );
@@ -117,7 +130,7 @@ function ConnectZealyContent() {
       setIsLinked(true);
 
       const platformUserId = address;
-      const newSignature = generateCallbackSignature(
+      const newSignature = await generateCallbackSignature(
         callbackUrl,
         platformUserId,
       );
@@ -178,7 +191,7 @@ function ConnectZealyContent() {
         }
       } catch (err: any) {
         if (!isActive) return;
-        
+
         if (err.name === 'AbortError') {
           console.log("Check link request timeout - will retry");
         } else {
@@ -208,10 +221,11 @@ function ConnectZealyContent() {
     if (zealyUserId && callbackUrl && zealySignature) {
       if (typeof window !== "undefined") {
         const currentUrl = window.location.href;
-        if (!verifyZealySignature(currentUrl, zealySignature)) {
-          setError("Invalid Zealy signature");
-          return;
-        }
+        verifyZealySignature(currentUrl, zealySignature).then((isValid) => {
+          if (!isValid) {
+            setError("Invalid Zealy signature");
+          }
+        });
       }
     }
   }, [zealyUserId, callbackUrl, zealySignature, verifyZealySignature]);

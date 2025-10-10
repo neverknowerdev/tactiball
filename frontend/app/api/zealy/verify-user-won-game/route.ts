@@ -6,9 +6,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAnonClient } from '@/lib/supabase';
 
-const ZEALY_API_KEY = process.env.ZEALY_API_KEY || "eb50c37i_YJBlFllX6ojkZycqFd";
+const ZEALY_API_KEY = process.env.ZEALY_API_KEY;
 
 export async function POST(req: NextRequest) {
+  if (!ZEALY_API_KEY) {
+    throw new Error("ZEALY_API_KEY is not set");
+  }
+
   try {
     // Verify API key from Zealy
     const apiKey = req.headers.get('x-api-key');
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     // Get the Zealy Connect identifier (wallet address)
     const zealyConnectIdentifier = accounts?.['zealy-connect'];
-    
+
     if (!zealyConnectIdentifier) {
       return NextResponse.json({
         message: 'Account not connected. Please connect your ChessBall account first by clicking the Connect button in the quest!'
@@ -39,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createAnonClient();
-    
+
     // Verify team exists and has correct Zealy user ID
     const { data: team, error: teamError } = await supabase
       .from('teams')
