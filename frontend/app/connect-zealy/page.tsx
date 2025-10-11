@@ -261,18 +261,39 @@ function ConnectZealyContent() {
     }
   }, [setFrameReady, isFrameReady]);
 
+  // Generate Base Mini App URL with all Zealy parameters
   const zealyConnectUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    const currentPath = window.location.pathname + window.location.search;
-    return `base://app.minikit.frames.coinbase.com/${encodeURIComponent(window.location.origin + currentPath)}`;
+    const currentUrl = window.location.href;
+    return `https://base.org/mini-apps?url=${encodeURIComponent(currentUrl)}`;
   }, []);
 
-  if (!zealyUserId || !callbackUrl) {
+  // Generate Farcaster Mini App URL with all Zealy parameters
+  const farcasterMiniAppUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    const appId = "YOUR_FARCASTER_APP_ID";
+    const appSlug = "chessball";
+    
+    const currentPath = window.location.pathname;
+    const params = new URLSearchParams();
+    if (zealyUserId) params.append("zealyUserId", zealyUserId);
+    if (callbackUrl) params.append("callback", callbackUrl);
+    if (zealySignature) params.append("signature", zealySignature);
+    
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+    const cleanPath = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    
+    return `https://farcaster.xyz/miniapps/${appId}/${appSlug}/${cleanPath}${queryString}`;
+  }, [zealyUserId, callbackUrl, zealySignature]);
+
+  // If NOT in mini app, show platform selection
+  if (!isMiniApp) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans">
+      <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans mini-app-theme">
+        {/* Wallet connection - fixed to right corner */}
         <div className="absolute top-4 right-4 z-20">
           <Wallet>
-            <ConnectWallet className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors shadow-md">
+            <ConnectWallet className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors">
               <Name className="text-black" />
             </ConnectWallet>
             <WalletDropdown>
@@ -287,98 +308,102 @@ function ConnectZealyContent() {
           </Wallet>
         </div>
 
-        <div className="w-full flex justify-center items-center mb-8 mt-8">
+        {/* Logo */}
+        <div className="w-full flex justify-center items-center mb-8">
           <div className="flex flex-col items-center">
-            <img src="/logo-white.png" alt="ChessBall Logo" className="h-32" />
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mt-4">
-              Zealy Integration
-            </h1>
+            <img src="/logo-white.png" alt="ChessBall Logo" className="h-42" />
           </div>
         </div>
 
-        <div className="w-full max-w-md bg-white rounded-xl shadow-xl border border-gray-200 p-8">
-          <div className="text-center">
-            {!isConnected ? (
-              <React.Fragment>
-                <div className="text-6xl mb-4">🏆</div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                  Connect Your Account
-                </h3>
-                <p className="text-gray-600 mb-6 text-sm">
-                  Connect your wallet to enable Zealy quest verification.
-                </p>
-                <ConnectWallet className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 px-6 py-3 rounded-lg text-white font-medium text-lg shadow-md transition-all">
-                  Connect Wallet
-                </ConnectWallet>
-              </React.Fragment>
-            ) : isLinked ? (
-              <React.Fragment>
-                <div className="text-6xl mb-4">✅</div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                  Already Connected!
-                </h3>
-                <p className="text-gray-600 text-sm mb-4">
-                  Your ChessBall account is linked to Zealy.
-                </p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-blue-700 font-medium mb-2">
-                    📋 How to complete quests:
+        <div className="w-full max-w-md">
+          {/* Warning Banner */}
+          <div className="mb-4 bg-yellow-500 text-yellow-900 rounded-lg shadow-sm border border-yellow-600">
+            <div className="p-4">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 mr-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <h3 className="font-semibold text-sm mb-1">
+                    Open in Mini-App Required
+                  </h3>
+                  <p className="text-xs leading-relaxed">
+                    To connect your wallet and link to Zealy, you must open this page in either the <strong>Base App</strong> or <strong>Farcaster</strong> mini-app. Click one of the buttons below to continue.
                   </p>
-                  <ol className="text-xs text-blue-600 text-left space-y-1 list-decimal list-inside">
-                    <li>Visit the Zealy ChessBall community</li>
-                    <li>Click on any quest</li>
-                    <li>Click "Connect Account" button on the quest</li>
-                    <li>You'll be redirected here to verify</li>
-                    <li>Complete and claim your rewards!</li>
-                  </ol>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Platform Selection Card */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-4">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Connect to Zealy</h3>
+              </div>
+              <div className="text-center mb-4">
+                <div className="text-6xl mb-3">🔗</div>
+                <h3 className="text-lg font-bold text-black mb-2">
+                  Select Platform
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Choose where you want to complete the wallet connection
+                </p>
+              </div>
+
+              <div className="space-y-3">
                 <a
-                  href="https://zealy.io/cw/chessballtacticians"
+                  href={zealyConnectUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all shadow-md"
+                  className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-4 rounded-lg transition-all shadow-sm"
                 >
-                  Visit Zealy Quests →
+                  <span className="text-2xl mr-3">🔵</span>
+                  <div className="text-left">
+                    <div className="text-base">Open in Base</div>
+                    <div className="text-xs opacity-90">Base Mini-App</div>
+                  </div>
                 </a>
-              </React.Fragment>
-            ) : (
-              <React.Fragment>
-                <div className="text-6xl mb-4">🎮</div>
-                <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                  Ready for Quests!
-                </h3>
-                <p className="text-gray-600 mb-4 text-sm">
-                  Your wallet is connected. Now visit Zealy to complete quests!
-                </p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-blue-700 font-medium mb-2">
-                    📋 Next steps:
-                  </p>
-                  <ol className="text-xs text-blue-600 text-left space-y-1 list-decimal list-inside">
-                    <li>Click the button below to visit Zealy</li>
-                    <li>Find a quest you want to complete</li>
-                    <li>Click "Connect Account" on that quest</li>
-                    <li>You'll come back here automatically to verify</li>
-                  </ol>
-                </div>
+
                 <a
-                  href="https://zealy.io/cw/chessballtacticians"
+                  href={farcasterMiniAppUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all shadow-md"
+                  className="w-full flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-4 rounded-lg transition-all shadow-sm"
                 >
-                  Go to Zealy Quests →
+                  <span className="text-2xl mr-3">🟣</span>
+                  <div className="text-left">
+                    <div className="text-base">Open in Farcaster</div>
+                    <div className="text-xs opacity-90">Farcaster Mini-App</div>
+                  </div>
                 </a>
-              </React.Fragment>
-            )}
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <p className="text-xs text-gray-600 text-center leading-relaxed">
+                  💡 <strong>Note:</strong> Wallet connection is only available within mini-apps. After clicking a button above, you'll be redirected to the respective platform where you can connect your wallet and complete the Zealy linking process.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Help Section */}
+          <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-3">
+              <p className="text-xs text-gray-700 text-center">
+                <strong>Need help?</strong> Make sure you have the Base App or Farcaster installed on your device before clicking the buttons above.
+              </p>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
+  // If IN mini app, show the wallet connection flow
   return (
-    <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans">
+    <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans mini-app-theme">
+      {/* Wallet connection - fixed to right corner */}
       <div className="absolute top-4 right-4 z-20">
         <Wallet>
           <ConnectWallet className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors shadow-md">
@@ -396,86 +421,76 @@ function ConnectZealyContent() {
         </Wallet>
       </div>
 
-      <div className="w-full flex justify-center items-center mb-8 mt-8">
+      {/* Logo */}
+      <div className="w-full flex justify-center items-center mb-8">
         <div className="flex flex-col items-center">
-          <img src="/logo-white.png" alt="ChessBall Logo" className="h-32" />
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mt-4">
-            Linking to Zealy
-          </h1>
+          <img src="/logo-white.png" alt="ChessBall Logo" className="h-42" />
         </div>
       </div>
 
-      <div className="w-full max-w-md bg-white rounded-xl shadow-xl border border-gray-200 p-8">
-        {!isMiniApp && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 p-4 mb-6 rounded-r">
-            <p className="font-bold mb-2">⚠️ Open in Base Mini-App</p>
-            <p className="text-sm mb-3">
-              For the best experience, open this in the Base Mini-App.
-            </p>
-            <a
-              href={zealyConnectUrl}
-              className="inline-block bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold px-4 py-2 rounded transition-colors text-sm"
-            >
-              Open in Mini-App
-            </a>
+      <div className="w-full max-w-md">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide text-center">Zealy Integration</h3>
+            </div>
+            <div className="text-center">
+              {success || (isLinked && zealyUserId) ? (
+                <React.Fragment>
+                  <div className="text-6xl mb-4">✅</div>
+                  <h3 className="text-xl font-bold text-black mb-3">
+                    Successfully Linked!
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Your ChessBall account is now connected to Zealy!
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Redirecting back to Zealy...
+                  </p>
+                </React.Fragment>
+              ) : error ? (
+                <React.Fragment>
+                  <div className="text-6xl mb-4">❌</div>
+                  <h3 className="text-xl font-bold text-black mb-3">
+                    Connection Failed
+                  </h3>
+                  <p className="text-sm text-red-600 mb-4">{error}</p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="text-sm text-blue-600 hover:text-blue-700 underline"
+                  >
+                    Try Again
+                  </button>
+                </React.Fragment>
+              ) : isConnected && address ? (
+                <React.Fragment>
+                  <div className="text-6xl mb-4">🔗</div>
+                  <h3 className="text-xl font-bold text-black mb-3">
+                    Linking Account...
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Verifying your wallet and connecting to Zealy
+                  </p>
+                  <div className="flex justify-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                  </div>
+                </React.Fragment>
+              ) : (
+                <React.Fragment>
+                  <div className="text-6xl mb-4">👋</div>
+                  <h3 className="text-xl font-bold text-black mb-3">
+                    Connect Your Wallet
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-6">
+                    Connect your wallet to complete the Zealy account linking.
+                  </p>
+                  <ConnectWallet className="w-full bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg text-white font-medium transition-all">
+                    Connect Wallet
+                  </ConnectWallet>
+                </React.Fragment>
+              )}
+            </div>
           </div>
-        )}
-
-        <div className="text-center">
-          {success || (isLinked && zealyUserId) ? (
-            <React.Fragment>
-              <div className="text-6xl mb-4">✅</div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                Successfully Linked!
-              </h3>
-              <p className="text-gray-600 text-sm mb-4">
-                Your ChessBall account is now connected to Zealy!
-              </p>
-              <p className="text-gray-500 text-xs">
-                Redirecting back to Zealy...
-              </p>
-            </React.Fragment>
-          ) : error ? (
-            <React.Fragment>
-              <div className="text-6xl mb-4">❌</div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                Connection Failed
-              </h3>
-              <p className="text-red-600 text-sm mb-4">{error}</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="text-blue-600 hover:text-blue-700 text-sm underline"
-              >
-                Try Again
-              </button>
-            </React.Fragment>
-          ) : isConnected && address ? (
-            <React.Fragment>
-              <div className="text-6xl mb-4">🔗</div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                Linking Account...
-              </h3>
-              <p className="text-gray-500 text-sm mb-4">
-                Verifying your wallet and connecting to Zealy
-              </p>
-              <div className="flex justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-              </div>
-            </React.Fragment>
-          ) : (
-            <React.Fragment>
-              <div className="text-6xl mb-4">👋</div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">
-                Connect Your Wallet
-              </h3>
-              <p className="text-gray-600 mb-6 text-sm">
-                Connect your wallet to complete the Zealy account linking.
-              </p>
-              <ConnectWallet className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 px-6 py-3 rounded-lg text-white font-medium text-lg shadow-md transition-all">
-                Connect Wallet
-              </ConnectWallet>
-            </React.Fragment>
-          )}
         </div>
       </div>
     </div>
@@ -485,8 +500,8 @@ function ConnectZealyContent() {
 // Loading fallback component
 function LoadingFallback() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+    <div className="min-h-screen w-full flex items-center justify-center mini-app-theme">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
     </div>
   );
 }
