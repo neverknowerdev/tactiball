@@ -265,8 +265,9 @@ function ConnectZealyContent() {
   // Generate Base Mini App URL with all Zealy parameters
   const zealyConnectUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    const currentUrl = window.location.href;
-    return `https://base.org/mini-apps?url=${encodeURIComponent(currentUrl)}`;
+    const appUrl = "https://play.chessball.fun"
+    // const currentUrl = window.location.href;
+    return `https://base.org/mini-apps?url=${encodeURIComponent(appUrl)}`;
   }, []);
 
   // Generate Farcaster Mini App URL with all Zealy parameters
