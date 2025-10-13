@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAnonClient } from "@/lib/supabase";
 
 const ZEALY_API_KEY =
-  process.env.ZEALY_API_KEY;
+  process.env.ZEALY_API_KEY || "eb50c37i_YJBlFllX6ojkZycqFd";
 
 // Handle GET requests - return 405
 export async function GET(req: NextRequest) {
