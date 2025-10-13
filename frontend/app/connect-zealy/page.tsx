@@ -272,18 +272,18 @@ function ConnectZealyContent() {
   // Generate Farcaster Mini App URL with all Zealy parameters
   const farcasterMiniAppUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    const appId = "YOUR_FARCASTER_APP_ID";
+    const appId = "uOFpcGpLFeLD";
     const appSlug = "chessball";
-    
+
     const currentPath = window.location.pathname;
     const params = new URLSearchParams();
     if (zealyUserId) params.append("zealyUserId", zealyUserId);
     if (callbackUrl) params.append("callback", callbackUrl);
     if (zealySignature) params.append("signature", zealySignature);
-    
+
     const queryString = params.toString() ? `?${params.toString()}` : "";
     const cleanPath = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-    
+
     return `https://farcaster.xyz/miniapps/${appId}/${appSlug}/${cleanPath}${queryString}`;
   }, [zealyUserId, callbackUrl, zealySignature]);
 
@@ -326,10 +326,10 @@ function ConnectZealyContent() {
                 </svg>
                 <div>
                   <h3 className="font-semibold text-sm mb-1">
-                    Choose Your Connection Method
+                    Where do you usually play ChessBall?
                   </h3>
                   <p className="text-xs leading-relaxed">
-                    You can connect via <strong>Base App</strong>, <strong>Farcaster</strong>, or continue directly in your <strong>web browser</strong>.
+                    You can play on <strong>Base App</strong>, <strong>Farcaster</strong>, or directly in your <strong>web browser</strong>.
                   </p>
                 </div>
               </div>
