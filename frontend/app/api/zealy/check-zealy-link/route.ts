@@ -1,3 +1,7 @@
+// ============================================================================
+// API Route: app/api/zealy/check-zealy-link/route.ts
+// ============================================================================
+
 import { NextRequest, NextResponse } from "next/server";
 import { createAnonClient } from "@/lib/supabase";
 
@@ -5,21 +9,54 @@ export async function POST(req: NextRequest) {
   try {
     let walletAddress;
 
+    // Check if request has a body
+    const contentType = req.headers.get("content-type");
+
+    if (!contentType || !contentType.includes("application/json")) {
+      console.error("Invalid content-type:", contentType);
+      return NextResponse.json(
+        {
+          isLinked: false,
+          error: "Content-Type must be application/json",
+        },
+        { status: 400 },
+      );
+    }
+
+    // Clone the request to safely read the body
+    const clonedReq = req.clone();
+    let body;
+
     try {
-      const body = await req.json();
+      const text = await clonedReq.text();
+      console.log("Request body text:", text);
+
+      if (!text || text.trim() === '') {
+        console.error("Empty request body");
+        return NextResponse.json(
+          {
+            isLinked: false,
+            error: "Request body is empty",
+          },
+          { status: 400 },
+        );
+      }
+
+      body = JSON.parse(text);
       walletAddress = body.walletAddress;
     } catch (jsonError) {
       console.error("Error parsing request body:", jsonError);
       return NextResponse.json(
         {
           isLinked: false,
-          error: "Invalid request body",
+          error: "Invalid JSON in request body",
         },
         { status: 400 },
       );
     }
 
     if (!walletAddress) {
+      console.error("No wallet address in body:", body);
       return NextResponse.json(
         {
           isLinked: false,

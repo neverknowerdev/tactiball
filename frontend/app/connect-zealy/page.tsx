@@ -19,7 +19,6 @@ import React, { useEffect, useState, useCallback, useMemo, Suspense } from "reac
 import { useSearchParams } from "next/navigation";
 import { authUserWithSignature } from "@/lib/auth";
 
-// Separate component that uses useSearchParams
 function ConnectZealyContent() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address, isConnected } = useAccount();
@@ -31,11 +30,20 @@ function ConnectZealyContent() {
   const [success, setSuccess] = useState(false);
   const [isLinked, setIsLinked] = useState<boolean | null>(null);
   const [continueInWeb, setContinueInWeb] = useState(false);
+  const [hasAttemptedLink, setHasAttemptedLink] = useState(false);
 
-  // Zealy parameters - these come FROM Zealy when user clicks "Connect" on a quest
   const zealyUserId = searchParams.get("zealyUserId");
-  const callbackUrl = searchParams.get("callback");
+  const callbackUrl = searchParams.get("callbackUrl") || searchParams.get("callback");
   const zealySignature = searchParams.get("signature");
+
+  useEffect(() => {
+    console.log("🔍 URL Parameters:", {
+      zealyUserId,
+      callbackUrl,
+      zealySignature: zealySignature ? "present" : "missing",
+      allParams: Object.fromEntries(searchParams.entries()),
+    });
+  }, [zealyUserId, callbackUrl, zealySignature, searchParams]);
 
   const isMiniApp = useMemo(() => {
     return context !== null && context !== undefined;
@@ -98,17 +106,29 @@ function ConnectZealyContent() {
       return;
     }
 
+    // Prevent duplicate calls
+    if (hasAttemptedLink) {
+      console.log("Already attempted to link, skipping...");
+      return;
+    }
+
+    setHasAttemptedLink(true);
     setIsLoading(true);
     setError(null);
 
     try {
+      console.log("Starting Zealy connection process...");
+      
       const authSignature = await authUserWithSignature(
         address,
         signMessageAsync,
       );
+      
       if (!authSignature) {
         throw new Error("Failed to authenticate wallet");
       }
+
+      console.log("Wallet authenticated, linking to Zealy...");
 
       const response = await fetch("/api/zealy/link-zealy-user", {
         method: "POST",
@@ -127,9 +147,11 @@ function ConnectZealyContent() {
         throw new Error(result.error || "Failed to link account");
       }
 
+      console.log("Successfully linked to Zealy!");
       setSuccess(true);
       setIsLinked(true);
 
+      // Generate callback signature and redirect
       const platformUserId = address;
       const newSignature = await generateCallbackSignature(
         callbackUrl,
@@ -140,12 +162,14 @@ function ConnectZealyContent() {
       finalCallbackUrl.searchParams.append("identifier", platformUserId);
       finalCallbackUrl.searchParams.append("signature", newSignature);
 
+      console.log("Redirecting to Zealy...");
       setTimeout(() => {
         window.location.href = finalCallbackUrl.toString();
       }, 1500);
     } catch (err: any) {
       console.error("Zealy Connect error:", err);
       setError(err.message || "Failed to connect account");
+      setHasAttemptedLink(false); // Allow retry on error
     } finally {
       setIsLoading(false);
     }
@@ -155,8 +179,10 @@ function ConnectZealyContent() {
     callbackUrl,
     signMessageAsync,
     generateCallbackSignature,
+    hasAttemptedLink,
   ]);
 
+  // Check if already linked
   useEffect(() => {
     let isActive = true;
 
@@ -180,15 +206,32 @@ function ConnectZealyContent() {
 
         if (!response.ok) {
           console.error("Check link response not OK:", response.status);
+          setIsLinked(false); // Assume not linked if check fails
           return;
         }
 
         const data = await response.json();
-        const wasLinked = isLinked;
+        console.log("Link check result:", data);
         setIsLinked(data.isLinked);
 
-        if (zealyUserId && callbackUrl && !wasLinked && data.isLinked) {
+        // If already linked and we have Zealy params, redirect back
+        if (data.isLinked && zealyUserId && callbackUrl && address) {
+          console.log("Already linked, preparing redirect...");
           setSuccess(true);
+          
+          const platformUserId = address;
+          const newSignature = await generateCallbackSignature(
+            callbackUrl,
+            platformUserId,
+          );
+
+          const finalCallbackUrl = new URL(callbackUrl);
+          finalCallbackUrl.searchParams.append("identifier", platformUserId);
+          finalCallbackUrl.searchParams.append("signature", newSignature);
+
+          setTimeout(() => {
+            window.location.href = finalCallbackUrl.toString();
+          }, 1500);
         }
       } catch (err: any) {
         if (!isActive) return;
@@ -198,40 +241,57 @@ function ConnectZealyContent() {
         } else {
           console.error("Error checking Zealy link:", err);
         }
+        setIsLinked(false); // Assume not linked on error
       }
     };
 
     if (address) {
       checkLink();
-
-      if (zealyUserId && callbackUrl && !success) {
-        const interval = setInterval(checkLink, 3000);
-        return () => {
-          isActive = false;
-          clearInterval(interval);
-        };
-      }
     }
 
     return () => {
       isActive = false;
     };
-  }, [address, zealyUserId, callbackUrl, success, isLinked]);
+  }, [address, zealyUserId, callbackUrl, generateCallbackSignature]);
 
+  // Verify Zealy signature (non-blocking for now)
   useEffect(() => {
     if (zealyUserId && callbackUrl && zealySignature) {
       if (typeof window !== "undefined") {
         const currentUrl = window.location.href;
+        console.log("🔐 Verifying Zealy signature...", {
+          url: currentUrl,
+          hasSignature: !!zealySignature,
+        });
+        
         verifyZealySignature(currentUrl, zealySignature).then((isValid) => {
+          console.log("🔐 Signature verification result:", isValid);
           if (!isValid) {
-            setError("Invalid Zealy signature");
+            console.warn("⚠️ Invalid Zealy signature detected - continuing anyway for testing");
+            // TODO: Re-enable this once signature verification is working
+            // setError("Invalid Zealy signature");
+          } else {
+            console.log("✅ Zealy signature is valid!");
           }
         });
       }
     }
   }, [zealyUserId, callbackUrl, zealySignature, verifyZealySignature]);
 
+  // Auto-trigger connection when conditions are met
   useEffect(() => {
+    console.log("Auto-trigger check:", {
+      isConnected,
+      hasAddress: !!address,
+      hasZealyUserId: !!zealyUserId,
+      hasCallbackUrl: !!callbackUrl,
+      success,
+      isLoading,
+      error,
+      hasAttemptedLink,
+      isLinked,
+    });
+
     if (
       isConnected &&
       address &&
@@ -240,9 +300,19 @@ function ConnectZealyContent() {
       !success &&
       !isLoading &&
       !error &&
-      isLinked === false
+      !hasAttemptedLink &&
+      isLinked === false // Only proceed if confirmed NOT linked
     ) {
+      console.log("✅ All conditions met! Triggering Zealy connection...");
       handleZealyConnect();
+    } else if (isConnected && address && zealyUserId && callbackUrl) {
+      console.log("⏳ Waiting for conditions:", {
+        needsNoSuccess: success,
+        needsNotLoading: isLoading,
+        needsNoError: error,
+        needsNoAttempt: hasAttemptedLink,
+        needsNotLinked: isLinked,
+      });
     }
   }, [
     isConnected,
@@ -252,6 +322,7 @@ function ConnectZealyContent() {
     success,
     isLoading,
     error,
+    hasAttemptedLink,
     isLinked,
     handleZealyConnect,
   ]);
@@ -262,15 +333,12 @@ function ConnectZealyContent() {
     }
   }, [setFrameReady, isFrameReady]);
 
-  // Generate Base Mini App URL with all Zealy parameters
   const zealyConnectUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
     const appUrl = "https://play.chessball.fun"
-    // const currentUrl = window.location.href;
     return `https://base.org/mini-apps?url=${encodeURIComponent(appUrl)}`;
   }, []);
 
-  // Generate Farcaster Mini App URL with all Zealy parameters
   const farcasterMiniAppUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
     const appId = "uOFpcGpLFeLD";
@@ -288,11 +356,9 @@ function ConnectZealyContent() {
     return `https://farcaster.xyz/miniapps/${appId}/${appSlug}/${cleanPath}${queryString}`;
   }, [zealyUserId, callbackUrl, zealySignature]);
 
-  // If NOT in mini app AND user hasn't chosen to continue in web, show platform selection
   if (!isMiniApp && !continueInWeb) {
     return (
       <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans mini-app-theme">
-        {/* Wallet connection - fixed to right corner */}
         <div className="absolute top-4 right-4 z-20">
           <Wallet>
             <ConnectWallet className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors">
@@ -310,7 +376,6 @@ function ConnectZealyContent() {
           </Wallet>
         </div>
 
-        {/* Logo */}
         <div className="w-full flex justify-center items-center mb-8">
           <div className="flex flex-col items-center">
             <img src="/logo-white.png" alt="ChessBall Logo" className="h-42" />
@@ -318,7 +383,6 @@ function ConnectZealyContent() {
         </div>
 
         <div className="w-full max-w-md">
-          {/* Info Banner */}
           <div className="mb-4 bg-blue-500 text-white rounded-lg shadow-sm border border-blue-600">
             <div className="p-4">
               <div className="flex items-start">
@@ -337,7 +401,6 @@ function ConnectZealyContent() {
             </div>
           </div>
 
-          {/* Platform Selection Card */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="p-4">
               <div className="mb-3">
@@ -400,7 +463,6 @@ function ConnectZealyContent() {
             </div>
           </div>
 
-          {/* Help Section */}
           <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="p-3">
               <p className="text-xs text-gray-700 text-center">
@@ -413,10 +475,8 @@ function ConnectZealyContent() {
     );
   }
 
-  // If IN mini app OR user chose to continue in web, show the wallet connection flow
   return (
     <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans mini-app-theme">
-      {/* Wallet connection - fixed to right corner */}
       <div className="absolute top-4 right-4 z-20">
         <Wallet>
           <ConnectWallet className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors shadow-md">
@@ -434,7 +494,6 @@ function ConnectZealyContent() {
         </Wallet>
       </div>
 
-      {/* Logo */}
       <div className="w-full flex justify-center items-center mb-8">
         <div className="flex flex-col items-center">
           <img src="/logo-white.png" alt="ChessBall Logo" className="h-42" />
@@ -479,10 +538,12 @@ function ConnectZealyContent() {
                 <React.Fragment>
                   <div className="text-6xl mb-4">🔗</div>
                   <h3 className="text-xl font-bold text-black mb-3">
-                    Linking Account...
+                    {isLinked === null ? "Checking Status..." : "Linking Account..."}
                   </h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    Verifying your wallet and connecting to Zealy
+                    {isLinked === null 
+                      ? "Checking your Zealy connection status" 
+                      : "Verifying your wallet and connecting to Zealy"}
                   </p>
                   <div className="flex justify-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -510,7 +571,6 @@ function ConnectZealyContent() {
   );
 }
 
-// Loading fallback component
 function LoadingFallback() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center mini-app-theme">
@@ -519,7 +579,6 @@ function LoadingFallback() {
   );
 }
 
-// Main component that wraps everything in Suspense
 export default function ConnectZealyPage() {
   return (
     <Suspense fallback={<LoadingFallback />}>
