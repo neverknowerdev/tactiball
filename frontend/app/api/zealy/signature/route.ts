@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
-const ZEALY_COMMUNITY_SECRET = process.env.ZEALY_COMMUNITY_SECRET || "a82cc4eMESdFKZ4Y7AToIVPffHQ";
+const ZEALY_COMMUNITY_SECRET = process.env.ZEALY_COMMUNITY_SECRET;
 if (!ZEALY_COMMUNITY_SECRET) {
     throw new Error("ZEALY_COMMUNITY_SECRET is not set");
 }
