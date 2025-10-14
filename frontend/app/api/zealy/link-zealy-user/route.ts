@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const { data: team, error: fetchError } = await supabase
       .from("teams")
       .select("id, name, zealy_user_id, primary_wallet")
-      .eq("primary_wallet", walletAddress.toLowerCase())
+      .eq("primary_wallet", walletAddress)
       .maybeSingle();
 
     if (fetchError) {
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     const { error: updateError } = await supabase
       .from("teams")
       .update({ zealy_user_id: zealyUserId })
-      .eq("primary_wallet", walletAddress.toLowerCase());
+      .eq("primary_wallet", walletAddress);
 
     if (updateError) {
       console.error("Update error:", updateError);
