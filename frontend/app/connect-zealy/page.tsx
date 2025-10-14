@@ -335,7 +335,7 @@ function ConnectZealyContent() {
 
   const zealyConnectUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    const appUrl = "https://play.chessball.fun"
+    const appUrl = "https://chessball-git-zealy-gmgm.vercel.app/"
     return `https://base.org/mini-apps?url=${encodeURIComponent(appUrl)}`;
   }, []);
 
