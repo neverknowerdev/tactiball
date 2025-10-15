@@ -110,8 +110,8 @@ describe("ELO Rating System", function () {
                 // Commit moves for both teams (simulating via relayer since we're testing)
                 const dummyMoves1 = ethers.keccak256(ethers.toUtf8Bytes(`team1_move_${move}`));
                 const dummyMoves2 = ethers.keccak256(ethers.toUtf8Bytes(`team2_move_${move}`));
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1); // TEAM1, dummy moves
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2); // TEAM2, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1, move); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2, move); // TEAM2, dummy moves
 
                 // Update game state with no goals (maintaining 0:0 score)
                 const boardState = {
@@ -148,8 +148,8 @@ describe("ELO Rating System", function () {
                 console.log("Game not finished yet, triggering one more state update...");
                 const dummyMoves1 = ethers.keccak256(ethers.toUtf8Bytes("team1_final_move"));
                 const dummyMoves2 = ethers.keccak256(ethers.toUtf8Bytes("team2_final_move"));
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1); // TEAM1, dummy moves
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2); // TEAM2, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1, 46); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2, 46); // TEAM2, dummy moves
                 await game.connect(owner).newGameState(
                     gameId,
                     1, // StateType.MOVE (no goal)
@@ -229,8 +229,8 @@ describe("ELO Rating System", function () {
             for (let move = 1; move <= 10; move++) {
                 const dummyMoves1 = ethers.keccak256(ethers.toUtf8Bytes(`team1_move_${move}`));
                 const dummyMoves2 = ethers.keccak256(ethers.toUtf8Bytes(`team2_move_${move}`));
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1); // TEAM1, dummy moves
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2); // TEAM2, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1, move); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2, move); // TEAM2, dummy moves
 
                 const boardState = {
                     team1PlayerPositions: [
@@ -258,8 +258,8 @@ describe("ELO Rating System", function () {
             // Now simulate team1 scoring a goal
             const goalMoves1 = ethers.keccak256(ethers.toUtf8Bytes("team1_goal_move"));
             const goalMoves2 = ethers.keccak256(ethers.toUtf8Bytes("team2_goal_move"));
-            await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, goalMoves1); // TEAM1, dummy moves
-            await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, goalMoves2); // TEAM2, dummy moves
+            await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, goalMoves1, 11); // TEAM1, dummy moves
+            await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, goalMoves2, 11); // TEAM2, dummy moves
 
             const goalBoardState = {
                 team1PlayerPositions: [
@@ -287,8 +287,8 @@ describe("ELO Rating System", function () {
             for (let move = 12; move <= 45; move++) {
                 const finalMoves1 = ethers.keccak256(ethers.toUtf8Bytes(`team1_final_${move}`));
                 const finalMoves2 = ethers.keccak256(ethers.toUtf8Bytes(`team2_final_${move}`));
-                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, finalMoves1); // TEAM1, dummy moves
-                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, finalMoves2); // TEAM2, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team1Owner.address, gameId, 1, finalMoves1, move); // TEAM1, dummy moves
+                await game.connect(owner).commitGameActionsRelayer(team2Owner.address, gameId, 2, finalMoves2, move); // TEAM2, dummy moves
 
                 const finalBoardState = {
                     team1PlayerPositions: [

@@ -102,8 +102,8 @@ describe("Smart Contract Game Engine Integration", function () {
             const dummyMoves1 = ethers.keccak256(ethers.toUtf8Bytes(`team1_move_${moveNumber}`));
             const dummyMoves2 = ethers.keccak256(ethers.toUtf8Bytes(`team2_move_${moveNumber}`));
 
-            await chessBallGame.connect(deployer).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1);
-            await chessBallGame.connect(deployer).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2);
+            await chessBallGame.connect(deployer).commitGameActionsRelayer(team1Owner.address, gameId, 1, dummyMoves1, moveNumber);
+            await chessBallGame.connect(deployer).commitGameActionsRelayer(team2Owner.address, gameId, 2, dummyMoves2, moveNumber);
 
             // Determine if this should be a goal (Team 1 scores on move 20)
             const isGoal = moveNumber === 20;

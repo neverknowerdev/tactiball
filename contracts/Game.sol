@@ -30,6 +30,7 @@ error GameHasNotReachedMaxMoves();
 error OnlyGameEngineServerCanCall();
 error InvalidTeam();
 error MovesEncryptedCannotBeZero();
+error WrongMoveNumber();
 
 contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     using GameLib for *;
@@ -374,7 +375,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address sender,
         uint256 gameId,
         GameLib.TeamEnum team,
-        bytes32 movesEncrypted
+        bytes32 movesEncrypted,
+        uint8 moveNumber
     ) internal gameExists(gameId) {
         GameLib.Game storage game = games[gameId];
         if (game.status != GameLib.GameStatus.ACTIVE) revert GameIsNotActive();
@@ -396,6 +398,8 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             if (teams[game.team2.teamId].wallet != sender)
                 revert GameOwnerShouldCall();
         }
+        if (game.gameState.movesMade + 1 != moveNumber)
+            revert WrongMoveNumber();
 
         if (game.gameState.movesMade >= GameLib.MAX_MOVES) {
             _finishGame(gameId, GameLib.FinishReason.MAX_MOVES_REACHED);
@@ -418,9 +422,10 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address sender,
         uint256 gameId,
         GameLib.TeamEnum team,
-        bytes32 movesEncrypted
+        bytes32 movesEncrypted,
+        uint8 movesMade
     ) public onlyRelayer {
-        _commitGameActions(sender, gameId, team, movesEncrypted);
+        _commitGameActions(sender, gameId, team, movesEncrypted, movesMade);
     }
 
     // ========================================
