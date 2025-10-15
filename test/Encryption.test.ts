@@ -389,11 +389,11 @@ describe('Complete Smart Contract Encryption Integration Test', () => {
         console.log('\n💾 Committing moves to contract...');
 
         // Commit moves to contract
-        const commitTx = await chessBallGame.connect(deployer).commitGameActionsRelayer(team1Owner.address, gameId, 1, movesBytes32); // 1 = TEAM1
+        const commitTx = await chessBallGame.connect(deployer).commitGameActionsRelayer(team1Owner.address, gameId, 1, movesBytes32, 1); // 1 = TEAM1
         await commitTx.wait();
         console.log('✅ Team 1 moves committed to contract');
 
-        const commitTx2 = await chessBallGame.connect(deployer).commitGameActionsRelayer(team2Owner.address, gameId, 2, movesBytes32_2); // 2 = TEAM2
+        const commitTx2 = await chessBallGame.connect(deployer).commitGameActionsRelayer(team2Owner.address, gameId, 2, movesBytes32_2, 1); // 2 = TEAM2
         await commitTx2.wait();
         console.log('✅ Team 2 moves committed to contract');
 
