@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyMessage } from "viem";
+import { checkAuthSignatureAndMessage } from "@/lib/auth";
 import { createAnonClient } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
@@ -16,18 +16,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify wallet signature
-    const isValidSignature = await verifyMessage({
-      address: walletAddress as `0x${string}`,
-      message: message,
-      signature: signature as `0x${string}`,
-    });
+    // Verify wallet signature using checkAuthSignatureAndMessage
+    const verificationResult = await checkAuthSignatureAndMessage(
+      signature,
+      message,
+      walletAddress
+    );
 
-    if (!isValidSignature) {
+    if (!verificationResult.isValid) {
       return NextResponse.json(
         {
           success: false,
-          error: "Invalid wallet signature",
+          error: verificationResult.error || "Invalid wallet signature",
         },
         { status: 401 },
       );
