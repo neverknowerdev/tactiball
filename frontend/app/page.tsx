@@ -20,7 +20,7 @@ import {
   WalletDropdownDisconnect,
 } from "@coinbase/onchainkit/wallet";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useConnections, useSignMessage } from "wagmi";
 import { CreateTeamModal } from "./components/CreateTeamModal";
 import { SearchOpponentModal } from "./components/SearchOpponentModal";
 import { GameRequestModal } from "./components/GameRequestModal";
@@ -36,11 +36,18 @@ import { LastGameResults } from './components/LastGameResults';
 import { Leaderboard } from './components/Leaderboard';
 import { GlobalStats } from './components/GlobalStats';
 import moment from "moment";
+import { getSubaccountProvider, writeContractSubAccount } from "@/lib/baseAccount";
+import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
+import { getSubaccountAddress, walletSendCalls } from "@/lib/providers";
+import { useWriteContract } from "wagmi";
+import { encodeFunctionData } from "viem";
+import { sendCalls } from '@wagmi/core';
 
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const [frameAdded, setFrameAdded] = useState(false);
   const { address, isConnected } = useAccount();
+  const connections = useConnections();
   const { signMessageAsync } = useSignMessage();
   const [teamInfo, setTeamInfo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -77,6 +84,7 @@ export default function App() {
   // Fetch username from onchain identity
   const fetchUsername = useCallback(async (walletAddress: string) => {
     console.log('fetchUsername', walletAddress);
+
 
     console.log('context', context);
     if (context?.user?.username) {
@@ -176,11 +184,31 @@ export default function App() {
     setIsSearchOpponentModalOpen(false);
   }, []);
 
+  const { writeContract: writeContractCreateTeam } = useWriteContract();
+
+
   const handleCreateTeam = useCallback(async (teamName: string, countryIndex: string) => {
-    if (!address) {
-      alert("Please connect your wallet first");
-      return;
-    }
+    const subAccountAddress = getSubaccountAddress(connections);
+    console.log('subAccountAddress', subAccountAddress);
+    // if (subAccountAddress) {
+    //   // use subaccount to make direct call to smart-contract
+    //   console.log('writing contract to create team');
+
+    //   const data = encodeFunctionData({
+    //     abi: CONTRACT_ABI,
+    //     functionName: 'createTeam',
+    //     args: [teamName, countryIndex],
+    //   });
+
+
+    //   walletSendCalls(provider, {
+    //     to: CONTRACT_ADDRESS,
+    //     data,
+    //     value: BigInt(0),
+    //   });
+    //   console.log('callsId', callsId);
+    // }
+    // return;
 
     setIsCreatingTeam(true);
     try {
@@ -193,6 +221,11 @@ export default function App() {
       }
 
       console.log('Creating team for address:', address);
+      const subAccountProvider = await getSubaccountProvider();
+      console.log('subAccountProvider', subAccountProvider);
+
+      await writeContractSubAccount(CONTRACT_ADDRESS, CONTRACT_ABI, 'createTeam', [teamName, countryIndexNum]);
+      return;
 
       // Get or create authentication signature
       const authSignature = await authUserWithSignature(address, signMessageAsync);
@@ -291,7 +324,7 @@ export default function App() {
     } finally {
       setIsCreatingTeam(false);
     }
-  }, [address, fetchTeamInfo]);
+  }, [address, fetchTeamInfo, writeContractCreateTeam]);
 
   // Watch for wallet connection changes
   useEffect(() => {
