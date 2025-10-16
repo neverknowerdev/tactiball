@@ -228,7 +228,7 @@ export default function App() {
       return;
 
       // Get or create authentication signature
-      const authSignature = await authUserWithSignature(address, signMessageAsync);
+      const authSignature = await authUserWithSignature(address as `0x${string}`, signMessageAsync);
       console.log("Authentication signature obtained:", authSignature);
 
 
@@ -307,7 +307,7 @@ export default function App() {
       });
 
       if (address) {
-        fetchTeamInfo(address);
+        fetchTeamInfo(address as `0x${string}`);
       }
 
 
