@@ -5,7 +5,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 interface GlobalStatsData {
     total_teams: number;
     total_games: number;
-    total_events : number;
+    total_events: number;
+    formatted?: {
+        total_teams: string;
+        total_games: string;
+        total_events: string;
+    };
 }
 
 interface GlobalStatsProps {
@@ -18,46 +23,35 @@ export function GlobalStats({ className = "" }: GlobalStatsProps) {
     const [updating, setUpdating] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Local storage cache key
-    const getCacheKey = () => 'global_stats';
+    // In-memory cache
+    let cachedData: { data: GlobalStatsData; timestamp: number } | null = null;
 
-    // Load data from local storage
+    // Load data from cache
     const loadFromCache = (): GlobalStatsData | null => {
-        try {
-            const cached = localStorage.getItem(getCacheKey());
-            if (cached) {
-                const parsed = JSON.parse(cached);
-                // Check if cache is not too old (10 minutes)
-                const cacheAge = Date.now() - (parsed.timestamp || 0);
-                if (cacheAge < 10 * 60 * 1000) {
-                    return parsed.data;
-                }
+        if (cachedData) {
+            // Check if cache is not too old (10 minutes)
+            const cacheAge = Date.now() - cachedData.timestamp;
+            if (cacheAge < 10 * 60 * 1000) {
+                return cachedData.data;
             }
-        } catch (error) {
-            console.error('Error loading global stats from cache:', error);
         }
         return null;
     };
 
-    // Save data to local storage
+    // Save data to cache
     const saveToCache = (data: GlobalStatsData) => {
-        try {
-            const cacheData = {
-                data,
-                timestamp: Date.now()
-            };
-            localStorage.setItem(getCacheKey(), JSON.stringify(cacheData));
-        } catch (error) {
-            console.error('Error saving global stats to cache:', error);
-        }
+        cachedData = {
+            data,
+            timestamp: Date.now()
+        };
     };
 
     // Fetch global stats
     const fetchGlobalStats = useCallback(async () => {
         // First, try to load from cache
-        const cachedData = loadFromCache();
-        if (cachedData) {
-            setGlobalStats(cachedData);
+        const cached = loadFromCache();
+        if (cached) {
+            setGlobalStats(cached);
             setLoading(false);
         } else {
             setLoading(true);
@@ -143,15 +137,21 @@ export function GlobalStats({ className = "" }: GlobalStatsProps) {
                 )}
                 <div className={`grid grid-cols-3 gap-4 transition-opacity duration-200 ${updating ? 'opacity-75' : 'opacity-100'}`}>
                     <div className="text-center">
-                        <div className="text-2xl font-bold animate-number">{globalStats?.total_teams || 0}</div>
+                        <div className="text-2xl font-bold animate-number">
+                            {globalStats?.formatted?.total_teams || globalStats?.total_teams || 0}
+                        </div>
                         <div className="text-xs text-gray-600">Teams</div>
                     </div>
                     <div className="text-center">
-                        <div className="text-2xl font-bold animate-number">{globalStats?.total_games || 0}</div>
+                        <div className="text-2xl font-bold animate-number">
+                            {globalStats?.formatted?.total_games || globalStats?.total_games || 0}
+                        </div>
                         <div className="text-xs text-gray-600">Games</div>
                     </div>
                     <div className="text-center">
-                        <div className="text-2xl font-bold animate-number">{globalStats?.total_events || 0}</div>
+                        <div className="text-2xl font-bold animate-number">
+                            {globalStats?.formatted?.total_events || globalStats?.total_events || 0}
+                        </div>
                         <div className="text-xs text-gray-600">Transactions</div>
                     </div>
                 </div>
