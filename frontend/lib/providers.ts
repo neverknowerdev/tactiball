@@ -47,7 +47,7 @@ export async function walletSendCalls(provider: any, calls: { to: string, data: 
             calls: calls.map(call => ({
                 to: call.to,
                 data: call.data,
-                value: call.value ? `0x${call.value.toString(16)}` : '0x0',
+                value: call.value ? `0x${BigInt(call.value).toString(16)}` : '0x0',
             })),
             // capabilities: { paymasterUrl: process.env.NEXT_PUBLIC_COINBASE_PAYMASTER_RPC_URL },
         }]
