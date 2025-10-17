@@ -62,6 +62,7 @@ export default function App() {
   } | null>(null);
   const [username, setUsername] = useState<string | null>(null);
 
+
   const addFrame = useAddFrame();
   const openUrl = useOpenUrl();
 
@@ -185,7 +186,6 @@ export default function App() {
 
   const { sendTransaction: sendTransactionCreateTeam } = useSendTransaction();
 
-
   const handleCreateTeam = useCallback(async (teamName: string, countryIndex: string) => {
     const subAccountAddress = getSubaccountAddress(connections);
     console.log('subAccountAddress', subAccountAddress);
@@ -219,11 +219,11 @@ export default function App() {
       }
 
       console.log('Creating team for address:', address);
-      const subAccountProvider = await getSubaccountProvider();
-      console.log('subAccountProvider', subAccountProvider);
+      // const subAccountProvider = await getSubaccountProvider();
+      // console.log('subAccountProvider', subAccountProvider);
 
-      await writeContractSubAccount(CONTRACT_ADDRESS, CONTRACT_ABI, 'createTeam', [teamName, countryIndexNum]);
-      return;
+      // await writeContractSubAccount(CONTRACT_ADDRESS, CONTRACT_ABI, 'createTeam', [teamName, countryIndexNum]);
+      // return;
 
       // Get or create authentication signature
       const authSignature = await authUserWithSignature(address as `0x${string}`, signMessageAsync);
