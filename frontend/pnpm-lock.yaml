@@ -43,6 +43,9 @@ importers:
       dotenv:
         specifier: ^17.2.2
         version: 17.2.3
+      eciesjs:
+        specifier: 0.4.16
+        version: 0.4.16
       elliptic:
         specifier: ^6.6.1
         version: 6.6.1
