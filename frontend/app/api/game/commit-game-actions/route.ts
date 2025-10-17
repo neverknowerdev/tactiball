@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
             throw new Error('GAME_ENGINE_PRIVATE_KEY is not set');
         }
 
-        const contractMoves = body.moves.map(move => ({
+        const userMoves = body.moves.map(move => ({
             playerId: move.playerId,
             moveType: move.moveType as MoveType,
             oldPosition: { x: move.oldPosition.x, y: move.oldPosition.y },
@@ -133,13 +133,15 @@ export async function POST(request: NextRequest) {
             playerKey: () => `${body.team_enum === 1 ? '1_' : '2_'}${move.playerId}`
         }));
 
+        console.log('userMoves', body.team_enum, body.moves);
+
         // Decrypt the symmetric key using the game engine's private key
         // Convert hex string (from contract bytes) to Buffer for decryption
         const encryptedKeyBuffer = Buffer.from(gameInfo.data.encryptedKey.slice(2), 'hex'); // Remove '0x' prefix
         const symmetricKey = decodeSymmetricKey(encryptedKeyBuffer, gameEnginePrivateKey);
 
         // Serialize moves to BigInt and encrypt them
-        const serializedMoves = serializeMoves(contractMoves);
+        const serializedMoves = serializeMoves(userMoves);
         const movesBigInt = BigInt(serializedMoves);
         const movesBuffer = bigintToBuffer(movesBigInt);
         const encryptedMovesBuffer = encodeData(movesBuffer, gameInfo.data.gameState.movesMade, symmetricKey);
@@ -158,7 +160,7 @@ export async function POST(request: NextRequest) {
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'commitGameActionsRelayer',
-            args: [body.wallet_address, body.game_id, body.team_enum, encryptedMoves],
+            args: [body.wallet_address, body.game_id, body.team_enum, encryptedMoves, gameInfo.data.gameState.movesMade + 1],
             chain: base,
             account: RELAYER_ADDRESS
         });

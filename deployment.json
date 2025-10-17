@@ -15,19 +15,19 @@
     "network": "baseMainnet",
     "chainId": "8453",
     "proxyAddress": "0x5582A4C5a7e1d1997189774Cb1785aCb3d1E063d",
-    "implementationAddress": "0x03c7043841De38b60FE461cb2613ff508200D287",
+    "implementationAddress": "0x392cE3ff620E20a8c630695eAc759Da11Df41b56",
     "libraries": {
       "gameLib": "0x9B994a38f3367b20313927952A49eEa9354C676a"
     },
     "deployer": "0xf831c2F992866D01A2d66dB807adD7EEE8980914",
     "timestamp": "2025-09-11T16:47:32.802Z",
     "gameLibHash": "07269d7fdca6d85fff15e86bb7015b172dadc96d53ceac5a5ec4c7020ff6dd52",
-    "upgradeTimestamp": "2025-10-02T22:15:13.492Z",
-    "previousImplementation": "0x314B36FFe03B16A4450a49aAd85969690Ea697E1",
+    "upgradeTimestamp": "2025-10-15T09:56:52.744Z",
+    "previousImplementation": "0x03c7043841De38b60FE461cb2613ff508200D287",
     "previousLibraries": {
-      "gameLib": "0xc99A9124E1900F05B9894f1984587dd10DDD6171"
+      "gameLib": "0x9B994a38f3367b20313927952A49eEa9354C676a"
     },
-    "librariesUpdated": true
+    "librariesUpdated": false
   },
   "worldchain": {
     "network": "worldchain",

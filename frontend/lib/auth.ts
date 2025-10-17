@@ -258,7 +258,7 @@ export async function checkAuthSignatureAndMessage(
             const isValid = await publicClient.verifyMessage({
                 address: walletAddress as Address,
                 message: message,
-                signature: signature as Address,
+                signature: signature as `0x${string}`,
             });
 
             // Check if recovered address matches the claimed wallet address

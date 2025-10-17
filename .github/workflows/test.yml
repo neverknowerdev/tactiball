@@ -18,17 +18,17 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '22'
-        cache: 'yarn'
+        cache: 'npm'
         
     - name: Configure git for HTTPS access
       run: |
         git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
         
     - name: Install dependencies
-      run: yarn install --frozen-lockfile
+      run: npm ci
       
     - name: Install frontend dependencies
-      run: yarn frontend:install
+      run: npm run frontend:install
       
     - name: Compile contracts
       run: npm run hardhat:compile
@@ -50,16 +50,16 @@ jobs:
         SENTRY_PROJECT: chessball
       
   #  - name: Run linting
-  #    run: yarn lint
+  #    run: npm run lint
       
     - name: Run all Hardhat tests
-      run: yarn hardhat test
+      run: npm run hardhat:test
       env:
         # Use hardhat network for testing - no external RPC needed
         HARDHAT_NETWORK: hardhat
       
     - name: Generate test coverage report
-      run: yarn hardhat coverage
+      run: npm run hardhat:coverage
       
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4

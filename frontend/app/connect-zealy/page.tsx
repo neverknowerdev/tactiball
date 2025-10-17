@@ -105,13 +105,12 @@ function ConnectZealyContent() {
       setError("Missing required parameters");
       return;
     }
-  
     // Prevent duplicate calls
     if (hasAttemptedLink) {
       console.log("Already attempted to link, skipping...");
       return;
     }
-  
+
     // Helper function for redirect logic
     const redirectToZealy = async () => {
       const platformUserId = address;
@@ -119,17 +118,17 @@ function ConnectZealyContent() {
         callbackUrl,
         platformUserId,
       );
-  
+
       const finalCallbackUrl = new URL(callbackUrl);
       finalCallbackUrl.searchParams.append("identifier", platformUserId);
       finalCallbackUrl.searchParams.append("signature", newSignature);
-  
+
       console.log("Redirecting to Zealy...");
       setTimeout(() => {
         window.location.href = finalCallbackUrl.toString();
       }, 1500);
     };
-  
+
     // Check one more time if already linked before proceeding
     try {
       const checkResponse = await fetch("/api/zealy/check-zealy-link", {
@@ -138,7 +137,7 @@ function ConnectZealyContent() {
         body: JSON.stringify({ walletAddress: address }),
       });
       const checkData = await checkResponse.json();
-  
+
       if (checkData.isLinked) {
         console.log("Already linked (final check), redirecting...");
         setIsLinked(true);
@@ -150,25 +149,25 @@ function ConnectZealyContent() {
       console.error("Final link check failed:", err);
       // Continue with linking attempt
     }
-  
+
     setHasAttemptedLink(true);
     setIsLoading(true);
     setError(null);
-  
+
     try {
       console.log("Starting Zealy connection process...");
-  
+
       const authSignature = await authUserWithSignature(
         address,
         signMessageAsync,
       );
-  
+
       if (!authSignature) {
         throw new Error("Failed to authenticate wallet");
       }
-  
+
       console.log("Wallet authenticated, linking to Zealy...");
-  
+
       const response = await fetch("/api/zealy/link-zealy-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -179,9 +178,9 @@ function ConnectZealyContent() {
           message: authSignature.message,
         }),
       });
-  
+
       const result = await response.json();
-  
+
       if (!response.ok || !result.success) {
         // Check if it's a duplicate key error
         if (
@@ -197,14 +196,15 @@ function ConnectZealyContent() {
           await redirectToZealy();
           return;
         }
-  
+
         throw new Error(result.error || "Failed to link account");
       }
-  
+
       console.log("Successfully linked to Zealy!");
       setSuccess(true);
       setIsLinked(true);
       await redirectToZealy();
+
     } catch (err: any) {
       console.error("Zealy Connect error:", err);
       setError(err.message || "Failed to connect account");
@@ -257,7 +257,6 @@ function ConnectZealyContent() {
         if (data.isLinked && zealyUserId && callbackUrl && address) {
           console.log("Already linked, preparing redirect...");
           setSuccess(true);
-
           const platformUserId = address;
           const newSignature = await generateCallbackSignature(
             callbackUrl,
@@ -580,14 +579,17 @@ function ConnectZealyContent() {
                     {isLinked === null ? "Checking Status..." : "Linking Account..."}
                   </h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    {isLinked === null
-                      ? "Checking your Zealy connection status"
-                      : "Verifying your wallet and connecting to Zealy"}
-                  </p>
+                    {
+                      isLinked === null
+                        ? "Checking your Zealy connection status"
+
+                        : "Verifying your wallet and connecting to Zealy"
+                    }
+                  </p >
                   <div className="flex justify-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                   </div>
-                </React.Fragment>
+                </React.Fragment >
               ) : (
                 <React.Fragment>
                   <div className="text-6xl mb-4">👋</div>
@@ -601,12 +603,13 @@ function ConnectZealyContent() {
                     Connect Wallet
                   </ConnectWallet>
                 </React.Fragment>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+              )
+              }
+            </div >
+          </div >
+        </div >
+      </div >
+    </div >
   );
 }
 

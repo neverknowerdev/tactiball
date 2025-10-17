@@ -181,8 +181,12 @@ export async function sendTransactionWithRetry(request: any, maxRetries: number 
         args: request.args,
     };
 
-    // Let the bundler handle gas estimation automatically
-    // The bundler will estimate gas and apply Paymaster sponsorship
+    // Get current gas fees for EIP-1559 transaction
+    const feeData = await flashblocksClient.getGasPrice();
+    const maxFeePerGas = feeData * BigInt(2); // 2x gas price for maxFeePerGas
+    const maxPriorityFeePerGas = feeData; // Use gas price as priority fee
+
+    console.log('Gas fees - maxFeePerGas:', maxFeePerGas.toString(), 'maxPriorityFeePerGas:', maxPriorityFeePerGas.toString());
 
     let userOpHash: string;
     let retryCount = 0;
@@ -193,7 +197,9 @@ export async function sendTransactionWithRetry(request: any, maxRetries: number 
             console.log('Sending UserOperation with flashblocks optimization');
             userOpHash = await bundlerClient.sendUserOperation({
                 account: smartAccount,
-                calls: [call]
+                calls: [call],
+                maxFeePerGas,
+                maxPriorityFeePerGas
             });
 
             console.log('UserOperation sent successfully. UserOp hash:', userOpHash);
