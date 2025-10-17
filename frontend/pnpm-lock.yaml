@@ -37,6 +37,9 @@ importers:
       '@upstash/redis':
         specifier: ^1.34.4
         version: 1.35.6
+      '@wagmi/core':
+        specifier: 2.22.1
+        version: 2.22.1(@tanstack/query-core@5.90.5)(@types/react@18.3.26)(immer@10.1.3)(react@18.3.1)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.38.3(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.12))
       ably:
         specifier: ^2.12.0
         version: 2.14.0(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(utf-8-validate@5.0.10)

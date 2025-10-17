@@ -1,25 +1,28 @@
 import { cookieStorage, createConfig, createStorage, http } from "wagmi";
 import { base } from "wagmi/chains";
-import { baseAccount } from "wagmi/connectors";
+import { baseAccount, BaseAccountParameters } from "wagmi/connectors";
 import { farcasterMiniApp as miniAppConnector } from '@farcaster/miniapp-wagmi-connector'
 
+
+export const baseAccountConfig: BaseAccountParameters = {
+    appName: "ChessBall",
+    appLogoUrl: 'https://play.chessball.fun/icon.png',
+    subAccounts: {
+        creation: 'on-connect',
+        defaultAccount: "sub",
+        funding: 'spend-permissions',
+    },
+    paymasterUrls: {
+        [base.id]: process.env
+            .NEXT_PUBLIC_COINBASE_PAYMASTER_RPC_URL as string,
+    },
+}
 
 export function getConfig() {
     return createConfig({
         chains: [base],
         connectors: [
-            baseAccount({
-                appName: "ChessBall",
-                appLogoUrl: 'https://play.chessball.fun/icon.png',
-                subAccounts: {
-                    creation: 'on-connect',
-                    defaultAccount: "sub",
-                },
-                paymasterUrls: {
-                    [base.id]: process.env
-                        .NEXT_PUBLIC_COINBASE_PAYMASTER_RPC_URL as string,
-                },
-            }),
+            baseAccount(baseAccountConfig),
             miniAppConnector(),
         ],
         storage: createStorage({

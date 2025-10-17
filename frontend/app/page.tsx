@@ -32,15 +32,13 @@ import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import countryList from '../public/countryList.json';
 import React from "react";
-import { LastGameResults } from './components/LastGameResults';
 import { Leaderboard } from './components/Leaderboard';
 import { GlobalStats } from './components/GlobalStats';
-import moment from "moment";
-import { getSubaccountProvider, writeContractSubAccount } from "@/lib/baseAccount";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 import { getSubaccountAddress, walletSendCalls } from "@/lib/providers";
-import { useSendTransaction } from "wagmi";
+import { useSendCalls, useSendTransaction } from "wagmi";
 import { encodeFunctionData } from "viem";
+
 
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
@@ -199,11 +197,25 @@ export default function App() {
         args: [teamName, countryIndex],
       });
 
-      sendTransactionCreateTeam({
+      walletSendCalls([{
         to: CONTRACT_ADDRESS,
         data,
-        value: BigInt(0),
-      });
+        value: '0x0',
+      }]);
+
+      // console.log('sending calls to create team', process.env.NEXT_PUBLIC_COINBASE_PAYMASTER_RPC_URL);
+
+      // sendTransactionCreateTeam({
+      //   to: CONTRACT_ADDRESS,
+      //   data,
+      //   value: BigInt(0),
+      //   account: subAccountAddress,
+      //   // capabilities: {
+      //   //   paymasterService: {
+      //   //     url: process.env.NEXT_PUBLIC_COINBASE_PAYMASTER_RPC_URL as string,
+      //   //   },
+      //   // },
+      // });
 
     }
     return;
