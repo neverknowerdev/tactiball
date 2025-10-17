@@ -105,11 +105,49 @@ function ConnectZealyContent() {
       setError("Missing required parameters");
       return;
     }
-
     // Prevent duplicate calls
     if (hasAttemptedLink) {
       console.log("Already attempted to link, skipping...");
       return;
+    }
+
+    // Helper function for redirect logic
+    const redirectToZealy = async () => {
+      const platformUserId = address;
+      const newSignature = await generateCallbackSignature(
+        callbackUrl,
+        platformUserId,
+      );
+
+      const finalCallbackUrl = new URL(callbackUrl);
+      finalCallbackUrl.searchParams.append("identifier", platformUserId);
+      finalCallbackUrl.searchParams.append("signature", newSignature);
+
+      console.log("Redirecting to Zealy...");
+      setTimeout(() => {
+        window.location.href = finalCallbackUrl.toString();
+      }, 1500);
+    };
+
+    // Check one more time if already linked before proceeding
+    try {
+      const checkResponse = await fetch("/api/zealy/check-zealy-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: address }),
+      });
+      const checkData = await checkResponse.json();
+
+      if (checkData.isLinked) {
+        console.log("Already linked (final check), redirecting...");
+        setIsLinked(true);
+        setSuccess(true);
+        await redirectToZealy();
+        return;
+      }
+    } catch (err) {
+      console.error("Final link check failed:", err);
+      // Continue with linking attempt
     }
 
     setHasAttemptedLink(true);
@@ -118,12 +156,12 @@ function ConnectZealyContent() {
 
     try {
       console.log("Starting Zealy connection process...");
-      
+
       const authSignature = await authUserWithSignature(
         address,
         signMessageAsync,
       );
-      
+
       if (!authSignature) {
         throw new Error("Failed to authenticate wallet");
       }
@@ -144,28 +182,29 @@ function ConnectZealyContent() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
+        // Check if it's a duplicate key error
+        if (
+          result.error &&
+          (result.error.includes("23505") ||
+            result.error.includes("duplicate key") ||
+            result.error.includes("already exists") ||
+            result.code === "23505")
+        ) {
+          console.log("Account already linked (duplicate key), treating as success");
+          setSuccess(true);
+          setIsLinked(true);
+          await redirectToZealy();
+          return;
+        }
+
         throw new Error(result.error || "Failed to link account");
       }
 
       console.log("Successfully linked to Zealy!");
       setSuccess(true);
       setIsLinked(true);
+      await redirectToZealy();
 
-      // Generate callback signature and redirect
-      const platformUserId = address;
-      const newSignature = await generateCallbackSignature(
-        callbackUrl,
-        platformUserId,
-      );
-
-      const finalCallbackUrl = new URL(callbackUrl);
-      finalCallbackUrl.searchParams.append("identifier", platformUserId);
-      finalCallbackUrl.searchParams.append("signature", newSignature);
-
-      console.log("Redirecting to Zealy...");
-      setTimeout(() => {
-        window.location.href = finalCallbackUrl.toString();
-      }, 1500);
     } catch (err: any) {
       console.error("Zealy Connect error:", err);
       setError(err.message || "Failed to connect account");
@@ -218,7 +257,6 @@ function ConnectZealyContent() {
         if (data.isLinked && zealyUserId && callbackUrl && address) {
           console.log("Already linked, preparing redirect...");
           setSuccess(true);
-          
           const platformUserId = address;
           const newSignature = await generateCallbackSignature(
             callbackUrl,
@@ -263,7 +301,7 @@ function ConnectZealyContent() {
           url: currentUrl,
           hasSignature: !!zealySignature,
         });
-        
+
         verifyZealySignature(currentUrl, zealySignature).then((isValid) => {
           console.log("🔐 Signature verification result:", isValid);
           if (!isValid) {
@@ -541,14 +579,17 @@ function ConnectZealyContent() {
                     {isLinked === null ? "Checking Status..." : "Linking Account..."}
                   </h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    {isLinked === null 
-                      ? "Checking your Zealy connection status" 
-                      : "Verifying your wallet and connecting to Zealy"}
-                  </p>
+                    {
+                      isLinked === null
+                        ? "Checking your Zealy connection status"
+
+                        : "Verifying your wallet and connecting to Zealy"
+                    }
+                  </p >
                   <div className="flex justify-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                   </div>
-                </React.Fragment>
+                </React.Fragment >
               ) : (
                 <React.Fragment>
                   <div className="text-6xl mb-4">👋</div>
@@ -562,12 +603,13 @@ function ConnectZealyContent() {
                     Connect Wallet
                   </ConnectWallet>
                 </React.Fragment>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+              )
+              }
+            </div >
+          </div >
+        </div >
+      </div >
+    </div >
   );
 }
 
