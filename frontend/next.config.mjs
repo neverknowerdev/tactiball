@@ -1,4 +1,10 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -14,6 +20,13 @@ const nextConfig = {
   // https://github.com/WalletConnect/walletconnect-monorepo/issues/1908
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
+
+    // Handle React Native dependencies for web
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      "react-native": false,
+      "@react-native-async-storage/async-storage": resolve(__dirname, './lib/async-storage-mock.js'),
+    };
 
     // Ensure source maps are generated for TypeScript files
     if (config.mode === 'production') {

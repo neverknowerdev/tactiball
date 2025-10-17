@@ -10,7 +10,7 @@ export const baseAccountConfig: BaseAccountParameters = {
     subAccounts: {
         creation: 'on-connect',
         defaultAccount: "sub",
-        funding: 'spend-permissions',
+        funding: 'manual',
     },
     paymasterUrls: {
         [base.id]: process.env
@@ -22,7 +22,19 @@ export function getConfig() {
     return createConfig({
         chains: [base],
         connectors: [
-            baseAccount(baseAccountConfig),
+            baseAccount({
+                appName: "ChessBall",
+                appLogoUrl: 'https://play.chessball.fun/icon.png',
+                subAccounts: {
+                    creation: 'on-connect',
+                    defaultAccount: "sub",
+                    funding: 'manual',
+                },
+                paymasterUrls: {
+                    [base.id]: process.env
+                        .NEXT_PUBLIC_COINBASE_PAYMASTER_RPC_URL as string,
+                },
+            }),
             miniAppConnector(),
         ],
         storage: createStorage({

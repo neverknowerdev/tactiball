@@ -35,7 +35,7 @@ import React from "react";
 import { Leaderboard } from './components/Leaderboard';
 import { GlobalStats } from './components/GlobalStats';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
-import { getSubaccountAddress, walletSendCalls } from "@/lib/providers";
+import { getSubaccountAddress } from "@/lib/providers";
 import { useSendCalls, useSendTransaction } from "wagmi";
 import { encodeFunctionData } from "viem";
 
@@ -182,7 +182,7 @@ export default function App() {
     setIsSearchOpponentModalOpen(false);
   }, []);
 
-  const { sendTransaction: sendTransactionCreateTeam } = useSendTransaction();
+  const { sendCalls: sendCallsCreateTeam } = useSendCalls();
 
   const handleCreateTeam = useCallback(async (teamName: string, countryIndex: string) => {
     const subAccountAddress = getSubaccountAddress(connections);
@@ -197,11 +197,20 @@ export default function App() {
         args: [teamName, countryIndex],
       });
 
-      walletSendCalls([{
-        to: CONTRACT_ADDRESS,
-        data,
-        value: '0x0',
-      }]);
+
+      sendCallsCreateTeam({
+        calls: [{
+          to: CONTRACT_ADDRESS,
+          data,
+          value: BigInt(0),
+        }],
+        account: subAccountAddress,
+      });
+      // walletSendCalls([{
+      //   to: CONTRACT_ADDRESS,
+      //   data,
+      //   value: '0x0',
+      // }]);
 
       // console.log('sending calls to create team', process.env.NEXT_PUBLIC_COINBASE_PAYMASTER_RPC_URL);
 
