@@ -12,7 +12,7 @@ export function getConfig() {
                 appName: "ChessBall",
                 appLogoUrl: 'https://play.chessball.fun/icon.png',
                 subAccounts: {
-                    creation: "on-connect",
+                    creation: 'on-connect',
                     defaultAccount: "sub",
                 },
                 paymasterUrls: {

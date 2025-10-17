@@ -39,9 +39,8 @@ import moment from "moment";
 import { getSubaccountProvider, writeContractSubAccount } from "@/lib/baseAccount";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/lib/contract";
 import { getSubaccountAddress, walletSendCalls } from "@/lib/providers";
-import { useWriteContract } from "wagmi";
+import { useSendTransaction } from "wagmi";
 import { encodeFunctionData } from "viem";
-import { sendCalls } from '@wagmi/core';
 
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
@@ -184,31 +183,30 @@ export default function App() {
     setIsSearchOpponentModalOpen(false);
   }, []);
 
-  const { writeContract: writeContractCreateTeam } = useWriteContract();
+  const { sendTransaction: sendTransactionCreateTeam } = useSendTransaction();
 
 
   const handleCreateTeam = useCallback(async (teamName: string, countryIndex: string) => {
     const subAccountAddress = getSubaccountAddress(connections);
     console.log('subAccountAddress', subAccountAddress);
-    // if (subAccountAddress) {
-    //   // use subaccount to make direct call to smart-contract
-    //   console.log('writing contract to create team');
+    if (subAccountAddress) {
+      // use subaccount to make direct call to smart-contract
+      console.log('writing contract to create team');
 
-    //   const data = encodeFunctionData({
-    //     abi: CONTRACT_ABI,
-    //     functionName: 'createTeam',
-    //     args: [teamName, countryIndex],
-    //   });
+      const data = encodeFunctionData({
+        abi: CONTRACT_ABI,
+        functionName: 'createTeam',
+        args: [teamName, countryIndex],
+      });
 
+      sendTransactionCreateTeam({
+        to: CONTRACT_ADDRESS,
+        data,
+        value: BigInt(0),
+      });
 
-    //   walletSendCalls(provider, {
-    //     to: CONTRACT_ADDRESS,
-    //     data,
-    //     value: BigInt(0),
-    //   });
-    //   console.log('callsId', callsId);
-    // }
-    // return;
+    }
+    return;
 
     setIsCreatingTeam(true);
     try {
@@ -324,7 +322,7 @@ export default function App() {
     } finally {
       setIsCreatingTeam(false);
     }
-  }, [address, fetchTeamInfo, writeContractCreateTeam]);
+  }, [address, fetchTeamInfo]);
 
   // Watch for wallet connection changes
   useEffect(() => {
