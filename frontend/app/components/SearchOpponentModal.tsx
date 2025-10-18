@@ -34,7 +34,7 @@ export const SearchOpponentModal: React.FC<SearchOpponentModalProps> = ({
     // Generate shareable game URL
     const getGameUrl = () => {
         if (typeof window !== 'undefined') {
-            return `${window.location.origin}/join-game?team=${userInfo?.team_id}&elo=${userInfo?.elo_rating}`;
+            return `${window.location.origin}/`;
         }
         return '';
     };
