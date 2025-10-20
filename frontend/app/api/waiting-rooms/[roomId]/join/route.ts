@@ -12,10 +12,11 @@ const supabase = createClient(
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { roomId: string } }
+    { params }: { params: Promise<{ roomId: string }> }
 ) {
     try {
-        const roomId = params.roomId;
+        // Await params in Next.js 15
+        const { roomId } = await params;
         const { team_id, wallet_address, signature, message } = await request.json();
 
         // Validate signature

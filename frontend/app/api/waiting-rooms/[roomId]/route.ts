@@ -11,10 +11,11 @@ const supabase = createClient(
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { roomId: string } }
+    { params }: { params: Promise<{ roomId: string }> }
 ) {
     try {
-        const roomId = params.roomId;
+        // Await params in Next.js 15
+        const { roomId } = await params;
 
         // Fetch room with team details
         const { data: room, error } = await supabase

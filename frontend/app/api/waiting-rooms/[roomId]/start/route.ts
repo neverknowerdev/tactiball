@@ -11,10 +11,11 @@ const supabase = createClient(
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { roomId: string } }
+    { params }: { params: Promise<{ roomId: string }> }
 ) {
     try {
-        const roomId = params.roomId;
+        // Await params in Next.js 15
+        const { roomId } = await params;
         const { game_request_id } = await request.json();
 
         if (!game_request_id) {
