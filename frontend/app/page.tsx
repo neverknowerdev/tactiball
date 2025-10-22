@@ -27,6 +27,7 @@ import { GameRequestModal } from "./components/GameRequestModal";
 import { subscribeToTeamChannel, unsubscribeFromTeamChannel } from '@/lib/ably';
 import { getName } from "@coinbase/onchainkit/identity";
 import { base } from 'viem/chains';
+import { chain } from '@/config/chains';
 import { authUserWithSignature, clearCachedAuthSignature } from '@/lib/auth';
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
@@ -92,7 +93,7 @@ export default function App() {
     }
 
     try {
-      let nameResult = await getName({ address: walletAddress as `0x${string}`, chain: base });
+      let nameResult = await getName({ address: walletAddress as `0x${string}`, chain: chain });
       console.log('nameResult', nameResult);
       // Trim .eth and .base suffixes if present
       if (nameResult && typeof nameResult === 'string') {
