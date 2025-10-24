@@ -1,5 +1,4 @@
 import { createPublicClient, http } from 'viem';
-import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
 
 // Create a public client for reading contract data
