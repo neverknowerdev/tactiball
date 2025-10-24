@@ -92,7 +92,7 @@ export default function RoomDetails({
         if (!room) return;
         try {
             await composeCast({
-                text: `🎮 Join my ChessBall game room! ${room.host_team.name} is waiting for an opponent. ${room.minimum_elo_rating > 0 ? `Min ELO: ${formatElo(room.minimum_elo_rating)}` : 'All skill levels welcome!'} 🏆`,
+                text: `🎮 Join my TactiBall game room! ${room.host_team.name} is waiting for an opponent. ${room.minimum_elo_rating > 0 ? `Min ELO: ${formatElo(room.minimum_elo_rating)}` : 'All skill levels welcome!'} 🏆`,
                 embeds: [shareUrl],
             });
             setShareSuccess(true);
@@ -108,7 +108,7 @@ export default function RoomDetails({
         if (!room) return;
         const shareData = {
             title: `Join ${room.host_team.name}'s Game Room`,
-            text: `🎮 Join my ChessBall game room! ${room.minimum_elo_rating > 0 ? `Min ELO: ${formatElo(room.minimum_elo_rating)}` : 'All skill levels welcome!'}`,
+            text: `🎮 Join my TactiBall game room! ${room.minimum_elo_rating > 0 ? `Min ELO: ${formatElo(room.minimum_elo_rating)}` : 'All skill levels welcome!'}`,
             url: shareUrl,
         };
 
@@ -150,21 +150,21 @@ export default function RoomDetails({
     // Share to specific platforms
     const shareToTwitter = () => {
         if (!room) return;
-        const text = encodeURIComponent(`🎮 Join my ChessBall game room! ${room.host_team.name} is waiting for an opponent. ${room.minimum_elo_rating > 0 ? `Min ELO: ${formatElo(room.minimum_elo_rating)}` : 'All skill levels welcome!'}`);
+        const text = encodeURIComponent(`🎮 Join my TactiBall game room! ${room.host_team.name} is waiting for an opponent. ${room.minimum_elo_rating > 0 ? `Min ELO: ${formatElo(room.minimum_elo_rating)}` : 'All skill levels welcome!'}`);
         window.open(`https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(shareUrl)}`, '_blank');
         setShowShareMenu(false);
     };
 
     const shareToTelegram = () => {
         if (!room) return;
-        const text = encodeURIComponent(`🎮 Join my ChessBall game room! ${room.host_team.name} is waiting. ${shareUrl}`);
+        const text = encodeURIComponent(`🎮 Join my TactiBall game room! ${room.host_team.name} is waiting. ${shareUrl}`);
         window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${text}`, '_blank');
         setShowShareMenu(false);
     };
 
     const shareToWhatsApp = () => {
         if (!room) return;
-        const text = encodeURIComponent(`🎮 Join my ChessBall game room! ${room.host_team.name} is waiting for an opponent. ${shareUrl}`);
+        const text = encodeURIComponent(`🎮 Join my TactiBall game room! ${room.host_team.name} is waiting for an opponent. ${shareUrl}`);
         window.open(`https://wa.me/?text=${text}`, '_blank');
         setShowShareMenu(false);
     };

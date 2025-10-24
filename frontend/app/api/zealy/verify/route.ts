@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       console.log(`[${requestId}] No team found for wallet:`, zealyConnectIdentifier);
       return NextResponse.json(
         {
-          message: `No ChessBall team found. Please create a team at play.tactiball.fun first!`,
+          message: `No TactiBall team found. Please create a team at play.tactiball.fun first!`,
         },
         { status: 400 },
       );

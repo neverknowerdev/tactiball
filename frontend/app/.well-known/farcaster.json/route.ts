@@ -22,7 +22,7 @@ export async function GET() {
     },
     frame: withValidProperties({
       version: "1",
-      name: "ChessBall",
+      name: "TactiBall",
       subtitle: "Play. Bet. Earn.",
       description: "Play tactical football - 2D board game, where tactic meets probability. Build your own team, play against friends and earn rewards.",
       screenshotUrls: [],
@@ -32,11 +32,11 @@ export async function GET() {
       homeUrl: URL,
       webhookUrl: `${URL}/api/webhook`,
       primaryCategory: "games",
-      tags: ["chess", "football", "chessball", "tactical"],
+      tags: ["chess", "football", "tactiball", "tactical"],
       heroImageUrl: "https://play.tactiball.fun/hero.png",
       tagline: "Play now",
-      ogTitle: "ChessBall",
-      ogDescription: "Play ChessBall with your friends",
+      ogTitle: "TactiBall",
+      ogDescription: "Play TactiBall with your friends",
       ogImageUrl: "https://play.tactiball.fun/hero.png",
     }),
     baseBuilder: {
