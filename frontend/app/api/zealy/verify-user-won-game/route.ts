@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     if (!team) {
       return NextResponse.json({
-        message: `No ChessBall team found for this account. Please create a team at play.chessball.fun first!`
+        message: `No ChessBall team found for this account. Please create a team at play.tactiball.fun first!`
       }, { status: 400 });
     }
 
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
 
     if (!games || games.length === 0) {
       return NextResponse.json({
-        message: `No games won today. Win at least one game at play.chessball.fun to complete this quest!`
+        message: `No games won today. Win at least one game at play.tactiball.fun to complete this quest!`
       }, { status: 400 });
     }
 

@@ -373,7 +373,7 @@ function ConnectZealyContent() {
 
   const zealyConnectUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    const appUrl = "https://play.chessball.fun/"
+    const appUrl = "https://play.tactiball.fun/"
     return `https://base.org/mini-apps?url=${encodeURIComponent(appUrl)}`;
   }, []);
 
