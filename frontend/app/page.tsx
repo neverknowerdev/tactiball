@@ -554,7 +554,7 @@ export default function App() {
       {/* Logo - centered on page */}
       <div className="w-full flex justify-center items-center">
         <div className="flex flex-col items-center w-[200px]">
-          <img src="/logo2.png" alt="ChessBall Logo" className="h-42 w-full" />
+          <img src="/logo2.png" alt="TactiBall Logo" className="h-42 w-full" />
         </div>
       </div>
 
