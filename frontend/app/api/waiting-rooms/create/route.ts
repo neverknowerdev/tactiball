@@ -64,12 +64,14 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Check if team already has an open waiting room
+        // Check if team already has an open waiting room (non-expired)
+        const now = new Date().toISOString();
         const { data: existingRoom } = await supabase
             .from('waiting_rooms')
-            .select('id')
+            .select('id, expires_at')
             .eq('host_team_id', team_id)
             .eq('status', 'open')
+            .gt('expires_at', now) // Only check for non-expired rooms
             .single();
 
         if (existingRoom) {
@@ -79,13 +81,26 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Auto-expire any old open rooms for this team
+        await supabase
+            .from('waiting_rooms')
+            .update({ status: 'expired' })
+            .eq('host_team_id', team_id)
+            .eq('status', 'open')
+            .lte('expires_at', now);
+
+        // Set expiration to 24 hours from now
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24);
+
         // Create waiting room
         const { data: room, error: createError } = await supabase
             .from('waiting_rooms')
             .insert({
                 host_team_id: team_id,
                 minimum_elo_rating: minimum_elo_rating || 0,
-                status: 'open'
+                status: 'open',
+                expires_at: expiresAt.toISOString()
             })
             .select()
             .single();

@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS public.waiting_rooms (
     -- Game request created when both teams are ready
     game_request_id BIGINT,
     
-    -- Expiration (rooms expire after 1 hour)
-    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '1 hour')
+    -- Expiration (rooms expire after 24 hours)
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '24 hours')
 );
 
 -- Create indexes
@@ -61,4 +61,4 @@ COMMENT ON COLUMN public.waiting_rooms.minimum_elo_rating IS 'Minimum ELO rating
 COMMENT ON COLUMN public.waiting_rooms.status IS 'Room status: open, full, starting, cancelled, expired';
 COMMENT ON COLUMN public.waiting_rooms.guest_team_id IS 'Team that joined the room';
 COMMENT ON COLUMN public.waiting_rooms.game_request_id IS 'Game request ID when both teams confirm';
-COMMENT ON COLUMN public.waiting_rooms.expires_at IS 'Room expiration time (1 hour from creation)';
+COMMENT ON COLUMN public.waiting_rooms.expires_at IS 'Room expiration time (24 hours from creation)';
