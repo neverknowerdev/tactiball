@@ -21,7 +21,7 @@ export async function GET() {
       signature: "MHgyMjI5MWVlNzRiNjMyMTQzMDg0ZTlmNjljMjE1MDdiODE3NmI4NTMxMTQ2YjUxMmQyOWQ4MDkwNGU2ZWU5MzgyNDY3NzJiOTFhNWUxNGVjOTM1MTg0ZTVlNTg5ZmNiNTVjZjc0MmZiYzgwNDE0NGJiZGRjMGIxNTJlMTMwZjg4ODFj"
     },
     frame: withValidProperties({
-      version: "1",
+      version: "2",
       name: "TactiBall",
       subtitle: "Play. Bet. Earn.",
       description: "Play tactical football - 2D board game, where tactic meets probability. Build your own team, play against friends and earn rewards.",
