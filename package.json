@@ -40,6 +40,7 @@
     "libsodium-wrappers": "^0.7.15",
     "ngrok": "^5.0.0-beta.2",
     "pg": "^8.16.3",
+    "psql": "^0.0.1",
     "solady": "^0.1.24",
     "solmate": "^6.8.0"
   },
