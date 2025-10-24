@@ -36,6 +36,8 @@ import React from "react";
 import { LastGameResults } from './components/LastGameResults';
 import { Leaderboard } from './components/Leaderboard';
 import { GlobalStats } from './components/GlobalStats';
+import LobbyScreen from './components/LobbyScreen';
+import RoomDetails from './components/RoomDetails';
 import moment from "moment";
 
 export default function App() {
@@ -61,6 +63,8 @@ export default function App() {
 
   const addFrame = useAddFrame();
   const openUrl = useOpenUrl();
+  const [showLobby, setShowLobby] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
 
   // Function to map chain ID to network name
   const getNetworkName = (chainId: number): string => {
@@ -189,31 +193,19 @@ export default function App() {
   }, []);
 
 
-  const handlePlayNow = useCallback(() => {
+  const handlePlayNow = () => {
     if (!teamInfo) {
-      toast.error("You need to create a team first!", {
-        position: "top-center",
-        autoClose: 3000,
-        hideProgressBar: false,
-        draggable: true,
-        progress: undefined,
-      });
+      toast.error("You need to create a team first!");
       return;
     }
-
     if (teamInfo.active_game_id) {
-      toast.error("You have an ongoing game! Please finish it first.", {
-        position: "top-center",
-        autoClose: 3000,
-        hideProgressBar: false,
-        draggable: true,
-        progress: undefined,
-      });
+      toast.error("You have an ongoing game!");
       return;
     }
 
-    setIsSearchOpponentModalOpen(true);
-  }, [teamInfo]);
+    // Open lobby instead of search modal
+    setShowLobby(true);
+  };
 
   const handleCancelSearch = useCallback(() => {
     setIsSearchOpponentModalOpen(false);
@@ -764,6 +756,27 @@ export default function App() {
           elo_rating: teamInfo.elo_rating
         } : null}
       />
+
+      {showLobby && !selectedRoomId && (
+        <LobbyScreen
+          userTeamId={teamInfo.id}
+          userTeamElo={teamInfo.elo_rating}
+          onClose={() => setShowLobby(false)}
+          onRoomSelected={(roomId) => setSelectedRoomId(roomId)}
+        />
+      )}
+
+      {selectedRoomId && (
+        <RoomDetails
+          roomId={selectedRoomId}
+          userTeamId={teamInfo.id}
+          onBack={() => setSelectedRoomId(null)}
+          onGameStarting={(gameRequestId) => {
+            setSelectedRoomId(null);
+            setShowLobby(false);
+          }}
+        />
+      )}
 
       {/* Game Request Modal */}
       {gameRequestData && (
