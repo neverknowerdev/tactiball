@@ -16,26 +16,26 @@ The project is organized into two main parts:
 ### Prerequisites
 
 - Node.js 18+ 
-- Yarn package manager
+- npm package manager
 - Hardhat for smart contract development
 
 ### Installation
 
 1. Install root dependencies:
 ```bash
-yarn install
+npm install
 ```
 
 2. Install frontend dependencies:
 ```bash
-yarn frontend:install
+npm run frontend:install
 ```
 
 ### Running the Project
 
 #### Frontend Development
 ```bash
-yarn dev
+npm run dev
 ```
 This will start the Next.js development server on http://localhost:3001
 
@@ -53,11 +53,11 @@ npx hardhat run scripts/deploy.ts --network <network>
 
 ## Available Scripts
 
-- `yarn dev` - Start frontend development server
-- `yarn build` - Build frontend for production
-- `yarn start` - Start frontend production server
-- `yarn lint` - Run frontend linting
-- `yarn frontend:install` - Install frontend dependencies
+- `npm run dev` - Start frontend development server
+- `npm run build` - Build frontend for production
+- `npm run start` - Start frontend production server
+- `npm run lint` - Run frontend linting
+- `npm run frontend:install` - Install frontend dependencies
 
 ## Frontend Structure
 
