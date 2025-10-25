@@ -16,12 +16,12 @@ export async function GET() {
 
   return Response.json({
     accountAssociation: {
-      header: "eyJmaWQiOjk2OTIwNiwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweEU0ZjE0MWIwRUIxRTYwZkMwMDk1Yjc4N2M0YTM2Njc0QzkyMzY3OTYifQ",
-      payload: "eyJkb21haW4iOiJwbGF5LmNoZXNzYmFsbC5mdW4ifQ",
-      signature: "MHgyMjI5MWVlNzRiNjMyMTQzMDg0ZTlmNjljMjE1MDdiODE3NmI4NTMxMTQ2YjUxMmQyOWQ4MDkwNGU2ZWU5MzgyNDY3NzJiOTFhNWUxNGVjOTM1MTg0ZTVlNTg5ZmNiNTVjZjc0MmZiYzgwNDE0NGJiZGRjMGIxNTJlMTMwZjg4ODFj"
+      header: "eyJmaWQiOjk2OTIwNiwidHlwZSI6ImF1dGgiLCJrZXkiOiIweGY4NDlCYUUwMDU1MzE4OUMwZUJEOUY1MzQyYjZlMDIyMUMyNDBEZjcifQ",
+      payload: "eyJkb21haW4iOiJwbGF5LnRhY3RpYmFsbC5mdW4ifQ",
+      signature: "TnXWOcZfDPSWjG9UGnv6JfuYUFDW4kOSCXZcO+NzcloknViNq7cT+WsYxxSgOvhV+KY71ld/sJShXGubfsIi3Rw="
     },
     frame: withValidProperties({
-      version: "2",
+      version: "1",
       name: "TactiBall",
       subtitle: "Play. Bet. Earn.",
       description: "Play tactical football - 2D board game, where tactic meets probability. Build your own team, play against friends and earn rewards.",
