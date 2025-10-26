@@ -34,8 +34,14 @@ export async function POST(req: NextRequest) {
       accounts
     } = body;
 
+    console.log('body', body);
+    console.log('accounts', accounts);
+    console.log('userId', userId);
+
     // Get the Zealy Connect identifier (wallet address)
     const zealyConnectIdentifier = accounts?.['zealy-connect'];
+
+    console.log('zealyConnectIdentifier', zealyConnectIdentifier);
 
     if (!zealyConnectIdentifier) {
       return NextResponse.json({
