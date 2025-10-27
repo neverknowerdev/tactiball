@@ -34,14 +34,16 @@ export async function POST(req: NextRequest) {
     } = body;
 
     // Get the Zealy Connect identifier (wallet address)
-    const zealyConnectIdentifier = accounts?.['zealy-connect'];
-
+    let zealyConnectIdentifier = accounts?.['zealy-connect'];
     if (!zealyConnectIdentifier) {
       return NextResponse.json({
-        message: 'Account not connected. Please connect your ChessBall account first by clicking the Connect button in the quest!'
+        message: 'Account not connected. Please connect your TactiBall account first by clicking the Connect button in the quest!'
       }, { status: 400 });
     }
 
+    console.log("typeof zealyConnectIdentifier", typeof zealyConnectIdentifier);
+    zealyConnectIdentifier = String(zealyConnectIdentifier).replace(/"/g, '').trim();
+    console.log('zealyConnectIdentifier', zealyConnectIdentifier);
     const supabase = createAnonClient();
 
     // Verify team exists and has correct Zealy user ID
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
 
     if (!team) {
       return NextResponse.json({
-        message: `No ChessBall team found for this account. Please create a team at play.chessball.fun first!`
+        message: `No TactiBall team found for this account. Please create a team at play.tactiball.fun first!`
       }, { status: 400 });
     }
 
@@ -103,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     if (!games || games.length === 0) {
       return NextResponse.json({
-        message: `No games won today. Win at least one game at play.chessball.fun to complete this quest!`
+        message: `No games won today. Win at least one game at play.tactiball.fun to complete this quest!`
       }, { status: 400 });
     }
 

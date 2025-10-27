@@ -3,22 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "cd frontend && npm run dev",
-    "build": "cd frontend && npm run hardhat:compile && npm run build",
-    "start": "cd frontend && npm run start",
-    "lint": "cd frontend && npm run lint",
-    "frontend:install": "cd frontend && npm install",
-    "deploy:upgradeable": "npx hardhat run scripts/deploy-upgradeable.ts",
-    "upgrade:contract": "npx hardhat run scripts/upgrade-contract.ts",
-    "test:upgradeable": "npx hardhat test test/UpgradeableGame.test.ts",
+    "dev": "cd frontend && yarn dev",
+    "build": "cd frontend && npx hardhat compile && npm run build",
+    "start": "cd frontend && yarn start",
+    "lint": "cd frontend && yarn lint",
+    "frontend:install": "cd frontend && yarn install",
+    "deploy:upgradeable": "hardhat run scripts/deploy-upgradeable.ts",
+    "upgrade:contract": "hardhat run scripts/upgrade-contract.ts",
+    "test:upgradeable": "hardhat test test/UpgradeableGame.test.ts",
     "db:migrate": "./migrations/run-migrations.sh",
     "db:clear": "./migrations/clean-db.sh",
     "fetch:game": "ts-node scripts/fetch-game.ts",
     "fetch:team": "ts-node scripts/fetch-team.ts",
-    "recalculate:team-stat": "ts-node scripts/recalculate-team-stat.ts",
-    "hardhat:compile": "npx hardhat compile",
-    "hardhat:test": "npx hardhat test",
-    "hardhat:coverage": "npx hardhat coverage"
+    "recalculate:team-stat": "ts-node scripts/recalculate-team-stat.ts"
   },
   "dependencies": {
     "@ethersproject/bignumber": "^5.8.0",
@@ -30,7 +27,6 @@
     "@types/elliptic": "^6.4.18",
     "@uniswap/lib": "^4.0.1-alpha",
     "create-onchain": "^0.0.24",
-    "docker": "^1.0.0",
     "dotenv": "^17.2.1",
     "eciesjs": "^0.4.15",
     "elliptic": "^6.6.1",
@@ -38,14 +34,11 @@
     "ethereum-datetime": "^1.0.0",
     "ethers": "^6.14.0",
     "libsodium-wrappers": "^0.7.15",
-    "ngrok": "^5.0.0-beta.2",
-    "pg": "^8.16.3",
     "solady": "^0.1.24",
     "solmate": "^6.8.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@jest/globals": "^30.2.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "@nomicfoundation/hardhat-ignition": "^0.15.5",
@@ -75,6 +68,9 @@
     "tsx": "^4.0.0",
     "typechain": "^8.3.0",
     "typescript": "~5.8.0",
-    "viem": "^2.34.0"
+    "viem": "^2.34.0",
+    "ngrok": "^5.0.0-beta.2",
+    "pg": "^8.16.3",
+    "psql": "^0.0.1"
   }
 }
