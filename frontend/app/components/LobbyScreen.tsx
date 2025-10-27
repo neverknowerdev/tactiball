@@ -24,17 +24,19 @@ interface LobbyScreenProps {
   onRoomSelected: (roomId: number) => void;
 }
 
-export default function LobbyScreen({ 
-  userTeamId, 
+export default function LobbyScreen({
+  userTeamId,
   userTeamElo,
   onClose,
-  onRoomSelected 
+  onRoomSelected
 }: LobbyScreenProps) {
   const [rooms, setRooms] = useState<WaitingRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [editingRoomId, setEditingRoomId] = useState<number | null>(null);
   const [minimumElo, setMinimumElo] = useState(0);
+  const [updating, setUpdating] = useState(false);
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
 
@@ -43,7 +45,7 @@ export default function LobbyScreen({
     try {
       const response = await fetch('/api/waiting-rooms/list');
       const data = await response.json();
-      
+
       if (data.success) {
         setRooms(data.rooms);
       }
@@ -57,13 +59,13 @@ export default function LobbyScreen({
 
   useEffect(() => {
     fetchRooms();
-    
+
     // Poll for updates every 5 seconds
     const interval = setInterval(fetchRooms, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // Create new room
+  // Create new room (one click, no modal)
   const handleCreateRoom = async () => {
     if (!address) {
       toast.error('Please connect your wallet');
@@ -73,13 +75,13 @@ export default function LobbyScreen({
     setCreating(true);
     try {
       const { signature, message } = await authUserWithSignature(address, signMessageAsync);
-      
+
       const response = await fetch('/api/waiting-rooms/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           team_id: userTeamId,
-          minimum_elo_rating: minimumElo * 100, // Convert to internal format
+          minimum_elo_rating: 0, // Default to no minimum
           wallet_address: address,
           signature,
           message
@@ -87,11 +89,9 @@ export default function LobbyScreen({
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         toast.success('Room created!');
-        setShowCreateModal(false);
-        setMinimumElo(0);
         onRoomSelected(data.room.id);
       } else {
         toast.error(data.error || 'Failed to create room');
@@ -101,6 +101,52 @@ export default function LobbyScreen({
       toast.error('Failed to create room');
     } finally {
       setCreating(false);
+    }
+  };
+
+  // Open settings modal for a room
+  const handleOpenSettings = (roomId: number, currentMinElo: number) => {
+    setEditingRoomId(roomId);
+    setMinimumElo(currentMinElo / 100); // Convert from internal format
+    setShowSettingsModal(true);
+  };
+
+  // Update room settings
+  const handleUpdateSettings = async () => {
+    if (!address || !editingRoomId) return;
+
+    setUpdating(true);
+    try {
+      const { signature, message } = await authUserWithSignature(address, signMessageAsync);
+
+      const response = await fetch('/api/waiting-rooms/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room_id: editingRoomId,
+          minimum_elo_rating: minimumElo * 100, // Convert to internal format
+          wallet_address: address,
+          signature,
+          message
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success('Settings updated!');
+        setShowSettingsModal(false);
+        setEditingRoomId(null);
+        setMinimumElo(0);
+        fetchRooms(); // Refresh rooms list
+      } else {
+        toast.error(data.error || 'Failed to update settings');
+      }
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      toast.error('Failed to update settings');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -138,13 +184,23 @@ export default function LobbyScreen({
           <div className="flex-1 overflow-y-auto p-6">
             {/* Create Room Button */}
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="mb-6 w-full bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 transition-colors font-semibold text-lg flex items-center justify-center gap-2"
+              onClick={handleCreateRoom}
+              disabled={creating}
+              className="mb-6 w-full bg-green-600 text-white px-6 py-4 rounded-lg hover:bg-green-700 transition-colors font-semibold text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Create New Room
+              {creating ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  Creating Room...
+                </>
+              ) : (
+                <>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create New Room
+                </>
+              )}
             </button>
 
             {/* Rooms List */}
@@ -164,19 +220,19 @@ export default function LobbyScreen({
             ) : (
               <div className="grid gap-4">
                 {rooms.map((room) => {
-                  const canJoin = !room.guest_team_id && 
-                                 room.host_team.id !== userTeamId &&
-                                 userTeamElo >= room.minimum_elo_rating;
+                  const canJoin = !room.guest_team_id &&
+                    room.host_team.id !== userTeamId &&
+                    userTeamElo >= room.minimum_elo_rating;
                   const isFull = !!room.guest_team_id;
-                  
+                  const isMyRoom = room.host_team.id === userTeamId;
+
                   return (
                     <div
                       key={room.id}
-                      className={`bg-white/10 backdrop-blur-sm rounded-lg p-6 border-2 transition-all ${
-                        isFull 
-                          ? 'border-yellow-500/30' 
+                      className={`bg-white/10 backdrop-blur-sm rounded-lg p-6 border-2 transition-all ${isFull
+                          ? 'border-yellow-500/30'
                           : 'border-white/20 hover:border-white/40'
-                      }`}
+                        }`}
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
@@ -196,7 +252,7 @@ export default function LobbyScreen({
                               </span>
                             )}
                           </div>
-                          
+
                           <div className="flex gap-4 text-sm text-blue-200">
                             <span className="flex items-center gap-1">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -214,26 +270,39 @@ export default function LobbyScreen({
                             )}
                           </div>
                         </div>
-                        
-                        <button
-                          onClick={() => handleJoinRoom(room.id)}
-                          disabled={!canJoin && room.host_team.id !== userTeamId}
-                          className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-                            room.host_team.id === userTeamId
-                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+
+                        <div className="flex gap-2">
+                          {isMyRoom && !isFull && (
+                            <button
+                              onClick={() => handleOpenSettings(room.id, room.minimum_elo_rating)}
+                              className="px-4 py-3 rounded-lg font-semibold transition-colors bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              Settings
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleJoinRoom(room.id)}
+                            disabled={!canJoin && !isMyRoom}
+                            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${isMyRoom
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : canJoin
+                                  ? 'bg-green-600 text-white hover:bg-green-700'
+                                  : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                              }`}
+                          >
+                            {isMyRoom
+                              ? 'View Room'
                               : canJoin
-                              ? 'bg-green-600 text-white hover:bg-green-700'
-                              : 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                          }`}
-                        >
-                          {room.host_team.id === userTeamId 
-                            ? 'View Room'
-                            : canJoin 
-                            ? 'Join'
-                            : isFull
-                            ? 'Full'
-                            : 'Cannot Join'}
-                        </button>
+                                ? 'Join'
+                                : isFull
+                                  ? 'Full'
+                                  : 'Cannot Join'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -244,15 +313,15 @@ export default function LobbyScreen({
         </div>
       </div>
 
-      {/* Create Room Modal */}
-      {showCreateModal && (
+      {/* Room Settings Modal */}
+      {showSettingsModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-xl p-6 max-w-md w-full">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Create New Room</h2>
-            
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Room Settings</h2>
+
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Minimum ELO Rating (Optional)
+                Minimum ELO Rating
               </label>
               <input
                 type="number"
@@ -264,14 +333,17 @@ export default function LobbyScreen({
                 placeholder="0.00"
               />
               <p className="text-sm text-gray-500 mt-1">
-                Only teams with ELO ≥ {minimumElo.toFixed(2)} can join
+                {minimumElo > 0
+                  ? `Only teams with ELO ≥ ${minimumElo.toFixed(2)} can join`
+                  : 'No ELO restriction - anyone can join'}
               </p>
             </div>
 
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setShowCreateModal(false);
+                  setShowSettingsModal(false);
+                  setEditingRoomId(null);
                   setMinimumElo(0);
                 }}
                 className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
@@ -279,11 +351,11 @@ export default function LobbyScreen({
                 Cancel
               </button>
               <button
-                onClick={handleCreateRoom}
-                disabled={creating}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleUpdateSettings}
+                disabled={updating}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {creating ? 'Creating...' : 'Create Room'}
+                {updating ? 'Updating...' : 'Save Settings'}
               </button>
             </div>
           </div>
