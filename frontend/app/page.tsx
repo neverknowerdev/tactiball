@@ -36,6 +36,8 @@ import React from "react";
 import { LastGameResults } from './components/LastGameResults';
 import { Leaderboard } from './components/Leaderboard';
 import { GlobalStats } from './components/GlobalStats';
+import LobbyScreen from './components/LobbyScreen';
+import RoomDetails from './components/RoomDetails';
 import moment from "moment";
 
 export default function App() {
@@ -61,6 +63,48 @@ export default function App() {
 
   const addFrame = useAddFrame();
   const openUrl = useOpenUrl();
+  const [showLobby, setShowLobby] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+
+  // Function to map chain ID to network name
+  const getNetworkName = (chainId: number): string => {
+    const networks: { [key: number]: string } = {
+      1: 'Ethereum Mainnet',
+      3: 'Ropsten Testnet',
+      4: 'Rinkeby Testnet',
+      5: 'Goerli Testnet',
+      10: 'Optimism',
+      42: 'Kovan Testnet',
+      56: 'BSC Mainnet',
+      97: 'BSC Testnet',
+      137: 'Polygon Mainnet',
+      80001: 'Polygon Mumbai',
+      8453: 'Base Mainnet',
+      84532: 'Base Sepolia',
+      11155111: 'Sepolia Testnet',
+    };
+    return networks[chainId] || `Unknown Network (Chain ID: ${chainId})`;
+  };
+
+  // Function to switch to configured chain
+  const switchToConfiguredChain = useCallback(async () => {
+    if (chainId !== configuredChain.id) {
+      try {
+        console.log(`🔄 Switching from ${getNetworkName(chainId)} to ${getNetworkName(configuredChain.id)}`);
+        await switchChain({ chainId: configuredChain.id });
+        console.log(`✅ Successfully switched to ${getNetworkName(configuredChain.id)}`);
+      } catch (error) {
+        console.error('❌ Failed to switch chain:', error);
+        toast.error(`Failed to switch to ${getNetworkName(configuredChain.id)}. Please switch manually.`, {
+          position: "top-center",
+          autoClose: 5000,
+          hideProgressBar: false,
+          draggable: true,
+          progress: undefined,
+        });
+      }
+    }
+  }, [chainId, switchChain]);
 
   // Function to map chain ID to network name
   const getNetworkName = (chainId: number): string => {
@@ -189,31 +233,19 @@ export default function App() {
   }, []);
 
 
-  const handlePlayNow = useCallback(() => {
+  const handlePlayNow = () => {
     if (!teamInfo) {
-      toast.error("You need to create a team first!", {
-        position: "top-center",
-        autoClose: 3000,
-        hideProgressBar: false,
-        draggable: true,
-        progress: undefined,
-      });
+      toast.error("You need to create a team first!");
       return;
     }
-
     if (teamInfo.active_game_id) {
-      toast.error("You have an ongoing game! Please finish it first.", {
-        position: "top-center",
-        autoClose: 3000,
-        hideProgressBar: false,
-        draggable: true,
-        progress: undefined,
-      });
+      toast.error("You have an ongoing game!");
       return;
     }
 
-    setIsSearchOpponentModalOpen(true);
-  }, [teamInfo]);
+    // Open lobby instead of search modal
+    setShowLobby(true);
+  };
 
   const handleCancelSearch = useCallback(() => {
     setIsSearchOpponentModalOpen(false);
@@ -764,6 +796,27 @@ export default function App() {
           elo_rating: teamInfo.elo_rating
         } : null}
       />
+
+      {showLobby && !selectedRoomId && (
+        <LobbyScreen
+          userTeamId={teamInfo.id}
+          userTeamElo={teamInfo.elo_rating}
+          onClose={() => setShowLobby(false)}
+          onRoomSelected={(roomId) => setSelectedRoomId(roomId)}
+        />
+      )}
+
+      {selectedRoomId && (
+        <RoomDetails
+          roomId={selectedRoomId}
+          userTeamId={teamInfo.id}
+          onBack={() => setSelectedRoomId(null)}
+          onGameStarting={(gameRequestId) => {
+            setSelectedRoomId(null);
+            setShowLobby(false);
+          }}
+        />
+      )}
 
       {/* Game Request Modal */}
       {gameRequestData && (
