@@ -123,6 +123,9 @@ function ConnectZealyContent() {
       finalCallbackUrl.searchParams.append("identifier", platformUserId);
       finalCallbackUrl.searchParams.append("signature", newSignature);
 
+      console.log('zealy finalCallbackUrl', finalCallbackUrl.toString());
+      console.log('address', address);
+
       console.log("Redirecting to Zealy...");
       setTimeout(() => {
         window.location.href = finalCallbackUrl.toString();
