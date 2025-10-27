@@ -1,6 +1,6 @@
 "use client";
 
-import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { useMiniKit, useOpenUrl } from "@coinbase/onchainkit/minikit";
 import {
   ConnectWallet,
   Wallet,
@@ -21,6 +21,7 @@ import { authUserWithSignature } from "@/lib/auth";
 
 function ConnectZealyContent() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
+  const openUrl = useOpenUrl(); // Use SDK for navigation
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const searchParams = useSearchParams();
@@ -105,13 +106,12 @@ function ConnectZealyContent() {
       setError("Missing required parameters");
       return;
     }
-    // Prevent duplicate calls
+
     if (hasAttemptedLink) {
       console.log("Already attempted to link, skipping...");
       return;
     }
 
-    // Helper function for redirect logic
     const redirectToZealy = async () => {
       const platformUserId = address;
       const newSignature = await generateCallbackSignature(
@@ -127,12 +127,21 @@ function ConnectZealyContent() {
       console.log('address', address);
 
       console.log("Redirecting to Zealy...");
+
+      // Use SDK navigation when in mini-app, otherwise use window.location
       setTimeout(() => {
-        window.location.href = finalCallbackUrl.toString();
+        if (isMiniApp && openUrl) {
+          // Open in external browser from mini-app
+          console.log("Opening Zealy URL in external browser from mini-app");
+          openUrl(finalCallbackUrl.toString());
+        } else {
+          // Already in browser, just redirect
+          console.log("Redirecting to Zealy URL in current browser");
+          window.location.href = finalCallbackUrl.toString();
+        }
       }, 1500);
     };
 
-    // Check one more time if already linked before proceeding
     try {
       const checkResponse = await fetch("/api/zealy/check-zealy-link", {
         method: "POST",
@@ -150,7 +159,6 @@ function ConnectZealyContent() {
       }
     } catch (err) {
       console.error("Final link check failed:", err);
-      // Continue with linking attempt
     }
 
     setHasAttemptedLink(true);
@@ -185,7 +193,6 @@ function ConnectZealyContent() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        // Check if it's a duplicate key error
         if (
           result.error &&
           (result.error.includes("23505") ||
@@ -211,7 +218,7 @@ function ConnectZealyContent() {
     } catch (err: any) {
       console.error("Zealy Connect error:", err);
       setError(err.message || "Failed to connect account");
-      setHasAttemptedLink(false); // Allow retry on error
+      setHasAttemptedLink(false);
     } finally {
       setIsLoading(false);
     }
@@ -222,9 +229,10 @@ function ConnectZealyContent() {
     signMessageAsync,
     generateCallbackSignature,
     hasAttemptedLink,
+    isMiniApp,
+    openUrl,
   ]);
 
-  // Check if already linked
   useEffect(() => {
     let isActive = true;
 
@@ -248,7 +256,7 @@ function ConnectZealyContent() {
 
         if (!response.ok) {
           console.error("Check link response not OK:", response.status);
-          setIsLinked(false); // Assume not linked if check fails
+          setIsLinked(false);
           return;
         }
 
@@ -256,7 +264,6 @@ function ConnectZealyContent() {
         console.log("Link check result:", data);
         setIsLinked(data.isLinked);
 
-        // If already linked and we have Zealy params, redirect back
         if (data.isLinked && zealyUserId && callbackUrl && address) {
           console.log("Already linked, preparing redirect...");
           setSuccess(true);
@@ -271,7 +278,15 @@ function ConnectZealyContent() {
           finalCallbackUrl.searchParams.append("signature", newSignature);
 
           setTimeout(() => {
-            window.location.href = finalCallbackUrl.toString();
+            if (isMiniApp && openUrl) {
+              // Open in external browser from mini-app
+              console.log("Opening Zealy URL in external browser from mini-app (already linked)");
+              openUrl(finalCallbackUrl.toString());
+            } else {
+              // Already in browser, just redirect
+              console.log("Redirecting to Zealy URL in current browser (already linked)");
+              window.location.href = finalCallbackUrl.toString();
+            }
           }, 1500);
         }
       } catch (err: any) {
@@ -282,7 +297,7 @@ function ConnectZealyContent() {
         } else {
           console.error("Error checking Zealy link:", err);
         }
-        setIsLinked(false); // Assume not linked on error
+        setIsLinked(false);
       }
     };
 
@@ -293,9 +308,8 @@ function ConnectZealyContent() {
     return () => {
       isActive = false;
     };
-  }, [address, zealyUserId, callbackUrl, generateCallbackSignature]);
+  }, [address, zealyUserId, callbackUrl, generateCallbackSignature, isMiniApp, openUrl]);
 
-  // Verify Zealy signature (non-blocking for now)
   useEffect(() => {
     if (zealyUserId && callbackUrl && zealySignature) {
       if (typeof window !== "undefined") {
@@ -309,8 +323,6 @@ function ConnectZealyContent() {
           console.log("🔐 Signature verification result:", isValid);
           if (!isValid) {
             console.warn("⚠️ Invalid Zealy signature detected - continuing anyway for testing");
-            // TODO: Re-enable this once signature verification is working
-            // setError("Invalid Zealy signature");
           } else {
             console.log("✅ Zealy signature is valid!");
           }
@@ -319,7 +331,6 @@ function ConnectZealyContent() {
     }
   }, [zealyUserId, callbackUrl, zealySignature, verifyZealySignature]);
 
-  // Auto-trigger connection when conditions are met
   useEffect(() => {
     console.log("Auto-trigger check:", {
       isConnected,
@@ -342,7 +353,7 @@ function ConnectZealyContent() {
       !isLoading &&
       !error &&
       !hasAttemptedLink &&
-      isLinked === false // Only proceed if confirmed NOT linked
+      isLinked === false
     ) {
       console.log("✅ All conditions met! Triggering Zealy connection...");
       handleZealyConnect();
@@ -374,11 +385,24 @@ function ConnectZealyContent() {
     }
   }, [setFrameReady, isFrameReady]);
 
+  // Generate proper deeplink URLs for external launch only
   const zealyConnectUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    const appUrl = "https://play.tactiball.fun/"
-    return `https://base.org/mini-apps?url=${encodeURIComponent(appUrl)}`;
-  }, []);
+
+    // Build the current page URL with query params
+    const currentPath = window.location.pathname;
+    const params = new URLSearchParams();
+    if (zealyUserId) params.append("zealyUserId", zealyUserId);
+    if (callbackUrl) params.append("callback", callbackUrl);
+    if (zealySignature) params.append("signature", zealySignature);
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+
+    // Full URL to your app
+    const appUrl = `https://play.tactiball.fun${currentPath}${queryString}`;
+
+    // Encode for deeplink - this is ONLY for external launching
+    return `cbwallet://miniapp?url=${encodeURIComponent(appUrl)}`;
+  }, [zealyUserId, callbackUrl, zealySignature]);
 
   const farcasterMiniAppUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -458,10 +482,9 @@ function ConnectZealyContent() {
               </div>
 
               <div className="space-y-3">
+                {/* These are external deeplinks - correct usage for launching from browser */}
                 <a
                   href={zealyConnectUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-4 rounded-lg transition-all shadow-sm"
                 >
                   <span className="text-2xl mr-3">🔵</span>
@@ -473,8 +496,6 @@ function ConnectZealyContent() {
 
                 <a
                   href={farcasterMiniAppUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="w-full flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-4 rounded-lg transition-all shadow-sm"
                 >
                   <span className="text-2xl mr-3">🟣</span>
@@ -558,7 +579,7 @@ function ConnectZealyContent() {
                     Your TactiBall account is now connected to Zealy!
                   </p>
                   <p className="text-xs text-gray-500">
-                    Redirecting back to Zealy...
+                    {isMiniApp ? "Opening Zealy in your browser..." : "Redirecting back to Zealy..."}
                   </p>
                 </React.Fragment>
               ) : error ? (
@@ -585,14 +606,13 @@ function ConnectZealyContent() {
                     {
                       isLinked === null
                         ? "Checking your Zealy connection status"
-
                         : "Verifying your wallet and connecting to Zealy"
                     }
-                  </p >
+                  </p>
                   <div className="flex justify-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                   </div>
-                </React.Fragment >
+                </React.Fragment>
               ) : (
                 <React.Fragment>
                   <div className="text-6xl mb-4">👋</div>
@@ -606,13 +626,12 @@ function ConnectZealyContent() {
                     Connect Wallet
                   </ConnectWallet>
                 </React.Fragment>
-              )
-              }
-            </div >
-          </div >
-        </div >
-      </div >
-    </div >
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
