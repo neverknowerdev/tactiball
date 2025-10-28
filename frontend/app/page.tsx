@@ -64,7 +64,7 @@ export default function App() {
   );
   useFrameManager(setFrameReady, isFrameReady);
 
-  const handlePlayNow = useCallback(() => {
+  const handlePlayNow = () => {
     if (!teamInfo) {
       toast.error("You need to create a team first!", {
         position: "top-center",
@@ -72,7 +72,6 @@ export default function App() {
       });
       return;
     }
-
     if (teamInfo.active_game_id) {
       toast.error("You have an ongoing game! Please finish it first.", {
         position: "top-center",
