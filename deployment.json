@@ -2,13 +2,13 @@
   "baseSepolia": {
     "network": "baseSepolia",
     "chainId": "84532",
-    "proxyAddress": "0x7b19636a03325F02Ada178ea3e4B8a670B9255E2",
-    "implementationAddress": "0xf63332A9BCfAa2C7A5f225bE89C378c3a9474Eb6",
+    "proxyAddress": "0xB6c22Db7a073C064F0f4f2B40E05aF7526FeE945",
+    "implementationAddress": "0x6622B953D9242B5CBA40a94ba07a127344bCDe86",
     "libraries": {
-      "gameLib": "0xfc4FA69Efa0509E540a500C27A86c00B911aFB12"
+      "gameLib": "0x48fA6407fE6cF81F0Ab8d0fb1734e83Eb925facE"
     },
     "deployer": "0x345924F66825794e424f9B402756d7015a8dC12E",
-    "timestamp": "2025-10-28T05:45:57.178Z",
+    "timestamp": "2025-10-28T07:08:24.665Z",
     "gameLibHash": "07269d7fdca6d85fff15e86bb7015b172dadc96d53ceac5a5ec4c7020ff6dd52"
   },
   "baseMainnet": {

@@ -3,7 +3,7 @@ import { type Address, parseEventLogs } from 'viem';
 import { publicClient } from '@/lib/providers';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
-import { baseSepolia } from 'viem/chains';
+import { chain } from '@/config/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { BaseError, ContractFunctionRevertedError } from 'viem';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             abi: CONTRACT_ABI,
             functionName: 'changeTeamNameRelayer',
             args: [walletAddress as Address, trimmedName],
-            chain: baseSepolia,
+            chain: chain,
             account: RELAYER_ADDRESS
         });
 
@@ -102,7 +102,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             logs: paymasterReceipt.logs,
         });
 
+        console.log('Parsed event logs:', JSON.stringify(logs, null, 2));
+
+        // Send webhook to update database
         await sendWebhookMessage(logs);
+
+        console.log('Team name change with relayer:', {
+            walletAddress,
+            newTeamName: trimmedName,
+            contractAddress: CONTRACT_ADDRESS
+        });
 
         console.log('Transaction sent successfully:', paymasterReceipt.receipt.transactionHash);
 
@@ -126,7 +135,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 console.log("Error name:", errorName);
 
                 // Handle custom validation errors from contract
-                // These error names match exactly what's in your contract
                 switch (errorName) {
                     case 'DoesNotExist':
                         return NextResponse.json(

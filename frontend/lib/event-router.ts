@@ -83,6 +83,9 @@ async function processLog(supabase: any, wsService: WebSocketBroadcastingService
             case 'TeamCreated':
                 await handleTeamCreated(eventLog, supabase, wsService, timestamp);
                 break;
+            case 'TeamNameChanged':
+                await handleTeamNameChanged(eventLog, supabase, wsService, timestamp);
+                break;
             case 'GameRequestCreated':
                 await handleGameRequestCreated(eventLog, supabase, wsService, timestamp);
                 break;
@@ -211,6 +214,26 @@ async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsSer
     }
 
     console.log(`Team created: ${teamId} - ${name}`);
+}
+
+async function handleTeamNameChanged(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+    const { teamId, oldName, newName } = AbiDecoder.getTypedArgs(decodedData);
+
+    // Update database
+    const { data, error } = await supabase
+        .from('teams')
+        .update({ name: newName })
+        .eq('id', teamId)
+        .select();
+
+    // Broadcast to team channel
+    await wsService.broadcastToTeam(teamId, {
+        type: 'TEAM_NAME_CHANGED',
+        team_id: teamId,
+        old_name: oldName,
+        new_name: newName,
+        timestamp: timestamp * 1000
+    });
 }
 
 async function handleGameRequestCreated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
