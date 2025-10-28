@@ -64,7 +64,7 @@ export default function App() {
   );
   useFrameManager(setFrameReady, isFrameReady);
 
-  const handlePlayNow = () => {
+  const handlePlayNow = useCallback(() => {
     if (!teamInfo) {
       toast.error("You need to create a team first!", {
         position: "top-center",
@@ -72,6 +72,7 @@ export default function App() {
       });
       return;
     }
+
     if (teamInfo.active_game_id) {
       toast.error("You have an ongoing game! Please finish it first.", {
         position: "top-center",
@@ -218,32 +219,6 @@ export default function App() {
         draggable
         pauseOnHover
       />
-
-      {/* Change Team Name Modal */}
-      {teamInfo && (
-        <ChangeTeamNameModal
-          isOpen={isChangeNameModalOpen}
-          onClose={() => setIsChangeNameModalOpen(false)}
-          onSuccess={() => {
-            // Refresh team info after successful name change
-            if (address) {
-              fetchTeamInfo(address);
-            }
-          }}
-          currentTeamName={teamInfo.name}
-          walletAddress={address}
-        />
-      )}
-
-      {/* Team Settings Modal */}
-      {teamInfo && (
-        <TeamSettingsModal
-          isOpen={isSettingsModalOpen}
-          onClose={() => setIsSettingsModalOpen(false)}
-          onChangeNameClick={() => setIsChangeNameModalOpen(true)}
-          teamName={teamInfo.name}
-        />
-      )}
     </div>
   );
 }
