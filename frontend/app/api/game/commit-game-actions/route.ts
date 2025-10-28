@@ -3,12 +3,12 @@ import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient } from '@/lib/providers';
 import { parseEventLogs, Log } from 'viem';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, getGameFromContract, RELAYER_ADDRESS } from '@/lib/contract';
-import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
 import { decodeSymmetricKey, encodeData, bigintToBuffer } from '@/lib/encrypting';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { FIELD_HEIGHT, FIELD_WIDTH, MoveType, serializeMoves, TeamEnum } from '@/lib/game';
+import { MoveType, serializeMoves, TeamEnum } from '@/lib/game';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
+import { validateMoves } from './validateMoves';
 
 /**
  * Game Actions Commit Endpoint
@@ -65,35 +65,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate each move
-        for (const move of body.moves) {
-            if (typeof move.playerId !== 'number' ||
-                !move.oldPosition || !move.newPosition ||
-                typeof move.oldPosition.x !== 'number' || typeof move.oldPosition.y !== 'number' ||
-                typeof move.newPosition.x !== 'number' || typeof move.newPosition.y !== 'number') {
-                return NextResponse.json(
-                    { error: 'Invalid move data structure', errorName: 'INVALID_MOVE_DATA' },
-                    { status: 400 }
-                );
-            }
-
-            if (move.moveType != "pass" && move.moveType != "tackle" && move.moveType != "run" && move.moveType != "shot") {
-                return NextResponse.json(
-                    { error: 'Invalid move type. Must be PASS, TACKLE, RUN, SHOT', errorName: 'INVALID_MOVE_TYPE' },
-                    { status: 400 }
-                );
-            }
-
-            // Validate positions (assuming field dimensions)
-            if (move.oldPosition.x < 0 || move.oldPosition.x > FIELD_WIDTH + 1 || move.oldPosition.y < 0 || move.oldPosition.y > FIELD_HEIGHT ||
-                move.newPosition.x < 0 || move.newPosition.x > FIELD_WIDTH + 1 || move.newPosition.y < 0 || move.newPosition.y > FIELD_HEIGHT) {
-                return NextResponse.json(
-                    { error: 'Invalid position coordinates', errorName: 'INVALID_POSITION' },
-                    { status: 400 }
-                );
-            }
-        }
-
         // Authenticate user
         const isAuthenticated = await checkAuthSignatureAndMessage(
             body.wallet_address,
@@ -116,6 +87,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
+
+
         console.log('Processing game actions commit for game:', body.game_id);
         console.log('Team:', body.team_enum === 1 ? 'Team 1' : 'Team 2');
         console.log('Number of moves:', body.moves.length);
@@ -135,6 +108,14 @@ export async function POST(request: NextRequest) {
         }));
 
         console.log('userMoves', body.team_enum, body.moves);
+
+        const validationError = validateMoves(gameInfo.data.lastBoardState, userMoves);
+        if (validationError) {
+            return NextResponse.json(
+                { error: validationError.message, errorName: 'VALIDATION_ERROR' },
+                { status: 400 }
+            );
+        }
 
         // Decrypt the symmetric key using the game engine's private key
         // Convert hex string (from contract bytes) to Buffer for decryption
