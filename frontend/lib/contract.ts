@@ -94,7 +94,7 @@ export async function getGameFromContract(gameId: string): Promise<GameFetchResu
 
         const gameInfo = gameData as unknown as GameInfo;
 
-        console.log('Raw game data from contract:', gameInfo);
+        console.log('Raw game data from contract:', JSON.stringify(gameInfo, null, 2));
 
         // Additional validation to ensure gameInfo has required properties
         if (!gameInfo || typeof gameInfo !== 'object') {
