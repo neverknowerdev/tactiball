@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, jest } from '@jest/globals';
+import { expect } from 'chai';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 
@@ -14,10 +14,10 @@ describe('Zealy Verify User Won Game API', () => {
   let supabase: any;
   let mockTeam: any;
 
-  beforeAll(async () => {
+  before(async () => {
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
-    
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
+
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Missing Supabase environment variables');
     }
@@ -39,9 +39,9 @@ describe('Zealy Verify User Won Game API', () => {
       .from('teams')
       .select('count')
       .limit(1);
-    
-    expect(error).toBeNull();
-    expect(data).toBeDefined();
+
+    expect(error).to.be.null;
+    expect(data).to.exist;
   });
 
   it('should reject request with invalid API key', async () => {
@@ -58,10 +58,10 @@ describe('Zealy Verify User Won Game API', () => {
     // Import and call the POST function
     const { POST } = await import('../frontend/app/api/zealy/verify-user-won-game/route');
     const response = await POST(mockRequest as any);
-    
-    expect(response.status).toBe(400);
+
+    expect(response.status).to.equal(400);
     const body = await response.json();
-    expect(body.message).toBe('Invalid API key');
+    expect(body.message).to.equal('Invalid API key');
   });
 
   it('should reject request without zealy-connect account', async () => {
@@ -84,15 +84,15 @@ describe('Zealy Verify User Won Game API', () => {
 
     const { POST } = await import('../frontend/app/api/zealy/verify-user-won-game/route');
     const response = await POST(mockRequest as any);
-    
-    expect(response.status).toBe(400);
+
+    expect(response.status).to.equal(400);
     const body = await response.json();
-    expect(body.message).toContain('Account not connected');
+    expect(body.message).to.include('Account not connected');
   });
 
   it('should reject request for non-existent team', async () => {
     const nonExistentWallet = '0xnonexistent000000000000000000000000000000';
-    
+
     const mockRequest = {
       headers: {
         get: (key: string) => {
@@ -114,10 +114,10 @@ describe('Zealy Verify User Won Game API', () => {
 
     const { POST } = await import('../frontend/app/api/zealy/verify-user-won-game/route');
     const response = await POST(mockRequest as any);
-    
-    expect(response.status).toBe(400);
+
+    expect(response.status).to.equal(400);
     const body = await response.json();
-    expect(body.message).toContain('No TactiBall team found');
+    expect(body.message).to.include('No TactiBall team found');
   });
 
   it('should verify team exists in database', async () => {
@@ -132,9 +132,9 @@ describe('Zealy Verify User Won Game API', () => {
       .eq('id', mockTeam.id)
       .maybeSingle();
 
-    expect(error).toBeNull();
-    expect(team).toBeDefined();
-    expect(team.id).toBe(mockTeam.id);
+    expect(error).to.be.null;
+    expect(team).to.exist;
+    expect(team.id).to.equal(mockTeam.id);
     console.log('✅ Test team found:', team.name);
   });
 
@@ -157,9 +157,9 @@ describe('Zealy Verify User Won Game API', () => {
       .eq('winner', mockTeam.id)
       .gte('created_at', todayStartISO);
 
-    expect(error).toBeNull();
+    expect(error).to.be.null;
     console.log(`\n🎮 Games won today by team ${mockTeam.id}: ${games?.length || 0}`);
-    
+
     if (games && games.length > 0) {
       console.log('  Recent wins:', games.slice(0, 3).map((g: any) => ({
         id: g.id,
@@ -201,11 +201,11 @@ describe('Zealy Verify User Won Game API', () => {
 
     const { POST } = await import('../frontend/app/api/zealy/verify-user-won-game/route');
     const response = await POST(mockRequest as any);
-    
+
     const body = await response.json();
-    
+
     if (response.status === 400 && body.message.includes('Account mismatch')) {
-      expect(body.message).toContain('Account mismatch');
+      expect(body.message).to.include('Account mismatch');
       console.log('✅ Correctly rejected mismatched user ID');
     }
 
@@ -219,17 +219,17 @@ describe('Zealy Verify User Won Game API', () => {
   it('should validate UTC timezone for today filter', () => {
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
-    
+
     const todayEnd = new Date();
     todayEnd.setUTCHours(23, 59, 59, 999);
 
     console.log('\n⏰ UTC Time validation:');
     console.log('  Today start (UTC):', todayStart.toISOString());
     console.log('  Today end (UTC):', todayEnd.toISOString());
-    
-    expect(todayStart.getUTCHours()).toBe(0);
-    expect(todayStart.getUTCMinutes()).toBe(0);
-    expect(todayStart.getUTCSeconds()).toBe(0);
+
+    expect(todayStart.getUTCHours()).to.equal(0);
+    expect(todayStart.getUTCMinutes()).to.equal(0);
+    expect(todayStart.getUTCSeconds()).to.equal(0);
   });
 
   it('should verify game status and winner fields', async () => {
@@ -248,11 +248,11 @@ describe('Zealy Verify User Won Game API', () => {
 
     if (recentGames && recentGames.length > 0) {
       console.log(`\n📊 Recent finished games: ${recentGames.length}`);
-      
+
       recentGames.forEach((game: any) => {
-        expect(game.status).toBe('finished');
-        expect(game.winner).toBeDefined();
-        
+        expect(game.status).to.equal('finished');
+        expect(game.winner).to.exist;
+
         const teamWon = game.winner === mockTeam.id;
         console.log(`  Game ${game.id}: ${teamWon ? '✅ Won' : '❌ Lost'}`);
       });
@@ -268,7 +268,7 @@ describe('Zealy Verify User Won Game API', () => {
     // Check if team has won any games today
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
-    
+
     // Fixed: Using correct column names
     const { data: todayGames } = await supabase
       .from('games')
@@ -301,10 +301,10 @@ describe('Zealy Verify User Won Game API', () => {
 
       const { POST } = await import('../frontend/app/api/zealy/verify-user-won-game/route');
       const response = await POST(mockRequest as any);
-      
-      expect(response.status).toBe(200);
+
+      expect(response.status).to.equal(200);
       const body = await response.json();
-      expect(body.message).toContain('Quest completed');
+      expect(body.message).to.include('Quest completed');
       console.log('✅ Quest completion verified:', body.message);
     } else {
       console.log('⚠️  Team has no wins today, skipping successful completion test');
@@ -323,14 +323,14 @@ describe('Zealy Verify User Won Game API', () => {
       }
     };
 
-    expect(validBody).toHaveProperty('userId');
-    expect(validBody).toHaveProperty('communityId');
-    expect(validBody).toHaveProperty('subdomain');
-    expect(validBody).toHaveProperty('questId');
-    expect(validBody).toHaveProperty('requestId');
-    expect(validBody).toHaveProperty('accounts');
-    expect(validBody.accounts).toHaveProperty('zealy-connect');
-    
+    expect(validBody).to.have.property('userId');
+    expect(validBody).to.have.property('communityId');
+    expect(validBody).to.have.property('subdomain');
+    expect(validBody).to.have.property('questId');
+    expect(validBody).to.have.property('requestId');
+    expect(validBody).to.have.property('accounts');
+    expect(validBody.accounts).to.have.property('zealy-connect');
+
     console.log('✅ Request body structure validated');
   });
 });
@@ -338,9 +338,9 @@ describe('Zealy Verify User Won Game API', () => {
 describe('Zealy API Error Handling', () => {
   let supabase: any;
 
-  beforeAll(() => {
+  before(() => {
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
     supabase = createClient(supabaseUrl, supabaseKey);
   });
 
@@ -359,10 +359,10 @@ describe('Zealy API Error Handling', () => {
 
     const { POST } = await import('../frontend/app/api/zealy/verify-user-won-game/route');
     const response = await POST(mockRequest as any);
-    
-    expect(response.status).toBe(400);
+
+    expect(response.status).to.equal(400);
     const body = await response.json();
-    expect(body.message).toContain('unexpected error');
+    expect(body.message).to.include('unexpected error');
   });
 
   it('should include requestId in error messages for tracking', async () => {
@@ -388,9 +388,9 @@ describe('Zealy API Error Handling', () => {
 
     const { POST } = await import('../frontend/app/api/zealy/verify-user-won-game/route');
     const response = await POST(mockRequest as any);
-    
+
     // Should handle non-existent team gracefully
-    expect(response.status).toBe(400);
+    expect(response.status).to.equal(400);
     console.log('✅ Error tracking with requestId validated');
   });
 
@@ -406,7 +406,7 @@ describe('Zealy API Error Handling', () => {
     errorScenarios.forEach(scenario => {
       console.log(`  ${scenario}: Expected status 400`);
     });
-    
-    expect(errorScenarios.length).toBeGreaterThan(0);
+
+    expect(errorScenarios.length).to.be.greaterThan(0);
   });
 });
