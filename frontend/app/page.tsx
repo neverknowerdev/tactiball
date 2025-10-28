@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useAccount, useSignMessage, useChainId, useSwitchChain } from "wagmi";
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
+import { useSearchParams } from 'next/navigation';
 
 // Components
 import { WalletConnection } from './components/WalletConnection';
@@ -13,12 +14,13 @@ import { ActiveGameWarning } from './components/ActiveGameWarning';
 import { TeamInfoSection } from './components/TeamInfoSection';
 import { PrimaryActions } from './components/PrimaryActions';
 import { CreateTeamModal } from "./components/CreateTeamModal";
-import { SearchOpponentModal } from "./components/SearchOpponentModal";
 import { GameRequestModal } from "./components/GameRequestModal";
 import { GlobalStats } from './components/GlobalStats';
 import { Leaderboard } from './components/Leaderboard';
 import { ChangeTeamNameModal } from './components/ChangeTeamNameModal';
 import { TeamSettingsModal } from './components/TeamSettingsModal';
+import LobbyScreen from './components/LobbyScreen';
+import RoomDetails from './components/RoomDetails';
 
 // Hooks
 import { useTeamInfo } from './hooks/useTeamInfo';
@@ -27,6 +29,7 @@ import { useChainManager } from './hooks/useChainManager';
 import { useTeamChannel } from './hooks/useTeamChannel';
 import { useGameEvents } from './hooks/useGameEvents';
 import { useFrameManager } from './hooks/useFrameManager';
+import { useRoomInvite } from './hooks/useRoomInvite';
 
 // Utils
 import { createTeam } from './utils/teamActions';
@@ -37,11 +40,11 @@ export default function App() {
   const { signMessageAsync } = useSignMessage();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
+  const searchParams = useSearchParams();
 
   // Modal states
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
   const [isCreatingTeam, setIsCreatingTeam] = useState(false);
-  const [isSearchOpponentModalOpen, setIsSearchOpponentModalOpen] = useState(false);
   const [isGameRequestModalOpen, setIsGameRequestModalOpen] = useState(false);
   const [isChangeNameModalOpen, setIsChangeNameModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -51,6 +54,10 @@ export default function App() {
     team2_info: any;
   } | null>(null);
 
+  // Lobby states
+  const [showLobby, setShowLobby] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+
   // Custom hooks
   const { teamInfo, loading, error, fetchTeamInfo } = useTeamInfo(address, isConnected);
   const { username } = useUsername(address, isConnected);
@@ -58,30 +65,34 @@ export default function App() {
   useTeamChannel(teamInfo?.id, isConnected, address);
   useGameEvents(
     teamInfo,
-    setIsSearchOpponentModalOpen,
+    setShowLobby,
     setIsGameRequestModalOpen,
     setGameRequestData
   );
   useFrameManager(setFrameReady, isFrameReady);
+  
+  // Handle room invite from URL
+  useRoomInvite(
+    searchParams,
+    isConnected,
+    address,
+    teamInfo,
+    setSelectedRoomId
+  );
 
   const handlePlayNow = useCallback(() => {
     if (!teamInfo) {
-      toast.error("You need to create a team first!", {
-        position: "top-center",
-        autoClose: 3000,
-      });
+      toast.error("You need to create a team first!");
       return;
     }
 
     if (teamInfo.active_game_id) {
-      toast.error("You have an ongoing game! Please finish it first.", {
-        position: "top-center",
-        autoClose: 3000,
-      });
+      toast.error("You have an ongoing game!");
       return;
     }
 
-    setIsSearchOpponentModalOpen(true);
+    // Open lobby instead of search modal
+    setShowLobby(true);
   }, [teamInfo]);
 
   const handleCreateTeam = useCallback(async (teamName: string, countryIndex: string) => {
@@ -157,19 +168,30 @@ export default function App() {
         defaultTeamName={username ? `${username}'s team` : undefined}
       />
 
-      <SearchOpponentModal
-        isOpen={isSearchOpponentModalOpen}
-        onClose={() => setIsSearchOpponentModalOpen(false)}
-        onCancel={() => setIsSearchOpponentModalOpen(false)}
-        userInfo={teamInfo ? {
-          team_name: teamInfo.name,
-          team_id: teamInfo.id,
-          user_wallet_address: address || '',
-          username: username || '',
-          elo_rating: teamInfo.elo_rating
-        } : null}
-      />
+      {/* Lobby Screen */}
+      {showLobby && !selectedRoomId && teamInfo && (
+        <LobbyScreen
+          userTeamId={teamInfo.id}
+          userTeamElo={teamInfo.elo_rating}
+          onClose={() => setShowLobby(false)}
+          onRoomSelected={(roomId) => setSelectedRoomId(roomId)}
+        />
+      )}
 
+      {/* Room Details */}
+      {selectedRoomId && teamInfo && (
+        <RoomDetails
+          roomId={selectedRoomId}
+          userTeamId={teamInfo.id}
+          onBack={() => setSelectedRoomId(null)}
+          onGameStarting={(gameRequestId) => {
+            setSelectedRoomId(null);
+            setShowLobby(false);
+          }}
+        />
+      )}
+
+      {/* Game Request Modal */}
       {gameRequestData && (
         <GameRequestModal
           isOpen={isGameRequestModalOpen}
