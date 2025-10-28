@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
-const ZEALY_COMMUNITY_SECRET = process.env.ZEALY_COMMUNITY_SECRET;
-if (!ZEALY_COMMUNITY_SECRET) {
-    throw new Error("ZEALY_COMMUNITY_SECRET is not set");
-}
 
 /**
  * Verifies a Zealy signature against a URL
@@ -19,12 +15,18 @@ function verifyZealySignature(url: string, signature: string): boolean {
     }
 
     try {
+        const ZEALY_COMMUNITY_SECRET = process.env.ZEALY_COMMUNITY_SECRET;
+        if (!ZEALY_COMMUNITY_SECRET) {
+            throw new Error("ZEALY_COMMUNITY_SECRET is not set");
+        }
+
+
         const fullUrl = new URL(url);
         const originalSignature = signature;
-        
+
         // Remove signature from URL for verification
         fullUrl.searchParams.delete("signature");
-        
+
         const urlToVerify = fullUrl.toString();
         console.log("🔐 Verifying signature:", {
             originalUrl: url,
@@ -66,6 +68,12 @@ function generateCallbackSignature(url: string, identifier: string): string {
         identifier,
         finalUrl: urlToSign,
     });
+
+    const ZEALY_COMMUNITY_SECRET = process.env.ZEALY_COMMUNITY_SECRET;
+    if (!ZEALY_COMMUNITY_SECRET) {
+        throw new Error("ZEALY_COMMUNITY_SECRET is not set");
+    }
+
 
     const hmac = crypto.createHmac("sha256", ZEALY_COMMUNITY_SECRET as string);
     hmac.update(urlToSign);
@@ -110,7 +118,7 @@ export async function POST(req: NextRequest) {
 
                 const isValid = verifyZealySignature(url, signature);
                 console.log(`✅ Verification result: ${isValid ? "VALID" : "INVALID"}`);
-                
+
                 return NextResponse.json({
                     success: true,
                     isValid,
