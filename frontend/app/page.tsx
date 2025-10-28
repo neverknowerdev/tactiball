@@ -39,6 +39,7 @@ import { GlobalStats } from './components/GlobalStats';
 import LobbyScreen from './components/LobbyScreen';
 import RoomDetails from './components/RoomDetails';
 import moment from "moment";
+import { useSearchParams } from 'next/navigation';
 
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
@@ -65,6 +66,28 @@ export default function App() {
   const openUrl = useOpenUrl();
   const [showLobby, setShowLobby] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+
+  const searchParams = useSearchParams();
+
+  // Handle room parameter from invite links
+  useEffect(() => {
+    const roomParam = searchParams.get('room');
+
+    if (roomParam && isConnected && address && teamInfo) {
+      const roomId = parseInt(roomParam);
+
+      if (!isNaN(roomId)) {
+        console.log('Auto-opening room from invite:', roomId);
+
+        // Clear the room parameter from URL
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+
+        // Open the room
+        setSelectedRoomId(roomId);
+      }
+    }
+  }, [searchParams, isConnected, address, teamInfo]);
 
   // Function to map chain ID to network name
   const getNetworkName = (chainId: number): string => {
