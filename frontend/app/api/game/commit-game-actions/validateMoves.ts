@@ -1,5 +1,5 @@
 import { BoardState } from "@/lib/contract";
-import { GameAction, GameState, TeamEnum, ValidationError } from "@/lib/game";
+import { GameAction, GameState, MoveType, TeamEnum, ValidationError } from "@/lib/game";
 import { GameStateType, Game } from "@/lib/game";
 
 
@@ -10,12 +10,15 @@ export function validateMoves(boardState: BoardState, moves: GameAction[]): Vali
     game.saveState(gameState);
     game.restoreState(gameState);
 
+    const teamEnum = moves[0].teamEnum;
+
+    const teamPlayers = teamEnum === TeamEnum.TEAM1 ? game.team1.players : game.team2.players;
     // Validate each move
     for (const move of moves) {
-        const player = game.team1.players.find(player => player.id === move.playerId);
+        const player = teamPlayers.find(player => player.id === move.playerId);
         if (!player) {
             throw new ValidationError(
-                TeamEnum.TEAM1,
+                teamEnum,
                 move.playerId,
                 move,
                 `Player ${move.playerId} not found`

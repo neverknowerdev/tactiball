@@ -109,6 +109,13 @@ export async function POST(request: NextRequest) {
 
         console.log('userMoves', body.team_enum, body.moves);
 
+        if (userMoves.length === 0) {
+            return NextResponse.json(
+                { error: 'No moves to commit', errorName: 'NO_MOVES_TO_COMMIT' },
+                { status: 400 }
+            );
+        }
+
         const validationError = validateMoves(gameInfo.data.lastBoardState, userMoves);
         if (validationError) {
             return NextResponse.json(
