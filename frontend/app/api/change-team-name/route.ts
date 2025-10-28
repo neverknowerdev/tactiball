@@ -3,7 +3,7 @@ import { type Address, parseEventLogs } from 'viem';
 import { publicClient } from '@/lib/providers';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
-import { base } from 'viem/chains';
+import { baseSepolia } from 'viem/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { BaseError, ContractFunctionRevertedError } from 'viem';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -50,7 +50,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
 
         // Validate team name length
-        if (newTeamName.length === 0 || newTeamName.length > 100) {
+        const trimmedName = newTeamName.trim();
+        if (trimmedName.length === 0 || trimmedName.length > 100) {
             return NextResponse.json(
                 { success: false, error: 'Team name must be between 1 and 100 characters' },
                 { status: 400 }
@@ -65,7 +66,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             );
         }
 
-        const { isValid, error, timestamp, expiresAt } = await checkAuthSignatureAndMessage(signature, message, walletAddress);
+        const { isValid, error, timestamp, expiresAt } = await checkAuthSignatureAndMessage(
+            signature,
+            message,
+            walletAddress
+        );
+
         if (!isValid) {
             return NextResponse.json(
                 { success: false, error: error },
@@ -73,17 +79,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             );
         }
 
+        console.log('Simulating transaction...');
+
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'changeTeamNameRelayer',
-            args: [walletAddress as Address, newTeamName],
-            chain: base,
+            args: [walletAddress as Address, trimmedName],
+            chain: baseSepolia,
             account: RELAYER_ADDRESS
         });
 
+        console.log('Simulation successful, sending transaction...');
+
         const paymasterReceipt = await sendTransactionWithRetry(simulation.request);
+
+        console.log('Transaction successful, parsing logs...');
 
         const logs = parseEventLogs({
             abi: CONTRACT_ABI,
@@ -92,76 +104,125 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
         await sendWebhookMessage(logs);
 
-        console.log('Changing team name with relayer:', {
-            walletAddress,
-            newTeamName,
-            contractAddress: CONTRACT_ADDRESS
-        });
-
         console.log('Transaction sent successfully:', paymasterReceipt.receipt.transactionHash);
 
         return NextResponse.json({
             success: true,
             message: 'Team name changed successfully',
-            transactionHash: paymasterReceipt.receipt.transactionHash
+            transactionHash: paymasterReceipt.receipt.transactionHash,
+            logs: logs
         });
 
     } catch (error) {
         console.error('Error in change-team-name API:', error);
 
         if (error instanceof BaseError) {
-            console.log("error is a BaseError");
-            const revertError = error.walk(err => err instanceof ContractFunctionRevertedError)
+            console.log("Error is a BaseError");
+            const revertError = error.walk(err => err instanceof ContractFunctionRevertedError);
+
             if (revertError instanceof ContractFunctionRevertedError) {
-                console.log("revertError", revertError);
+                console.log("Revert error found:", revertError);
                 const errorName = revertError.data?.errorName ?? '';
-                console.log("errorName", errorName);
-                // Handle custom validation errors from contract simulation
+                console.log("Error name:", errorName);
+
+                // Handle custom validation errors from contract
+                // These error names match exactly what's in your contract
                 switch (errorName) {
-                    case 'ChangeTeamName_NameIsRequired':
+                    case 'DoesNotExist':
                         return NextResponse.json(
-                            { success: false, error: 'Team name is required by the contract', errorName: errorName },
+                            {
+                                success: false,
+                                error: 'Team does not exist. Please create a team first.',
+                                errorName: errorName
+                            },
+                            { status: 404 }
+                        );
+
+                    case 'CreateTeam_NameIsRequired':
+                        return NextResponse.json(
+                            {
+                                success: false,
+                                error: 'Team name cannot be empty',
+                                errorName: errorName
+                            },
                             { status: 400 }
                         );
-                    case 'ChangeTeamName_TeamDoesNotExist':
+
+                    case 'ChangeTeamName_NotTeamOwner':
                         return NextResponse.json(
-                            { success: false, error: 'Team does not exist', errorName: errorName },
-                            { status: 400 }
-                        );
-                    case 'ChangeTeamName_TeamNameAlreadyExists':
-                        return NextResponse.json(
-                            { success: false, error: 'This team name is already taken. Please choose a different name.', errorName: errorName },
-                            { status: 400 }
-                        );
-                    case 'ChangeTeamName_Unauthorized':
-                        return NextResponse.json(
-                            { success: false, error: 'You are not authorized to change this team name', errorName: errorName },
+                            {
+                                success: false,
+                                error: 'You are not the owner of this team',
+                                errorName: errorName
+                            },
                             { status: 403 }
                         );
-                    // add more custom error handlers here as needed
+
+                    case 'ChangeTeamName_SameNameProvided':
+                        return NextResponse.json(
+                            {
+                                success: false,
+                                error: 'New name must be different from current name',
+                                errorName: errorName
+                            },
+                            { status: 400 }
+                        );
+
+                    case 'CreateTeam_TeamNameAlreadyExists':
+                        return NextResponse.json(
+                            {
+                                success: false,
+                                error: 'This team name is already taken. Please choose a different name.',
+                                errorName: errorName
+                            },
+                            { status: 409 }
+                        );
+
+                    case 'OnlyRelayerCanCall':
+                        return NextResponse.json(
+                            {
+                                success: false,
+                                error: 'Unauthorized relayer',
+                                errorName: errorName
+                            },
+                            { status: 403 }
+                        );
+
                     default:
-                        break;
+                        // Log unknown errors for debugging
+                        console.error('Unknown contract error:', errorName);
+                        return NextResponse.json(
+                            {
+                                success: false,
+                                error: `Contract error: ${errorName || 'Unknown error'}`,
+                                errorName: errorName
+                            },
+                            { status: 400 }
+                        );
                 }
             }
         }
 
         // Provide more specific error messages for blockchain-related errors
         let errorMessage = 'Internal server error';
+        let statusCode = 500;
+
         if (error instanceof Error) {
             if (error.message.includes('insufficient funds')) {
                 errorMessage = 'Insufficient funds for transaction';
+                statusCode = 402;
             } else if (error.message.includes('nonce')) {
-                errorMessage = 'Transaction nonce error';
+                errorMessage = 'Transaction nonce error. Please try again.';
+                statusCode = 500;
             } else if (error.message.includes('gas')) {
-                errorMessage = 'Gas estimation error';
-            } else if (error.message.includes("User rejected")) {
-                errorMessage = "Transaction was cancelled by user.";
-            } else if (error.message.includes("Team does not exist")) {
-                errorMessage = "Team does not exist. Please create a team first.";
-            } else if (error.message.includes("Team name already exists")) {
-                errorMessage = "This team name is already taken. Please choose a different name.";
-            } else if (error.message.includes("Invalid signature")) {
-                errorMessage = "Signature verification failed. Please try again.";
+                errorMessage = 'Gas estimation error. Please try again.';
+                statusCode = 500;
+            } else if (error.message.includes('User rejected') || error.message.includes('user rejected')) {
+                errorMessage = 'Transaction was cancelled by user';
+                statusCode = 400;
+            } else if (error.message.includes('Signature verification failed')) {
+                errorMessage = 'Signature verification failed. Please sign the message again.';
+                statusCode = 401;
             } else {
                 errorMessage = `Error: ${error.message}`;
             }
@@ -169,7 +230,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
         return NextResponse.json(
             { success: false, error: errorMessage },
-            { status: 500 }
+            { status: statusCode }
         );
     }
 }

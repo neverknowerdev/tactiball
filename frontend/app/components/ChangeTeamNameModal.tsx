@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
+import { toast } from 'react-toastify';
+import { authUserWithSignature, clearCachedAuthSignature } from '@/lib/auth';
 
 interface ChangeTeamNameModalProps {
     isOpen: boolean;
@@ -71,21 +73,9 @@ export function ChangeTeamNameModal({
         setIsLoading(true);
 
         try {
-            // Create message for signing
-            const timestamp = Date.now();
-            const message = `Change team name to: ${trimmedName}\nTimestamp: ${timestamp}`;
-
-            // Sign the message
-            const signature = await signMessageAsync({ message });
-
-            // Log authentication data
-            console.log('=== CHANGE TEAM NAME AUTHENTICATION ===');
-            console.log('Wallet Address:', activeAddress);
-            console.log('Message:', message);
-            console.log('Signature:', signature);
-            console.log('New Team Name:', trimmedName);
-            console.log('Timestamp:', new Date(timestamp).toISOString());
-            console.log('=====================================');
+            // Get or create authentication signature
+            const authSignature = await authUserWithSignature(activeAddress, signMessageAsync);
+            console.log('Authentication signature obtained:', authSignature);
 
             // Call the API
             const response = await fetch('/api/change-team-name', {
@@ -95,19 +85,61 @@ export function ChangeTeamNameModal({
                 },
                 body: JSON.stringify({
                     walletAddress: activeAddress,
-                    signature,
-                    message,
+                    signature: authSignature.signature,
+                    message: authSignature.message,
                     newTeamName: trimmedName,
                 }),
             });
 
             const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to change team name');
+            if (!response.ok || !data.success) {
+                // Check if this is a signature verification error
+                const isSignatureError = data.error && data.error.includes('Signature verification failed');
+
+                if (isSignatureError) {
+                    clearCachedAuthSignature();
+                    console.log('Signature verification failed - cleared cached signature');
+                }
+
+                // Close modal before showing error
+                onClose();
+
+                // Show error toast
+                toast.error(data.error || 'Failed to change team name', {
+                    position: "top-center",
+                    autoClose: 5000,
+                    hideProgressBar: false,
+                    draggable: true,
+                    progress: undefined,
+                });
+
+                // Show follow-up toast only for signature errors
+                if (isSignatureError) {
+                    setTimeout(() => {
+                        toast.info('Your signature was cleared, try again to generate a new one', {
+                            position: "top-center",
+                            autoClose: 4000,
+                            hideProgressBar: false,
+                            draggable: true,
+                            progress: undefined,
+                        });
+                    }, 1000);
+                }
+
+                return;
             }
 
             console.log('Team name changed successfully:', data);
+
+            // Show success toast
+            toast.success(`Team name changed to "${trimmedName}" successfully!`, {
+                position: "top-center",
+                autoClose: 3000,
+                hideProgressBar: false,
+                draggable: true,
+                progress: undefined,
+            });
 
             // Success callback
             if (onSuccess) {
@@ -117,27 +149,35 @@ export function ChangeTeamNameModal({
             // Close modal
             onClose();
 
-            // Optional: Show success toast/notification
-            // toast.success('Team name changed successfully!');
-
         } catch (err) {
             console.error('Error changing team name:', err);
 
+            // Close modal before showing error
+            onClose();
+
+            let errorMessage = 'Failed to change team name. Please try again.';
+
             if (err instanceof Error) {
-                if (err.message.includes('User rejected')) {
-                    setError('Signature request was rejected');
+                if (err.message.includes('User rejected') || err.message.includes('user rejected')) {
+                    errorMessage = 'Signature request was rejected';
                 } else if (err.message.includes('already taken')) {
-                    setError('This team name is already taken. Please choose a different name.');
+                    errorMessage = 'This team name is already taken. Please choose a different name.';
                 } else if (err.message.includes('does not exist')) {
-                    setError('Team does not exist. Please create a team first.');
-                } else if (err.message.includes('not authorized')) {
-                    setError('You are not authorized to change this team name');
+                    errorMessage = 'Team does not exist. Please create a team first.';
+                } else if (err.message.includes('not authorized') || err.message.includes('not the owner')) {
+                    errorMessage = 'You are not authorized to change this team name';
                 } else {
-                    setError(err.message);
+                    errorMessage = err.message;
                 }
-            } else {
-                setError('Failed to change team name. Please try again.');
             }
+
+            toast.error(errorMessage, {
+                position: "top-center",
+                autoClose: 5000,
+                hideProgressBar: false,
+                draggable: true,
+                progress: undefined,
+            });
         } finally {
             setIsLoading(false);
         }
@@ -188,7 +228,7 @@ export function ChangeTeamNameModal({
                                 required
                             />
                             <p className="mt-1 text-xs text-gray-500">
-                                {teamName.trim().length}/100 characters
+                                {teamName.trim().length}/100 characters (min 3)
                             </p>
                             {error && (
                                 <p className="mt-2 text-sm text-red-600">{error}</p>
@@ -203,7 +243,7 @@ export function ChangeTeamNameModal({
                                 <div>
                                     <p className="text-sm text-yellow-800 font-medium">Important</p>
                                     <p className="text-xs text-yellow-700 mt-1">
-                                        You'll be asked to sign a message to verify ownership. Changing your team name is permanent and cannot be undone.
+                                        You'll be asked to sign a message to verify ownership. This action is permanent.
                                     </p>
                                 </div>
                             </div>
@@ -220,7 +260,7 @@ export function ChangeTeamNameModal({
                             </button>
                             <button
                                 type="submit"
-                                disabled={isLoading || !teamName.trim() || teamName.trim() === currentTeamName || !activeAddress}
+                                disabled={isLoading || !teamName.trim() || teamName.trim().length < 3 || teamName.trim() === currentTeamName || !activeAddress}
                                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                             >
                                 {isLoading ? (
