@@ -24,18 +24,18 @@ describe('Last Games Results Functionality', () => {
   let supabase: SupabaseClient;
   let testTeams: { teamA: Team; teamB: Team; teamC: Team };
 
-  beforeAll(() => {
+  before(() => {
     // Initialize Supabase client
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
+
     supabase = createClient(supabaseUrl, supabaseKey);
   });
 
   beforeEach(async () => {
     // Clean up test data
     await cleanupTestData();
-    
+
     // Create fresh test teams
     testTeams = await setupTestTeams();
   });
@@ -55,7 +55,7 @@ describe('Last Games Results Functionality', () => {
 
     if (teams && teams.length > 0) {
       const teamIds = teams.map(t => t.id);
-      
+
       await supabase
         .from('games')
         .delete()
@@ -229,7 +229,7 @@ describe('Last Games Results Functionality', () => {
       // Should have exactly 5 entries, not 10 (no duplicates)
       expect(teamAResults).toHaveLength(5);
       expect(teamBResults).toHaveLength(5);
-      
+
       // All should be the correct result type
       expect(teamAResults.every(r => r === 'VICTORY')).toBe(true);
       expect(teamBResults.every(r => r === 'DEFEAT')).toBe(true);
@@ -278,7 +278,7 @@ describe('Last Games Results Functionality', () => {
 
       // Should have 10 results
       expect(teamAResults).toHaveLength(10);
-      
+
       // The last 10 games: games 5-14 (indices start at 0)
       // Game indices: 5,6,7,8,9,10,11,12,13,14
       // Winners: A,B,A,B,A,B,A,B,A,B
@@ -287,7 +287,7 @@ describe('Last Games Results Functionality', () => {
         'DEFEAT', 'VICTORY', 'DEFEAT', 'VICTORY', 'DEFEAT',
         'VICTORY', 'DEFEAT', 'VICTORY', 'DEFEAT', 'VICTORY'
       ];
-      
+
       expect(teamAResults).toEqual(expected);
     });
   });
