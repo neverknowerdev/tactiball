@@ -37,6 +37,7 @@ import { LastGameResults } from './components/LastGameResults';
 import { Leaderboard } from './components/Leaderboard';
 import { GlobalStats } from './components/GlobalStats';
 import { ChangeTeamNameModal } from './components/ChangeTeamNameModal';
+import { TeamSettingsModal } from './components/TeamSettingsModal';
 import moment from "moment";
 
 export default function App() {
@@ -60,6 +61,7 @@ export default function App() {
   } | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [isChangeNameModalOpen, setIsChangeNameModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   const addFrame = useAddFrame();
   const openUrl = useOpenUrl();
@@ -626,14 +628,14 @@ export default function App() {
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Your Team</h3>
                   <button
-                    onClick={() => setIsChangeNameModalOpen(true)}
-                    className="text-xs text-blue-600 hover:text-blue-700 underline flex items-center gap-1"
-                    title="Change team name"
+                    onClick={() => setIsSettingsModalOpen(true)}
+                    className="text-gray-600 hover:text-gray-800 transition-colors"
+                    title="Team settings"
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    Change Name
                   </button>
                 </div>
                 <div className="flex items-start gap-4">
@@ -809,17 +811,27 @@ export default function App() {
       {/* Change Team Name Modal */}
       {teamInfo && (
         <ChangeTeamNameModal
-        isOpen={isChangeNameModalOpen}
-        onClose={() => setIsChangeNameModalOpen(false)}
-        onSuccess={() => {
-          // Refresh team info after successful name change
-          if (address) {
-            fetchTeamInfo(address);
-          }
-        }}
-        currentTeamName={teamInfo.name}
-        walletAddress={address}
-      />
+          isOpen={isChangeNameModalOpen}
+          onClose={() => setIsChangeNameModalOpen(false)}
+          onSuccess={() => {
+            // Refresh team info after successful name change
+            if (address) {
+              fetchTeamInfo(address);
+            }
+          }}
+          currentTeamName={teamInfo.name}
+          walletAddress={address}
+        />
+      )}
+
+      {/* Team Settings Modal */}
+      {teamInfo && (
+        <TeamSettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => setIsSettingsModalOpen(false)}
+          onChangeNameClick={() => setIsChangeNameModalOpen(true)}
+          teamName={teamInfo.name}
+        />
       )}
     </div>
   );
