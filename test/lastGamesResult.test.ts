@@ -1,4 +1,5 @@
 // lastGamesResults.test.ts
+import { expect } from 'chai';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Types
@@ -29,7 +30,7 @@ describe('Last Games Results Functionality', () => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    supabase = createClient(supabaseUrl, supabaseKey);
+    supabase = createClient(supabaseUrl!, supabaseKey!);
   });
 
   beforeEach(async () => {
@@ -163,8 +164,8 @@ describe('Last Games Results Functionality', () => {
       const teamAResults = await getTeamResults(testTeams.teamA.id);
       const teamBResults = await getTeamResults(testTeams.teamB.id);
 
-      expect(teamAResults).toEqual(['VICTORY']);
-      expect(teamBResults).toEqual(['DEFEAT']);
+      expect(teamAResults).to.deep.equal(['VICTORY']);
+      expect(teamBResults).to.deep.equal(['DEFEAT']);
     });
   });
 
@@ -183,8 +184,8 @@ describe('Last Games Results Functionality', () => {
       const teamAResults = await getTeamResults(testTeams.teamA.id);
       const teamBResults = await getTeamResults(testTeams.teamB.id);
 
-      expect(teamAResults).toEqual(['DRAW']);
-      expect(teamBResults).toEqual(['DRAW']);
+      expect(teamAResults).to.deep.equal(['DRAW']);
+      expect(teamBResults).to.deep.equal(['DRAW']);
     });
   });
 
@@ -203,8 +204,8 @@ describe('Last Games Results Functionality', () => {
       const teamAResults = await getTeamResults(testTeams.teamA.id);
       const teamBResults = await getTeamResults(testTeams.teamB.id);
 
-      expect(teamAResults).toEqual(['DEFEAT_BY_TIMEOUT']);
-      expect(teamBResults).toEqual(['VICTORY']);
+      expect(teamAResults).to.deep.equal(['DEFEAT_BY_TIMEOUT']);
+      expect(teamBResults).to.deep.equal(['VICTORY']);
     });
   });
 
@@ -227,12 +228,12 @@ describe('Last Games Results Functionality', () => {
       const teamBResults = await getTeamResults(testTeams.teamB.id);
 
       // Should have exactly 5 entries, not 10 (no duplicates)
-      expect(teamAResults).toHaveLength(5);
-      expect(teamBResults).toHaveLength(5);
+      expect(teamAResults).to.have.lengthOf(5);
+      expect(teamBResults).to.have.lengthOf(5);
 
       // All should be the correct result type
-      expect(teamAResults.every(r => r === 'VICTORY')).toBe(true);
-      expect(teamBResults.every(r => r === 'DEFEAT')).toBe(true);
+      expect(teamAResults.every(r => r === 'VICTORY')).to.be.true;
+      expect(teamBResults.every(r => r === 'DEFEAT')).to.be.true;
     });
   });
 
@@ -255,8 +256,8 @@ describe('Last Games Results Functionality', () => {
       const teamBResults = await getTeamResults(testTeams.teamB.id);
 
       // Should have exactly 10 entries (the limit)
-      expect(teamAResults).toHaveLength(10);
-      expect(teamBResults).toHaveLength(10);
+      expect(teamAResults).to.have.lengthOf(10);
+      expect(teamBResults).to.have.lengthOf(10);
     });
 
     it('should keep the most recent 10 games', async () => {
@@ -277,7 +278,7 @@ describe('Last Games Results Functionality', () => {
       const teamAResults = await getTeamResults(testTeams.teamA.id);
 
       // Should have 10 results
-      expect(teamAResults).toHaveLength(10);
+      expect(teamAResults).to.have.lengthOf(10);
 
       // The last 10 games: games 5-14 (indices start at 0)
       // Game indices: 5,6,7,8,9,10,11,12,13,14
@@ -288,7 +289,7 @@ describe('Last Games Results Functionality', () => {
         'VICTORY', 'DEFEAT', 'VICTORY', 'DEFEAT', 'VICTORY'
       ];
 
-      expect(teamAResults).toEqual(expected);
+      expect(teamAResults).to.deep.equal(expected);
     });
   });
 
@@ -306,7 +307,7 @@ describe('Last Games Results Functionality', () => {
 
       // Verify no results yet
       let teamAResults = await getTeamResults(testTeams.teamA.id);
-      expect(teamAResults).toHaveLength(0);
+      expect(teamAResults).to.have.lengthOf(0);
 
       // Update game to finished
       await updateGameStatus(game.id, 'finished', testTeams.teamA.id);
@@ -317,10 +318,10 @@ describe('Last Games Results Functionality', () => {
       teamAResults = await getTeamResults(testTeams.teamA.id);
       const teamBResults = await getTeamResults(testTeams.teamB.id);
 
-      expect(teamAResults).toHaveLength(1);
-      expect(teamAResults).toEqual(['VICTORY']);
-      expect(teamBResults).toHaveLength(1);
-      expect(teamBResults).toEqual(['DEFEAT']);
+      expect(teamAResults).to.have.lengthOf(1);
+      expect(teamAResults).to.deep.equal(['VICTORY']);
+      expect(teamBResults).to.have.lengthOf(1);
+      expect(teamBResults).to.deep.equal(['DEFEAT']);
     });
 
     it('should not add duplicate when updating already finished game', async () => {
@@ -336,7 +337,7 @@ describe('Last Games Results Functionality', () => {
 
       // Verify initial results
       let teamAResults = await getTeamResults(testTeams.teamA.id);
-      expect(teamAResults).toHaveLength(1);
+      expect(teamAResults).to.have.lengthOf(1);
 
       // Update the same finished game (e.g., correcting winner)
       await updateGameStatus(game.id, 'finished', testTeams.teamB.id);
@@ -345,7 +346,7 @@ describe('Last Games Results Functionality', () => {
 
       // Should still have only 1 result (no duplicate added)
       teamAResults = await getTeamResults(testTeams.teamA.id);
-      expect(teamAResults).toHaveLength(1);
+      expect(teamAResults).to.have.lengthOf(1);
     });
   });
 
@@ -395,7 +396,7 @@ describe('Last Games Results Functionality', () => {
       const teamAResults = await getTeamResults(testTeams.teamA.id);
       const expected: GameResult[] = ['VICTORY', 'DRAW', 'DEFEAT_BY_TIMEOUT', 'DEFEAT'];
 
-      expect(teamAResults).toEqual(expected);
+      expect(teamAResults).to.deep.equal(expected);
     });
   });
 
@@ -422,15 +423,15 @@ describe('Last Games Results Functionality', () => {
       const teamBResults = await getTeamResults(testTeams.teamB.id);
 
       // Should have exactly 5 results each
-      expect(teamAResults).toHaveLength(5);
-      expect(teamBResults).toHaveLength(5);
+      expect(teamAResults).to.have.lengthOf(5);
+      expect(teamBResults).to.have.lengthOf(5);
 
       // Count should match expected wins/losses
       const teamAVictories = teamAResults.filter(r => r === 'VICTORY').length;
       const teamBVictories = teamBResults.filter(r => r === 'VICTORY').length;
 
-      expect(teamAVictories).toBe(3); // Games 0, 2, 4
-      expect(teamBVictories).toBe(2); // Games 1, 3
+      expect(teamAVictories).to.equal(3); // Games 0, 2, 4
+      expect(teamBVictories).to.equal(2); // Games 1, 3
     });
   });
 
@@ -471,9 +472,9 @@ describe('Last Games Results Functionality', () => {
       const teamBResults = await getTeamResults(testTeams.teamB.id);
       const teamCResults = await getTeamResults(testTeams.teamC.id);
 
-      expect(teamAResults).toEqual(['VICTORY', 'VICTORY']);
-      expect(teamBResults).toEqual(['DEFEAT', 'VICTORY']);
-      expect(teamCResults).toEqual(['DEFEAT', 'DEFEAT']);
+      expect(teamAResults).to.deep.equal(['VICTORY', 'VICTORY']);
+      expect(teamBResults).to.deep.equal(['DEFEAT', 'VICTORY']);
+      expect(teamCResults).to.deep.equal(['DEFEAT', 'DEFEAT']);
     });
   });
 });

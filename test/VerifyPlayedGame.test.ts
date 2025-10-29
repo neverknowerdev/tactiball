@@ -92,7 +92,6 @@ describe('Zealy - Verify User Played Game', () => {
         todayStart.setUTCHours(0, 0, 0, 0);
         const todayStartISO = todayStart.toISOString();
 
-        // Fixed: Using correct schema column names (team1, team2, created_at)
         const { data: games, error } = await supabase
             .from('games')
             .select('id, status, created_at, team1, team2')
@@ -136,7 +135,6 @@ describe('Zealy - Verify User Played Game', () => {
             return;
         }
 
-        // Fixed: Using correct schema column names
         const { data: allGames } = await supabase
             .from('games')
             .select('id, status, created_at, team1, team2')
@@ -206,7 +204,7 @@ describe('Zealy - Verify User Played Game', () => {
             console.log('❌ Team not found');
         }
 
-        // Check for games today - Fixed: using correct schema
+        // Check for games today
         const todayStart = new Date();
         todayStart.setUTCHours(0, 0, 0, 0);
 
@@ -330,7 +328,6 @@ describe('Quick Validation - Played Game Quest', () => {
     });
 
     it('should verify database schema has required columns', async () => {
-        // Fixed: Using correct schema column names
         const { data: sampleGame } = await supabase
             .from('games')
             .select('id, status, created_at, team1, team2')
