@@ -1,3 +1,6 @@
+// app/api/waiting-rooms/list/route.ts
+// List public waiting rooms + user's own private rooms
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -7,6 +10,7 @@ type WaitingRoom = {
     guest_team_id: string | null;
     created_at: string;
     status: string;
+    room_type: string;
     expires_at: string;
     host_team: {
         id: string;
@@ -14,7 +18,6 @@ type WaitingRoom = {
         elo_rating: number;
         country: string;
     };
-    // Add other fields from your waiting_rooms table
 };
 
 // Create client outside the handler to reuse connections
@@ -42,13 +45,17 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const limit = parseInt(searchParams.get('limit') || '20');
         const offset = parseInt(searchParams.get('offset') || '0');
+        const teamId = searchParams.get('team_id'); // Get user's team ID
 
         // Add timeout to prevent hanging requests
         const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Request timeout')), 8000)
         );
 
-        const queryPromise = supabase
+        // Build query to fetch:
+        // 1. All public rooms (room_type = 'public')
+        // 2. User's own private rooms (room_type = 'private' AND host_team_id = teamId)
+        let query = supabase
             .from('waiting_rooms')
             .select(`
                 *,
@@ -60,12 +67,22 @@ export async function GET(request: NextRequest) {
                 )
             `)
             .eq('status', 'open')
-            .gt('expires_at', new Date().toISOString())
+            .gt('expires_at', new Date().toISOString());
+
+        // If team_id is provided, fetch public rooms + user's private rooms
+        if (teamId) {
+            query = query.or(`room_type.eq.public,and(room_type.eq.private,host_team_id.eq.${teamId})`);
+        } else {
+            // If no team_id, only show public rooms
+            query = query.eq('room_type', 'public');
+        }
+
+        query = query
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
         const { data: rooms, error } = await Promise.race([
-            queryPromise,
+            query,
             timeoutPromise
         ]).catch(err => {
             console.error('Query failed:', err);
@@ -85,6 +102,7 @@ export async function GET(request: NextRequest) {
             );
         }
 
+        // Sort rooms: empty rooms first, then by creation date
         const sortedRooms = rooms.sort((a: WaitingRoom, b: WaitingRoom) => {
             if (!a.guest_team_id && b.guest_team_id) return -1;
             if (a.guest_team_id && !b.guest_team_id) return 1;

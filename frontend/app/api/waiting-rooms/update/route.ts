@@ -1,5 +1,5 @@
 // app/api/waiting-rooms/update/route.ts
-// Update an existing waiting room's settings
+// Update an existing waiting room's settings including room_type
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
     try {
         const {
             room_id,
+            room_type,
             minimum_elo_rating,
             wallet_address,
             signature,
@@ -24,6 +25,14 @@ export async function POST(request: NextRequest) {
         if (!room_id || !wallet_address || !signature || !message) {
             return NextResponse.json(
                 { success: false, error: 'Missing required fields' },
+                { status: 400 }
+            );
+        }
+
+        // Validate room_type if provided
+        if (room_type && !['public', 'private'].includes(room_type)) {
+            return NextResponse.json(
+                { success: false, error: 'Invalid room type. Must be "public" or "private"' },
                 { status: 400 }
             );
         }
@@ -101,13 +110,23 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Build update object
+        const updateData: any = {
+            updated_at: now
+        };
+
+        if (room_type !== undefined) {
+            updateData.room_type = room_type;
+        }
+
+        if (minimum_elo_rating !== undefined) {
+            updateData.minimum_elo_rating = minimum_elo_rating;
+        }
+
         // Update the waiting room
         const { data: updatedRoom, error: updateError } = await supabase
             .from('waiting_rooms')
-            .update({
-                minimum_elo_rating: minimum_elo_rating ?? 0,
-                updated_at: now
-            })
+            .update(updateData)
             .eq('id', room_id)
             .select()
             .single();
