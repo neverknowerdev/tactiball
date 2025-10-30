@@ -1,7 +1,7 @@
 "use client";
 
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import { useAccount, useSignMessage, useChainId, useSwitchChain } from "wagmi";
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
@@ -34,7 +34,8 @@ import { useRoomInvite } from './hooks/useRoomInvite';
 // Utils
 import { createTeam } from './utils/teamActions';
 
-export default function App() {
+// Separate component that uses useSearchParams
+function AppContent() {
   const { setFrameReady, isFrameReady } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -121,7 +122,7 @@ export default function App() {
   }, [address, fetchTeamInfo, signMessageAsync]);
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans mini-app-theme relative">
+    <>
       <WalletConnection />
       <AppHeader />
 
@@ -241,6 +242,24 @@ export default function App() {
         draggable
         pauseOnHover
       />
+    </>
+  );
+}
+
+// Main App component with Suspense wrapper
+export default function App() {
+  return (
+    <div className="min-h-screen w-full flex flex-col items-center p-4 font-sans mini-app-theme relative">
+      <Suspense fallback={
+        <div className="w-full max-w-md flex items-center justify-center py-20">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <p className="mt-2 text-sm text-gray-600">Loading...</p>
+          </div>
+        </div>
+      }>
+        <AppContent />
+      </Suspense>
     </div>
   );
 }
