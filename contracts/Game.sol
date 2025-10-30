@@ -740,6 +740,14 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit EloUpdated(team2.id, gameId, team2.eloRating);
     }
 
+    function fixGame101() public onlyOwner {
+        GameLib.Game storage game = games[101];
+        game.gameState.lastMoveAt = uint64(block.timestamp);
+        game.gameState.lastMoveTeam = GameLib.TeamEnum.NONE;
+        game.gameState.team1MovesEncrypted = bytes32(0);
+        game.gameState.team2MovesEncrypted = bytes32(0);
+    }
+
     // ========================================
     // MODIFIERS
     // ========================================
