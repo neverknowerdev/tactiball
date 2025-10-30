@@ -9,7 +9,21 @@ jobs:
     name: Run Tests
     runs-on: ubuntu-latest
     environment: test
-    
+
+    env:
+      NEXT_PUBLIC_ABLY_API_KEY: ${{ secrets.NEXT_PUBLIC_ABLY_API_KEY }}
+      ABLY_BROADCASTING_API_KEY: ${{ secrets.ABLY_BROADCASTING_API_KEY }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      COINBASE_PAYMASTER_RPC_URL: ${{ secrets.COINBASE_PAYMASTER_RPC_URL }}
+      # Sentry configuration
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: gmgmgm
+      SENTRY_PROJECT: chessball
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -35,19 +49,6 @@ jobs:
       
     - name: Build frontend
       run: npm run build
-      env:
-        # Required environment variables for build
-        NEXT_PUBLIC_ABLY_API_KEY: ${{ secrets.NEXT_PUBLIC_ABLY_API_KEY }}
-        ABLY_BROADCASTING_API_KEY: ${{ secrets.ABLY_BROADCASTING_API_KEY }}
-        UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-        UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        COINBASE_PAYMASTER_RPC_URL: ${{ secrets.COINBASE_PAYMASTER_RPC_URL }}
-        # Sentry configuration
-        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        SENTRY_ORG: gmgmgm
-        SENTRY_PROJECT: chessball
       
   #  - name: Run linting
   #    run: npm run lint
