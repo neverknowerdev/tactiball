@@ -1,5 +1,6 @@
+import { createWriteClient } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+
 
 type WaitingRoom = {
     id: string;
@@ -18,24 +19,7 @@ type WaitingRoom = {
 };
 
 // Create client outside the handler to reuse connections
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-        auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-        },
-        global: {
-            fetch: (...args) => {
-                return fetch(...args).catch(err => {
-                    console.error('Fetch error:', err);
-                    throw err;
-                });
-            }
-        }
-    }
-);
+const supabase = createWriteClient();
 
 export async function GET(request: NextRequest) {
     try {

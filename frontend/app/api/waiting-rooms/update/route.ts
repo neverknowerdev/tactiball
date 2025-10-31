@@ -2,13 +2,10 @@
 // Update an existing waiting room's settings
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createWriteClient } from '@/lib/supabase';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createWriteClient();
 
 export async function POST(request: NextRequest) {
     try {
