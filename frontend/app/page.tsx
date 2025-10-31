@@ -29,6 +29,7 @@ import { useChainManager } from './hooks/useChainManager';
 import { useTeamChannel } from './hooks/useTeamChannel';
 import { useGameEvents } from './hooks/useGameEvents';
 import { useFrameManager } from './hooks/useFrameManager';
+import { useAddMiniApp} from './hooks/useAddMiniApp';
 import { useRoomInvite } from './hooks/useRoomInvite';
 
 // Utils
@@ -71,6 +72,7 @@ function AppContent() {
     setGameRequestData
   );
   useFrameManager(setFrameReady, isFrameReady);
+  useAddMiniApp(isFrameReady);
   
   // Handle room invite from URL
   useRoomInvite(
