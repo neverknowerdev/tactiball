@@ -7,12 +7,9 @@ import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { createClient } from '@supabase/supabase-js';
+import { createWriteClient } from '@/lib/supabase';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createWriteClient();
 
 interface CreateGameRequestRequest {
     wallet_address: string;
@@ -107,17 +104,17 @@ export async function POST(request: NextRequest) {
                 .eq('guest_team_id', team2_id)
                 .eq('status', 'full')
                 .single();
-            
+
             if (room) {
                 // Update room with game request ID
                 await supabase
                     .from('waiting_rooms')
-                    .update({ 
+                    .update({
                         game_request_id: gameRequestId,
                         status: 'starting'
                     })
                     .eq('id', room.id);
-                
+
                 console.log('Updated waiting room:', room.id);
             }
         } catch (waitingRoomError) {
