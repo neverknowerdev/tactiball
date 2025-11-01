@@ -388,21 +388,9 @@ function ConnectZealyContent() {
   // Generate proper deeplink URLs for external launch only
   const zealyConnectUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-
-    // Build the current page URL with query params
-    const currentPath = window.location.pathname;
-    const params = new URLSearchParams();
-    if (zealyUserId) params.append("zealyUserId", zealyUserId);
-    if (callbackUrl) params.append("callback", callbackUrl);
-    if (zealySignature) params.append("signature", zealySignature);
-    const queryString = params.toString() ? `?${params.toString()}` : "";
-
-    // Full URL to your app
-    const appUrl = `https://play.tactiball.fun${currentPath}${queryString}`;
-
-    // Encode for deeplink - this is ONLY for external launching
-    return `cbwallet://miniapp?url=${encodeURIComponent(appUrl)}`;
-  }, [zealyUserId, callbackUrl, zealySignature]);
+    const appUrl = "https://play.tactiball.fun/"
+    return `https://base.org/mini-apps?url=${encodeURIComponent(appUrl)}`;
+  }, []);
 
   const farcasterMiniAppUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
