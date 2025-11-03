@@ -1,5 +1,5 @@
 // app/api/waiting-rooms/create/route.ts
-// Create a new waiting room
+// Create a new waiting room with public/private support
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createWriteClient } from '@/lib/supabase';
@@ -9,18 +9,27 @@ const supabase = createWriteClient();
 
 export async function POST(request: NextRequest) {
     try {
-        const {
-            team_id,
-            minimum_elo_rating,
-            wallet_address,
-            signature,
-            message
+        const { 
+            team_id, 
+            room_type,
+            minimum_elo_rating, 
+            wallet_address, 
+            signature, 
+            message 
         } = await request.json();
 
         // Validate required fields
         if (!team_id || !wallet_address || !signature || !message) {
             return NextResponse.json(
                 { success: false, error: 'Missing required fields' },
+                { status: 400 }
+            );
+        }
+
+        // Validate room_type
+        if (room_type && !['public', 'private'].includes(room_type)) {
+            return NextResponse.json(
+                { success: false, error: 'Invalid room type. Must be "public" or "private"' },
                 { status: 400 }
             );
         }
@@ -95,6 +104,7 @@ export async function POST(request: NextRequest) {
             .from('waiting_rooms')
             .insert({
                 host_team_id: team_id,
+                room_type: room_type || 'public',
                 minimum_elo_rating: minimum_elo_rating || 0,
                 status: 'open',
                 expires_at: expiresAt.toISOString()
