@@ -34,14 +34,21 @@ export async function POST(req: NextRequest) {
       accounts
     } = body;
 
-    // Get the Zealy Connect identifier (wallet address)
-    const zealyConnectIdentifier = accounts?.['zealy-connect'];
+    console.log('body', body);
+    console.log('accounts', accounts);
+    console.log('userId', userId);
 
+    // Get the Zealy Connect identifier (wallet address)
+    let zealyConnectIdentifier = accounts?.['zealy-connect'];
     if (!zealyConnectIdentifier) {
       return NextResponse.json({
         message: 'Account not connected. Please connect your TactiBall account first by clicking the Connect button in the quest!'
       }, { status: 400 });
     }
+
+    console.log("typeof zealyConnectIdentifier", typeof zealyConnectIdentifier);
+    zealyConnectIdentifier = String(zealyConnectIdentifier).replace(/"/g, '').trim();
+    console.log('zealyConnectIdentifier', zealyConnectIdentifier);
 
     const supabase = createAnonClient();
 

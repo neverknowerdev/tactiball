@@ -48,6 +48,8 @@ async function fetchGameInfo(gameId: string, network: 'baseSepolia' | 'baseMainn
         console.log(`   Moves Made: ${gameData.gameState.movesMade}`);
         console.log(`   Game State: ${JSON.stringify(gameData.gameState, bigintToNumber)}`);
         console.log(`   Last Move Time: ${gameData.gameState.lastMoveAt ? new Date(Number(gameData.gameState.lastMoveAt) * 1000).toISOString() : 'N/A'}`);
+        gameData.lastBoardState = JSON.stringify(gameData.lastBoardState, bigintToNumber);
+        console.log(`   Last Board State: ${gameData.lastBoardState}`);
 
         // Team 1 info
         console.log('\n🔴 Team 1:');

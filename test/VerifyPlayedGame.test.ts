@@ -2,7 +2,7 @@
 // FILE: __tests__/api/zealy/verify-user-played-game.test.ts
 // ============================================================================
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import { expect } from 'chai';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 
@@ -17,10 +17,10 @@ describe('Zealy - Verify User Played Game', () => {
     let supabase: any;
     let testTeamId: number;
 
-    beforeAll(async () => {
+    before(async () => {
         const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
-        
+
         if (!supabaseUrl || !supabaseKey) {
             throw new Error('Missing Supabase environment variables');
         }
@@ -44,8 +44,8 @@ describe('Zealy - Verify User Played Game', () => {
 
     it('should have valid Supabase connection', async () => {
         const { data, error } = await supabase.from('teams').select('count').limit(1);
-        expect(error).toBeNull();
-        expect(data).toBeDefined();
+        expect(error).to.be.null;
+        expect(data).to.exist;
     });
 
     it('should find test team with correct wallet address', async () => {
@@ -58,8 +58,8 @@ describe('Zealy - Verify User Played Game', () => {
         console.log('\n📊 Test team data:', team);
 
         if (team) {
-            expect(team.primary_wallet).toBe(TEST_WALLET_ADDRESS);
-            expect(team.id).toBeDefined();
+            expect(team.primary_wallet).to.equal(TEST_WALLET_ADDRESS);
+            expect(team.id).to.exist;
             testTeamId = team.id;
         } else {
             console.warn('⚠️  No team found for test wallet');
@@ -75,7 +75,7 @@ describe('Zealy - Verify User Played Game', () => {
 
         if (team) {
             console.log(`\n🔗 Zealy User ID: ${team.zealy_user_id || 'NOT SET'}`);
-            
+
             if (!team.zealy_user_id) {
                 console.warn('⚠️  zealy_user_id is not set. Link account first via /api/zealy/link-zealy-account');
             }
@@ -92,7 +92,6 @@ describe('Zealy - Verify User Played Game', () => {
         todayStart.setUTCHours(0, 0, 0, 0);
         const todayStartISO = todayStart.toISOString();
 
-        // Fixed: Using correct schema column names (team1, team2, created_at)
         const { data: games, error } = await supabase
             .from('games')
             .select('id, status, created_at, team1, team2')
@@ -101,15 +100,15 @@ describe('Zealy - Verify User Played Game', () => {
             .gte('created_at', todayStartISO);
 
         console.log(`\n🎮 Games played today: ${games?.length || 0}`);
-        
+
         if (games && games.length > 0) {
-            console.log('  Game IDs:', games.map(g => g.id));
-            expect(games.length).toBeGreaterThan(0);
+            console.log('  Game IDs:', games.map((g: any) => g.id));
+            expect(games.length).to.be.greaterThan(0);
         } else {
             console.log('  ℹ️  No games played today (expected if no games)');
         }
 
-        expect(error).toBeNull();
+        expect(error).to.be.null;
     });
 
     it('should verify game query filters are correct', async () => {
@@ -122,9 +121,9 @@ describe('Zealy - Verify User Played Game', () => {
         todayStart.setUTCHours(0, 0, 0, 0);
 
         // Verify date filter
-        expect(todayStart.getUTCHours()).toBe(0);
-        expect(todayStart.getUTCMinutes()).toBe(0);
-        expect(todayStart.getUTCSeconds()).toBe(0);
+        expect(todayStart.getUTCHours()).to.equal(0);
+        expect(todayStart.getUTCMinutes()).to.equal(0);
+        expect(todayStart.getUTCSeconds()).to.equal(0);
 
         console.log(`\n📅 Date filter: ${todayStart.toISOString()}`);
         console.log(`✅ Filters correctly set to today 00:00:00 UTC`);
@@ -136,7 +135,6 @@ describe('Zealy - Verify User Played Game', () => {
             return;
         }
 
-        // Fixed: Using correct schema column names
         const { data: allGames } = await supabase
             .from('games')
             .select('id, status, created_at, team1, team2')
@@ -146,7 +144,7 @@ describe('Zealy - Verify User Played Game', () => {
             .limit(10);
 
         console.log(`\n📊 Total finished games (last 10): ${allGames?.length || 0}`);
-        
+
         if (allGames && allGames.length > 0) {
             console.log('  Most recent games:');
             allGames.forEach((game: any, idx: number) => {
@@ -165,7 +163,7 @@ describe('Zealy - Verify User Played Game', () => {
         if (games && games.length > 0) {
             const statuses = [...new Set(games.map((g: any) => g.status))];
             console.log(`\n🎯 Game statuses found in DB:`, statuses);
-            
+
             // Verify 'finished' status exists
             const hasFinished = statuses.includes('finished');
             console.log(`  Has 'finished' status: ${hasFinished ? '✅' : '❌'}`);
@@ -201,12 +199,12 @@ describe('Zealy - Verify User Played Game', () => {
 
         if (team) {
             console.log('✅ Team found:', team.name);
-            expect(team.primary_wallet).toBe(TEST_WALLET_ADDRESS);
+            expect(team.primary_wallet).to.equal(TEST_WALLET_ADDRESS);
         } else {
             console.log('❌ Team not found');
         }
 
-        // Check for games today - Fixed: using correct schema
+        // Check for games today
         const todayStart = new Date();
         todayStart.setUTCHours(0, 0, 0, 0);
 
@@ -220,7 +218,7 @@ describe('Zealy - Verify User Played Game', () => {
 
         if (games && games.length > 0) {
             console.log('✅ Quest would PASS - game played today');
-            expect(games.length).toBeGreaterThan(0);
+            expect(games.length).to.be.greaterThan(0);
         } else {
             console.log('❌ Quest would FAIL - no game played today');
         }
@@ -246,7 +244,7 @@ describe('Zealy - Verify User Played Game', () => {
             .limit(1);
 
         console.log(`\n🔮 Future games check: ${futureGames?.length || 0}`);
-        expect(futureGames?.length || 0).toBe(0);
+        expect(futureGames?.length || 0).to.equal(0);
     });
 
     it('should check for Zealy user ID mismatch scenario', async () => {
@@ -302,9 +300,14 @@ describe('Zealy - Verify User Played Game', () => {
 describe('Quick Validation - Played Game Quest', () => {
     let supabase: any;
 
-    beforeAll(() => {
+    before(() => {
         const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
+
+        if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Missing Supabase environment variables');
+        }
+
         supabase = createClient(supabaseUrl, supabaseKey);
     });
 
@@ -315,7 +318,7 @@ describe('Quick Validation - Played Game Quest', () => {
             .not('zealy_user_id', 'is', null);
 
         console.log(`\n🔗 Teams with Zealy linked: ${teamsWithZealy?.length || 0}`);
-        
+
         if (teamsWithZealy && teamsWithZealy.length > 0) {
             console.log('  Sample teams:');
             teamsWithZealy.slice(0, 5).forEach((team: any) => {
@@ -325,7 +328,6 @@ describe('Quick Validation - Played Game Quest', () => {
     });
 
     it('should verify database schema has required columns', async () => {
-        // Fixed: Using correct schema column names
         const { data: sampleGame } = await supabase
             .from('games')
             .select('id, status, created_at, team1, team2')
@@ -339,12 +341,12 @@ describe('Quick Validation - Played Game Quest', () => {
             console.log('  ✓ created_at');
             console.log('  ✓ team1');
             console.log('  ✓ team2');
-            
-            expect(sampleGame).toHaveProperty('id');
-            expect(sampleGame).toHaveProperty('status');
-            expect(sampleGame).toHaveProperty('created_at');
-            expect(sampleGame).toHaveProperty('team1');
-            expect(sampleGame).toHaveProperty('team2');
+
+            expect(sampleGame).to.have.property('id');
+            expect(sampleGame).to.have.property('status');
+            expect(sampleGame).to.have.property('created_at');
+            expect(sampleGame).to.have.property('team1');
+            expect(sampleGame).to.have.property('team2');
         }
     });
 });

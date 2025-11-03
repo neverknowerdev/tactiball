@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { expect } from 'chai';
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 
@@ -12,7 +12,7 @@ const TEST_MONTH = 9; // September
 describe('Team Stats Recalculation', () => {
     let supabase: any;
 
-    beforeAll(() => {
+    before(() => {
         const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
         if (!supabaseUrl || !supabaseKey) {
@@ -24,8 +24,8 @@ describe('Team Stats Recalculation', () => {
 
     it('should have valid Supabase connection', async () => {
         const { data, error } = await supabase.from('teams').select('count').limit(1);
-        expect(error).toBeNull();
-        expect(data).toBeDefined();
+        expect(error).to.be.null;
+        expect(data).to.exist;
     });
 
     it('should fetch team stats before recalculation', async () => {
@@ -36,17 +36,17 @@ describe('Team Stats Recalculation', () => {
             .single();
 
         console.log('\n📊 Current team stats:', data);
-        
+
         if (data) {
-            expect(data.team_id).toBe(TEST_TEAM_ID);
-            expect(data).toHaveProperty('total_games');
-            expect(data).toHaveProperty('wins');
-            expect(data).toHaveProperty('draws');
-            expect(data).toHaveProperty('losses');
-            expect(data).toHaveProperty('goals_scored');
-            expect(data).toHaveProperty('goals_conceded');
-            expect(data).toHaveProperty('last_game_results');
-            
+            expect(data.team_id).to.equal(TEST_TEAM_ID);
+            expect(data).to.have.property('total_games');
+            expect(data).to.have.property('wins');
+            expect(data).to.have.property('draws');
+            expect(data).to.have.property('losses');
+            expect(data).to.have.property('goals_scored');
+            expect(data).to.have.property('goals_conceded');
+            expect(data).to.have.property('last_game_results');
+
             console.log('  Last game results:', data.last_game_results);
         }
     });
@@ -60,17 +60,17 @@ describe('Team Stats Recalculation', () => {
 
         if (data && data.last_game_results) {
             const results = data.last_game_results;
-            
+
             // Should be an array
-            expect(Array.isArray(results)).toBe(true);
-            
+            expect(Array.isArray(results)).to.be.true;
+
             // Should not exceed 10 entries
-            expect(results.length).toBeLessThanOrEqual(10);
-            
+            expect(results.length).lessThanOrEqual(10);
+
             // All entries should be valid result strings
             const validResults = ['VICTORY', 'DEFEAT', 'DRAW', 'DEFEAT_BY_TIMEOUT'];
             results.forEach((result: string) => {
-                expect(validResults).toContain(result);
+                expect(validResults).contain(result);
             });
 
             console.log(`\n✅ Last game results validation passed (${results.length} entries)`);
@@ -100,7 +100,7 @@ describe('Team Stats Recalculation', () => {
 
             // Check if array length matches actual game count (or is less for older stats)
             if (stats.last_game_results) {
-                expect(stats.last_game_results.length).toBeLessThanOrEqual(games.length);
+                expect(stats.last_game_results.length).lessThanOrEqual(games.length);
             }
 
             // Log potential issues
@@ -120,17 +120,17 @@ describe('Team Stats Recalculation', () => {
         if (stats) {
             // Total games should equal wins + draws + losses
             const calculatedTotal = stats.wins + stats.draws + stats.losses;
-            
+
             console.log('\n🧮 Stats verification:');
             console.log(`  Total games: ${stats.total_games}`);
             console.log(`  Wins + Draws + Losses: ${calculatedTotal}`);
             console.log(`  Match: ${stats.total_games === calculatedTotal ? '✅' : '❌'}`);
 
-            expect(stats.total_games).toBe(calculatedTotal);
+            expect(stats.total_games).to.equal(calculatedTotal);
 
             // Goals should be non-negative
-            expect(stats.goals_scored).toBeGreaterThanOrEqual(0);
-            expect(stats.goals_conceded).toBeGreaterThanOrEqual(0);
+            expect(stats.goals_scored).greaterThanOrEqual(0);
+            expect(stats.goals_conceded).greaterThanOrEqual(0);
         }
     });
 
@@ -142,9 +142,9 @@ describe('Team Stats Recalculation', () => {
             .single();
 
         if (stats) {
-            expect(stats.elo_rating).toBeDefined();
-            expect(typeof stats.elo_rating).toBe('number');
-            expect(stats.elo_rating).toBeGreaterThan(0);
+            expect(stats.elo_rating).to.exist;
+            expect(typeof stats.elo_rating).to.equal('number');
+            expect(stats.elo_rating).greaterThan(0);
             console.log(`✅ ELO Rating: ${stats.elo_rating}`);
         }
     });
@@ -159,11 +159,11 @@ describe('Team Stats Recalculation', () => {
         if (stats && stats.last_game_results) {
             const hasTimeoutDefeat = stats.last_game_results.includes('DEFEAT_BY_TIMEOUT');
             console.log(`🕐 Timeout defeats found: ${hasTimeoutDefeat}`);
-            
+
             // Verify valid result types include timeout
             const validResults = ['VICTORY', 'DEFEAT', 'DRAW', 'DEFEAT_BY_TIMEOUT'];
             stats.last_game_results.forEach((result: string) => {
-                expect(validResults).toContain(result);
+                expect(validResults).contain(result);
             });
         }
     });
@@ -187,11 +187,11 @@ describe('Team Stats Recalculation', () => {
             console.log(`  Current ELO: ${stats.elo_rating}`);
             console.log(`  Total games: ${stats.total_games}`);
             console.log(`  Win rate: ${((stats.wins / stats.total_games) * 100).toFixed(1)}%`);
-            
+
             // ELO should be reasonable (typically 800-2400)
             if (stats.elo_rating) {
-                expect(stats.elo_rating).toBeGreaterThan(500);
-                expect(stats.elo_rating).toBeLessThan(3000);
+                expect(stats.elo_rating).greaterThan(500);
+                expect(stats.elo_rating).lessThan(3000);
             }
         }
     });
@@ -212,7 +212,7 @@ describe('Team Stats Recalculation', () => {
         }
 
         console.log('\n🚀 Running recalculation script...');
-        
+
         // Get stats before
         const { data: statsBefore } = await supabase
             .from('team_stats')
@@ -242,66 +242,66 @@ describe('Team Stats Recalculation', () => {
 
         // Verify the update happened
         if (statsBefore && statsAfter) {
-            expect(statsAfter.updated_at).not.toBe(statsBefore.updated_at);
+            expect(statsAfter.updated_at).to.not.equal(statsBefore.updated_at);
         }
 
         // Verify last_game_results has no duplicates
         if (statsAfter && statsAfter.last_game_results) {
             const results = statsAfter.last_game_results;
-            expect(results.length).toBeLessThanOrEqual(10);
+            expect(results.length).lessThanOrEqual(10);
             console.log(`\n✅ After recalculation: ${results.length} game results`);
             console.log('   Results:', results);
         }
-    }, 60000); // 60 second timeout for this test
-});
-
-describe('Quick Validation Tests', () => {
-    let supabase: any;
-
-    beforeAll(() => {
-        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
-        supabase = createClient(supabaseUrl, supabaseKey);
     });
 
-    it('should check all teams for oversized last_game_results', async () => {
-        const { data: allStats } = await supabase
-            .from('team_stats')
-            .select('team_id, last_game_results');
+    describe('Quick Validation Tests', () => {
+        let supabase: any;
 
-        if (allStats) {
-            const problematicTeams = allStats.filter((stat: any) => 
-                stat.last_game_results && stat.last_game_results.length > 10
-            );
+        before(() => {
+            const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
+            const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
+            supabase = createClient(supabaseUrl, supabaseKey);
+        });
 
-            console.log(`\n🔍 Checked ${allStats.length} teams`);
-            console.log(`❌ Found ${problematicTeams.length} teams with >10 results`);
+        it('should check all teams for oversized last_game_results', async () => {
+            const { data: allStats } = await supabase
+                .from('team_stats')
+                .select('team_id, last_game_results');
 
-            if (problematicTeams.length > 0) {
-                console.log('Problematic teams:', problematicTeams.map((t: any) => 
-                    `Team ${t.team_id}: ${t.last_game_results.length} results`
-                ));
+            if (allStats) {
+                const problematicTeams = allStats.filter((stat: any) =>
+                    stat.last_game_results && stat.last_game_results.length > 10
+                );
+
+                console.log(`\n🔍 Checked ${allStats.length} teams`);
+                console.log(`❌ Found ${problematicTeams.length} teams with >10 results`);
+
+                if (problematicTeams.length > 0) {
+                    console.log('Problematic teams:', problematicTeams.map((t: any) =>
+                        `Team ${t.team_id}: ${t.last_game_results.length} results`
+                    ));
+                }
+
+                expect(problematicTeams.length).to.equal(0);
             }
+        });
 
-            expect(problematicTeams.length).toBe(0);
-        }
-    });
+        it('should verify no null or undefined in last_game_results', async () => {
+            const { data: allStats } = await supabase
+                .from('team_stats')
+                .select('team_id, last_game_results');
 
-    it('should verify no null or undefined in last_game_results', async () => {
-        const { data: allStats } = await supabase
-            .from('team_stats')
-            .select('team_id, last_game_results');
+            if (allStats) {
+                const invalidTeams = allStats.filter((stat: any) => {
+                    if (!stat.last_game_results) return false;
+                    return stat.last_game_results.some((r: any) => r === null || r === undefined);
+                });
 
-        if (allStats) {
-            const invalidTeams = allStats.filter((stat: any) => {
-                if (!stat.last_game_results) return false;
-                return stat.last_game_results.some((r: any) => r === null || r === undefined);
-            });
+                console.log(`\n🔍 Checking for null/undefined entries...`);
+                console.log(`✅ ${invalidTeams.length} teams with invalid entries`);
 
-            console.log(`\n🔍 Checking for null/undefined entries...`);
-            console.log(`✅ ${invalidTeams.length} teams with invalid entries`);
-
-            expect(invalidTeams.length).toBe(0);
-        }
+                expect(invalidTeams.length).to.equal(0);
+            }
+        });
     });
 });

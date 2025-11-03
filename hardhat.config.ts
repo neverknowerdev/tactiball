@@ -2,6 +2,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-verify";
 import "@gelatonetwork/web3-functions-sdk/hardhat-plugin";
 import "@openzeppelin/hardhat-upgrades";
+import "solidity-coverage";
 
 const config = {
   solidity: {

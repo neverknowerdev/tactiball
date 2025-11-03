@@ -8,6 +8,7 @@
     "start": "cd frontend && yarn start",
     "lint": "cd frontend && yarn lint",
     "frontend:install": "cd frontend && yarn install",
+    "hardhat:coverage": "hardhat coverage",
     "deploy:upgradeable": "hardhat run scripts/deploy-upgradeable.ts",
     "upgrade:contract": "hardhat run scripts/upgrade-contract.ts",
     "test:upgradeable": "hardhat test test/UpgradeableGame.test.ts",

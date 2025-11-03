@@ -325,36 +325,11 @@ export class Game implements GameType {
         // restore last state
         this.restoreState(this.history[this.history.length - 1]);
 
-        // Validation part
-        const destinationMap: { [key: string]: boolean } = {};
-        // check that all moves are valid
-        for (const move of this.playerMoves) {
-            const availablePath = this.calculatePath(move.oldPosition, move.newPosition, move.moveType);
-
-            const allowedCells = move.moveType == MoveType.TACKLE ? [...availablePath, move.oldPosition] : availablePath;
-
-            if (!allowedCells.some(cell => isPosEquals(cell, move.newPosition))) {
-                throw new ValidationError(
-                    move.teamEnum,
-                    move.playerId,
-                    move,
-                    `Move is not valid for player ${move.playerId}, team ${move.teamEnum}, type ${move.moveType}`
-                );
-            }
-
-            const playerKey = move.moveType == MoveType.PASS || move.moveType == MoveType.SHOT ? "ball" : move.playerKey();
-            const key = `${playerKey}_${move.newPosition.x}_${move.newPosition.y}`;
-            if (destinationMap[key]) {
-                throw new ValidationError(
-                    move.teamEnum,
-                    move.playerId,
-                    move,
-                    'Cannot move two players from the same team to the same position'
-                );
-            }
-
-            destinationMap[key] = true;
+        const validationError = this.validateMoves();
+        if (validationError) {
+            throw validationError;
         }
+
 
         let maxPathSize = 0;
         // calculate moves
@@ -524,6 +499,39 @@ export class Game implements GameType {
 
         this.ball.position = state.ballPosition;
         this.ball.oldPosition = null;
+    }
+
+    validateMoves(): ValidationError | null {
+        const destinationMap: { [key: string]: boolean } = {};
+        // check that all moves are valid
+        for (const move of this.playerMoves) {
+            const availablePath = this.calculatePath(move.oldPosition, move.newPosition, move.moveType);
+
+            const allowedCells = move.moveType == MoveType.TACKLE ? [...availablePath, move.oldPosition] : availablePath;
+
+            if (!allowedCells.some(cell => isPosEquals(cell, move.newPosition))) {
+                return new ValidationError(
+                    move.teamEnum,
+                    move.playerId,
+                    move,
+                    `Move is not valid for player ${move.playerId}, team ${move.teamEnum}, type ${move.moveType}`
+                );
+            }
+
+            const playerKey = move.moveType == MoveType.PASS || move.moveType == MoveType.SHOT ? "ball" : move.playerKey();
+            const key = `${playerKey}_${move.newPosition.x}_${move.newPosition.y}`;
+            if (destinationMap[key]) {
+                return new ValidationError(
+                    move.teamEnum,
+                    move.playerId,
+                    move,
+                    'Cannot move two players from the same team to the same position'
+                );
+            }
+
+            destinationMap[key] = true;
+        }
+        return null;
     }
 
     // Calculate available cells for player movement

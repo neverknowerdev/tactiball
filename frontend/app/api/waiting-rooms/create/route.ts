@@ -2,13 +2,10 @@
 // Create a new waiting room with public/private support
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createWriteClient } from '@/lib/supabase';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createWriteClient();
 
 export async function POST(request: NextRequest) {
     try {
@@ -39,11 +36,11 @@ export async function POST(request: NextRequest) {
 
         // Validate signature
         const { isValid, error: authError } = await checkAuthSignatureAndMessage(
-            signature, 
-            message, 
+            signature,
+            message,
             wallet_address
         );
-        
+
         if (!isValid) {
             return NextResponse.json(
                 { success: false, error: authError },
