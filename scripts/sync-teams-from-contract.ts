@@ -85,7 +85,7 @@ function mapContractTeamToDb(contractTeam: ContractTeam): Partial<DatabaseTeam> 
 
     return {
         id: Number(contractTeam.id),
-        primary_wallet: contractTeam.wallet.toLowerCase(), // Normalize to lowercase
+        primary_wallet: contractTeam.wallet, // Normalize to lowercase
         name: contractTeam.name,
         country: contractTeam.country,
         game_request_id: contractTeam.gameRequestId > 0 ? Number(contractTeam.gameRequestId) : null,
@@ -99,22 +99,27 @@ function mapContractTeamToDb(contractTeam: ContractTeam): Partial<DatabaseTeam> 
  * Get existing team from database
  */
 async function getExistingTeam(supabase: any, teamId: number): Promise<DatabaseTeam | null> {
-    const { data, error } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', teamId)
-        .single();
+    try {
+        const { data, error } = await supabase
+            .from('teams')
+            .select('*')
+            .eq('id', teamId)
+            .single();
 
-    if (error) {
-        if (error.code === 'PGRST116') {
-            // No rows returned
-            return null;
+        if (error) {
+            if (error.code === 'PGRST116') {
+                // No rows returned - team doesn't exist
+                return null;
+            }
+            // For other errors (network issues, etc.), throw so caller can handle
+            throw error;
         }
-        console.error(`Error fetching team ${teamId}:`, error);
-        return null;
-    }
 
-    return data;
+        return data;
+    } catch (error) {
+        // Re-throw network/connection errors so caller can handle them
+        throw error;
+    }
 }
 
 /**
@@ -122,7 +127,14 @@ async function getExistingTeam(supabase: any, teamId: number): Promise<DatabaseT
  */
 async function upsertTeam(supabase: any, teamData: Partial<DatabaseTeam>): Promise<boolean> {
     try {
-        const existingTeam = await getExistingTeam(supabase, teamData.id!);
+        // Try to get existing team, but handle errors gracefully
+        let existingTeam: DatabaseTeam | null = null;
+        try {
+            existingTeam = await getExistingTeam(supabase, teamData.id!);
+        } catch (error) {
+            // If fetch fails, we'll try to use upsert instead
+            console.log(`  ⚠️  Could not fetch existing team ${teamData.id}, will attempt upsert`);
+        }
 
         if (existingTeam) {
             // Update existing team - only update fields that are different
@@ -151,14 +163,32 @@ async function upsertTeam(supabase: any, teamData: Partial<DatabaseTeam>): Promi
 
             return true;
         } else {
-            // Insert new team
-            const { error } = await supabase
+            // Try to insert new team
+            const { error: insertError } = await supabase
                 .from('teams')
                 .insert([teamData]);
 
-            if (error) {
-                console.error(`Error inserting team ${teamData.id}:`, error);
-                return false;
+            if (insertError) {
+                // If insert fails due to duplicate key, try to update instead
+                if (insertError.code === '23505' || insertError.message?.includes('duplicate key')) {
+                    console.log(`  🔄 Team ${teamData.id} already exists, attempting update instead...`);
+                    
+                    // Update existing team with all provided data
+                    const { error: updateError } = await supabase
+                        .from('teams')
+                        .update(teamData)
+                        .eq('id', teamData.id);
+
+                    if (updateError) {
+                        console.error(`Error updating team ${teamData.id} (after insert conflict):`, updateError);
+                        return false;
+                    }
+
+                    return true;
+                } else {
+                    console.error(`Error inserting team ${teamData.id}:`, insertError);
+                    return false;
+                }
             }
 
             return true;
