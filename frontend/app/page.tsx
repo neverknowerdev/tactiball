@@ -2,7 +2,9 @@
 
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { useAccount, useSignMessage, useChainId, useSwitchChain } from "wagmi";
+import { useChainId, useSwitchChain } from "wagmi";
+import { useWalletConnection } from "./hooks/useWalletConnection";
+import { useSignMessageBridge } from "./hooks/useSignMessageBridge";
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import { useSearchParams } from 'next/navigation';
@@ -37,8 +39,8 @@ import { createTeam } from './utils/teamActions';
 // Separate component that uses useSearchParams
 function AppContent() {
   const { setFrameReady, isFrameReady } = useMiniKit();
-  const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const { address, isConnected } = useWalletConnection();
+  const { signMessageAsync } = useSignMessageBridge();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const searchParams = useSearchParams();

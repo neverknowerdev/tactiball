@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@coinbase/onchainkit": "0.38.19",
+    "@dynamic-labs/ethereum": "^4.41.1",
+    "@dynamic-labs/sdk-react-core": "^4.41.1",
     "@farcaster/frame-sdk": "^0.1.8",
     "@sentry/nextjs": "^10",
     "@supabase/supabase-js": "^2.57.4",
@@ -29,7 +31,7 @@
     "react-dom": "^18",
     "react-toastify": "^11.0.5",
     "use-immer": "^0.11.0",
-    "viem": "^2.27.2",
+    "viem": "^2.38.6",
     "wagmi": "^2.16.0"
   },
   "devDependencies": {

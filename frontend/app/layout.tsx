@@ -3,6 +3,7 @@ import "@coinbase/onchainkit/styles.css";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { MiniKitContextProvider } from "./miniKitProvider";
+import { DynamicWrapper } from "./dynamicWrapper";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -43,7 +44,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <MiniKitContextProvider>{children}</MiniKitContextProvider>
+        <MiniKitContextProvider>
+          <DynamicWrapper>{children}</DynamicWrapper>
+        </MiniKitContextProvider>
       </body>
     </html>
   );

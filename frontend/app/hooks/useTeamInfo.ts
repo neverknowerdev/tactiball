@@ -22,13 +22,17 @@ export function useTeamInfo(address: string | undefined, isConnected: boolean) {
     setError(null);
 
     try {
+      console.log('Fetching team info for wallet address:', walletAddress);
+      console.log('Wallet address type:', typeof walletAddress);
+      console.log('Wallet address length:', walletAddress?.length);
       const response = await fetch(`/api/get-team-info?wallet=${walletAddress}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('teamInfo', data);
+      console.log('teamInfo response:', data);
+      console.log('is_found:', data.is_found);
 
       if (data.is_found) {
         setTeamInfo(data.team);
