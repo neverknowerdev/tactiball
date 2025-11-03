@@ -231,10 +231,10 @@ export default function LobbyScreen({
                     <div
                       key={room.id}
                       className={`bg-white/10 backdrop-blur-sm rounded-lg p-4 sm:p-6 border-2 transition-all ${isFull
-                          ? 'border-yellow-500/30'
-                          : isPrivate
-                            ? 'border-purple-500/50'
-                            : 'border-white/20 hover:border-white/40'
+                        ? 'border-yellow-500/30'
+                        : isPrivate
+                          ? 'border-purple-500/50'
+                          : 'border-white/20 hover:border-white/40'
                         }`}
                     >
                       {/* Room Header */}
@@ -303,10 +303,10 @@ export default function LobbyScreen({
                           onClick={() => handleJoinRoom(room.id)}
                           disabled={!canJoin && !isMyRoom}
                           className={`flex-1 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold text-sm sm:text-base transition-colors ${isMyRoom
-                              ? 'bg-blue-600 text-white hover:bg-blue-700'
-                              : canJoin
-                                ? 'bg-green-600 text-white hover:bg-green-700'
-                                : 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                            : canJoin
+                              ? 'bg-green-600 text-white hover:bg-green-700'
+                              : 'bg-gray-600 text-gray-300 cursor-not-allowed'
                             }`}
                         >
                           {isMyRoom ? 'View Room' : canJoin ? 'Join' : isFull ? 'Full' : 'Cannot Join'}
@@ -335,8 +335,8 @@ export default function LobbyScreen({
                 <button
                   onClick={() => setRoomType('public')}
                   className={`px-3 py-3 sm:py-4 rounded-lg border-2 transition-all ${roomType === 'public'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                     }`}
                 >
                   <div className="flex flex-col items-center gap-2">
@@ -345,15 +345,15 @@ export default function LobbyScreen({
                     </svg>
                     <div>
                       <p className="font-semibold text-sm sm:text-base">Public</p>
-                      <p className="text-xs mt-0.5">Visible to all</p>
+                      <p className="text-xs mt-0.5">Others player can find</p>
                     </div>
                   </div>
                 </button>
                 <button
                   onClick={() => setRoomType('private')}
                   className={`px-3 py-3 sm:py-4 rounded-lg border-2 transition-all ${roomType === 'private'
-                      ? 'border-purple-500 bg-purple-50 text-purple-700'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    ? 'border-purple-500 bg-purple-50 text-purple-700'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                     }`}
                 >
                   <div className="flex flex-col items-center gap-2">
@@ -362,7 +362,7 @@ export default function LobbyScreen({
                     </svg>
                     <div>
                       <p className="font-semibold text-sm sm:text-base">Private</p>
-                      <p className="text-xs mt-0.5">Only for you</p>
+                      <p className="text-xs mt-0.5">Access only by a link</p>
                     </div>
                   </div>
                 </button>
@@ -422,8 +422,8 @@ export default function LobbyScreen({
                 <button
                   onClick={() => setRoomType('public')}
                   className={`px-3 py-3 sm:py-4 rounded-lg border-2 transition-all ${roomType === 'public'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                     }`}
                 >
                   <div className="flex flex-col items-center gap-2">
@@ -439,8 +439,8 @@ export default function LobbyScreen({
                 <button
                   onClick={() => setRoomType('private')}
                   className={`px-3 py-3 sm:py-4 rounded-lg border-2 transition-all ${roomType === 'private'
-                      ? 'border-purple-500 bg-purple-50 text-purple-700'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    ? 'border-purple-500 bg-purple-50 text-purple-700'
+                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                     }`}
                 >
                   <div className="flex flex-col items-center gap-2">
