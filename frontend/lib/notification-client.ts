@@ -20,11 +20,15 @@ export async function sendFrameNotification({
   fid,
   title,
   body,
+  targetUrl,
+  notificationId,
   notificationDetails,
 }: {
   fid: number;
   title: string;
   body: string;
+  targetUrl?: string;
+  notificationId?: string;
   notificationDetails?: MiniAppNotificationDetails | null;
 }): Promise<SendFrameNotificationResult> {
   if (!notificationDetails) {
@@ -40,28 +44,29 @@ export async function sendFrameNotification({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      notificationId: crypto.randomUUID(),
+      notificationId: notificationId || crypto.randomUUID(),
       title,
       body,
-      targetUrl: appUrl,
+      targetUrl: targetUrl || appUrl,
       tokens: [notificationDetails.token],
     } satisfies SendNotificationRequest),
   });
 
-  const responseJson = await response.json();
-
-  if (response.status === 200) {
-    const responseBody = sendNotificationResponseSchema.safeParse(responseJson);
-    if (responseBody.success === false) {
-      return { state: "error", error: responseBody.error.errors };
-    }
-
-    if (responseBody.data.result.rateLimitedTokens.length) {
-      return { state: "rate_limit" };
-    }
-
-    return { state: "success" };
+  if (response.status !== 200) {
+    const responseJson = await response.json();
+    return { state: "error", error: responseJson };
   }
 
-  return { state: "error", error: responseJson };
+  const responseJson = await response.json();
+  const responseBody = sendNotificationResponseSchema.safeParse(responseJson);
+  
+  if (responseBody.success === false) {
+    return { state: "error", error: responseBody.error.errors };
+  }
+
+  if (responseBody.data.result.rateLimitedTokens.length) {
+    return { state: "rate_limit" };
+  }
+
+  return { state: "success" };
 }

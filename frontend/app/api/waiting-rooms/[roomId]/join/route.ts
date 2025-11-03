@@ -4,6 +4,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
+import { getFidFromWallet } from '@/lib/notification';
+import { sendFrameNotification } from '@/lib/notification-client';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,7 +38,7 @@ export async function POST(
         // Check if room exists and is open
         const { data: room, error: roomError } = await supabase
             .from('waiting_rooms')
-            .select('*, host_team:teams!host_team_id(id, elo_rating)')
+            .select('*, host_team:teams!host_team_id(id, elo_rating, name, primary_wallet)')
             .eq('id', roomId)
             .eq('status', 'open')
             .single();
@@ -116,6 +118,34 @@ export async function POST(
                 { success: false, error: 'Failed to join room (may be full)' },
                 { status: 500 }
             );
+        }
+
+        // Send notification to host when someone joins
+        try {
+            const hostTeam = room.host_team;
+            if (hostTeam?.primary_wallet) {
+                const hostFid = await getFidFromWallet(hostTeam.primary_wallet);
+                if (hostFid) {
+                    const guestTeam = await supabase
+                        .from('teams')
+                        .select('name')
+                        .eq('id', team_id)
+                        .single();
+
+                    const guestTeamName = guestTeam.data?.name || 'Someone';
+                    
+                    await sendFrameNotification({
+                        fid: hostFid,
+                        title: 'Player joined your room!',
+                        body: `${guestTeamName} has joined your waiting room. The game is ready to start!`,
+                        targetUrl: `${process.env.NEXT_PUBLIC_URL || ''}/room/${roomId}`,
+                        notificationId: `room-join-${roomId}-${team_id}`,
+                    });
+                }
+            }
+        } catch (notificationError) {
+            // Log but don't fail the request if notification fails
+            console.error('Error sending notification when player joined room:', notificationError);
         }
 
         return NextResponse.json({

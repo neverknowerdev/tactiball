@@ -332,7 +332,7 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
     // Get team data from database
     const { data: teamsData, error: teamsError } = await supabase
         .from('teams')
-        .select('id, name, elo_rating')
+        .select('id, name, elo_rating, primary_wallet, country')
         .in('id', [team1id, team2id]);
 
     if (teamsError) {
@@ -397,6 +397,29 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
         .from('teams')
         .update({ active_game_id: gameId })
         .in('id', [team1id, team2id])
+
+    // Send notification to guest when game starts
+    const appUrl = Deno.env.get('NEXT_PUBLIC_URL') || Deno.env.get('NOTIFICATION_API_URL')?.replace('/api/notifications/game-finished', '') || ''
+    const notificationUrl = appUrl ? `${appUrl}/api/notifications/game-started` : null
+    
+    if (notificationUrl) {
+        try {
+            await fetch(notificationUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    gameId,
+                    team1Id: team1id,
+                    team2Id: team2id,
+                }),
+            })
+        } catch (notificationError) {
+            console.error('Error calling notification API for game started:', notificationError)
+            // Don't throw - notifications are non-critical
+        }
+    }
 
     console.log(`Game started: ${gameId}`)
 }
@@ -519,6 +542,30 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
         status: status,
         timestamp: timestamp
     })
+
+    // Send notifications to both players when game ends
+    const appUrl = Deno.env.get('NEXT_PUBLIC_URL') || Deno.env.get('NOTIFICATION_API_URL')?.replace('/api/notifications/game-finished', '') || ''
+    const notificationUrl = appUrl ? `${appUrl}/api/notifications/game-finished` : null
+    
+    if (notificationUrl) {
+        try {
+            await fetch(notificationUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    gameId,
+                    winner,
+                    team1Id: game.team1,
+                    team2Id: game.team2,
+                }),
+            })
+        } catch (notificationError) {
+            console.error('Error calling notification API for game finished:', notificationError)
+            // Don't throw - notifications are non-critical
+        }
+    }
 
     console.log(`Game finished: ${gameId}, winner: ${winner}, reason: ${finishReason}`)
 }

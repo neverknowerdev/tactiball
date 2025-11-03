@@ -1,124 +1,109 @@
 import {
   setUserNotificationDetails,
   deleteUserNotificationDetails,
+  setWalletToFidMapping,
+  deleteWalletToFidMapping,
 } from "@/lib/notification";
 import { sendFrameNotification } from "@/lib/notification-client";
-import { http } from "viem";
-import { createPublicClient } from "viem";
-import { optimism } from "viem/chains";
+import {
+  parseWebhookEvent,
+  verifyAppKeyWithNeynar,
+  ParseWebhookEvent,
+} from "@farcaster/miniapp-node";
+import { getWalletsFromFid } from "@/lib/farcaster-helpers";
 
 const appName = process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME;
-
-const KEY_REGISTRY_ADDRESS = "0x00000000Fc1237824fb747aBDE0FF18990E59b7e";
-
-const KEY_REGISTRY_ABI = [
-  {
-    inputs: [
-      { name: "fid", type: "uint256" },
-      { name: "key", type: "bytes" },
-    ],
-    name: "keyDataOf",
-    outputs: [
-      {
-        components: [
-          { name: "state", type: "uint8" },
-          { name: "keyType", type: "uint32" },
-        ],
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
-
-async function verifyFidOwnership(fid: number, appKey: `0x${string}`) {
-  const client = createPublicClient({
-    chain: optimism,
-    transport: http(),
-  });
-
-  try {
-    const result = await client.readContract({
-      address: KEY_REGISTRY_ADDRESS,
-      abi: KEY_REGISTRY_ABI,
-      functionName: "keyDataOf",
-      args: [BigInt(fid), appKey],
-    });
-
-    return result.state === 1 && result.keyType === 1;
-  } catch (error) {
-    console.error("Key Registry verification failed:", error);
-    return false;
-  }
-}
-
-function decode(encoded: string) {
-  return JSON.parse(Buffer.from(encoded, "base64url").toString("utf-8"));
-}
 
 export async function POST(request: Request) {
   const requestJson = await request.json();
 
-  const { header: encodedHeader, payload: encodedPayload } = requestJson;
+  try {
+    // Verify the webhook event using Farcaster signatures
+    const data = await parseWebhookEvent(requestJson, verifyAppKeyWithNeynar);
 
-  const headerData = decode(encodedHeader);
-  const event = decode(encodedPayload);
+    const fid = data.fid;
+    const eventData = data.event as any;
 
-  const { fid, key } = headerData;
+    switch (eventData.event) {
+      case "miniapp_added":
+        console.log("miniapp_added", "notificationDetails", eventData.notificationDetails);
+        if (eventData.notificationDetails) {
+          await setUserNotificationDetails(fid, eventData.notificationDetails);
+          
+          // Store wallet -> FID mapping for notifications
+          const wallets = await getWalletsFromFid(fid);
+          for (const wallet of wallets) {
+            await setWalletToFidMapping(wallet, fid);
+          }
+          
+          await sendFrameNotification({
+            fid,
+            title: `Welcome to ${appName}`,
+            body: `Thank you for adding ${appName}`,
+          });
+        }
+        break;
 
-  const valid = await verifyFidOwnership(fid, key);
+      case "miniapp_removed":
+        console.log("miniapp_removed");
+        await deleteUserNotificationDetails(fid);
+        await deleteWalletToFidMapping(fid);
+        break;
 
-  if (!valid) {
-    return Response.json(
-      { success: false, error: "Invalid FID ownership" },
-      { status: 401 },
-    );
-  }
-
-  switch (event.event) {
-    case "frame_added":
-      console.log(
-        "frame_added",
-        "event.notificationDetails",
-        event.notificationDetails,
-      );
-      if (event.notificationDetails) {
-        await setUserNotificationDetails(fid, event.notificationDetails);
+      case "notifications_enabled":
+        console.log("notifications_enabled", eventData.notificationDetails);
+        await setUserNotificationDetails(fid, eventData.notificationDetails);
+        
+        // Update wallet -> FID mapping
+        const enabledWallets = await getWalletsFromFid(fid);
+        for (const wallet of enabledWallets) {
+          await setWalletToFidMapping(wallet, fid);
+        }
+        
         await sendFrameNotification({
           fid,
           title: `Welcome to ${appName}`,
-          body: `Thank you for adding ${appName}`,
+          body: `Thank you for enabling notifications for ${appName}`,
         });
-      } else {
+        break;
+
+      case "notifications_disabled":
+        console.log("notifications_disabled");
         await deleteUserNotificationDetails(fid);
-      }
+        await deleteWalletToFidMapping(fid);
+        break;
 
-      break;
-    case "frame_removed": {
-      console.log("frame_removed");
-      await deleteUserNotificationDetails(fid);
-      break;
+      default:
+        console.log("Unknown event type:", eventData.event);
     }
-    case "notifications_enabled": {
-      console.log("notifications_enabled", event.notificationDetails);
-      await setUserNotificationDetails(fid, event.notificationDetails);
-      await sendFrameNotification({
-        fid,
-        title: `Welcome to ${appName}`,
-        body: `Thank you for enabling notifications for ${appName}`,
-      });
 
-      break;
-    }
-    case "notifications_disabled": {
-      console.log("notifications_disabled");
-      await deleteUserNotificationDetails(fid);
+    return Response.json({ success: true });
 
-      break;
+  } catch (e: unknown) {
+    const error = e as ParseWebhookEvent.ErrorType;
+
+    switch (error.name) {
+      case "VerifyJsonFarcasterSignature.InvalidDataError":
+      case "VerifyJsonFarcasterSignature.InvalidEventDataError":
+        return Response.json(
+          { success: false, error: "Invalid request data" },
+          { status: 400 }
+        );
+      case "VerifyJsonFarcasterSignature.InvalidAppKeyError":
+        return Response.json(
+          { success: false, error: "Invalid app key" },
+          { status: 401 }
+        );
+      case "VerifyJsonFarcasterSignature.VerifyAppKeyError":
+        return Response.json(
+          { success: false, error: "Error verifying app key" },
+          { status: 500 }
+        );
+      default:
+        return Response.json(
+          { success: false, error: "Verification failed" },
+          { status: 401 }
+        );
     }
   }
-
-  return Response.json({ success: true });
 }
