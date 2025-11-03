@@ -14,9 +14,8 @@ export function useWalletConnection() {
   const { context } = useMiniKit();
   const wagmiAccount = useAccount();
   
-  // Always call useDynamicContext (React rules of hooks)
-  // In miniapp, this might not be in DynamicProvider, but it should handle gracefully
-  // DynamicProvider wraps the app in web mode, so it should be available there
+  // Always call useDynamicContext (React rules of hooks - must be unconditional)
+  // Provider is always rendered (either full or minimal)
   const dynamicContext = useDynamicContext();
   
   // Check if we're in miniapp
@@ -25,6 +24,7 @@ export function useWalletConnection() {
   }, [context]);
 
   // In miniapp, use wagmi directly (OnChainKit handles it)
+  // Dynamic context exists but is not initialized, so primaryWallet will be null
   if (isMiniApp) {
     return wagmiAccount;
   }

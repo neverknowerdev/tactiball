@@ -13,6 +13,9 @@ import { useMemo } from "react";
 export function useSignMessageBridge() {
   const { context } = useMiniKit();
   const wagmiSignMessage = useSignMessage();
+  
+  // Always call useDynamicContext (React rules of hooks - must be unconditional)
+  // Provider is always rendered (either full or minimal)
   const dynamicContext = useDynamicContext();
   
   // Check if we're in miniapp
@@ -21,6 +24,7 @@ export function useSignMessageBridge() {
   }, [context]);
 
   // In miniapp, use wagmi directly
+  // Dynamic context exists but is not initialized, so primaryWallet will be null
   if (isMiniApp) {
     return {
       signMessageAsync: wagmiSignMessage.signMessageAsync,
