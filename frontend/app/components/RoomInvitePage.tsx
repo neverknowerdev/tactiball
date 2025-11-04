@@ -58,11 +58,16 @@ function RoomInviteContent({ roomId }: RoomInviteContentProps) {
 
   // Redirect to lobby when connected
   useEffect(() => {
-    if (isConnected && address && roomData && isMiniApp) {
+    if (isConnected && address && roomData) {
       // Redirect to the main app with room selection
-      router.push(`/?room=${roomId}`);
+      // Add a small delay to ensure wallet connection is fully processed
+      const timer = setTimeout(() => {
+        router.push(`/?room=${roomId}`);
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
-  }, [isConnected, address, roomData, isMiniApp, roomId, router]);
+  }, [isConnected, address, roomData, roomId, router]);
 
   useEffect(() => {
     if (!isFrameReady) {
