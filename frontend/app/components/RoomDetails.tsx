@@ -17,6 +17,7 @@ interface Room {
     created_at: string;
     minimum_elo_rating: number;
     status: string;
+    room_type: string;
     guest_team_id: number | null;
     game_request_id: number | null;
     host_team: Team;
@@ -42,6 +43,10 @@ export default function RoomDetails({
     const [shareUrl, setShareUrl] = useState('');
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [shareSuccess, setShareSuccess] = useState(false);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [minimumElo, setMinimumElo] = useState(0);
+    const [roomType, setRoomType] = useState<'public' | 'private'>('public');
+    const [updating, setUpdating] = useState(false);
     const { address } = useAccount();
     const { signMessageAsync } = useSignMessage();
     const { composeCast } = useComposeCast();
@@ -292,6 +297,52 @@ export default function RoomDetails({
         }
     };
 
+    // Open settings modal
+    const handleOpenSettings = () => {
+        if (!room) return;
+        setMinimumElo(room.minimum_elo_rating / 100);
+        setRoomType(room.room_type as 'public' | 'private');
+        setShowSettingsModal(true);
+    };
+
+    // Update room settings
+    const handleUpdateSettings = async () => {
+        if (!address || !room) return;
+
+        setUpdating(true);
+        try {
+            const { signature, message } = await authUserWithSignature(address, signMessageAsync);
+
+            const response = await fetch('/api/waiting-rooms/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    room_id: roomId,
+                    room_type: roomType,
+                    minimum_elo_rating: minimumElo * 100,
+                    wallet_address: address,
+                    signature,
+                    message
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Settings updated!');
+                setShowSettingsModal(false);
+                fetchRoom(); // Refresh room data
+            } else {
+                toast.error(data.error || 'Failed to update settings');
+            }
+        } catch (error) {
+            console.error('Error updating settings:', error);
+            toast.error('Failed to update settings');
+        } finally {
+            setUpdating(false);
+        }
+    };
+
     const formatElo = (elo: number) => (elo / 100).toFixed(2);
 
     if (loading) {
@@ -313,37 +364,52 @@ export default function RoomDetails({
     const isFull = !!room.guest_team_id;
 
     return (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-            <div className="bg-gradient-to-b from-blue-900 to-purple-900 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-2 sm:p-4">
+            <div className="bg-gradient-to-b from-blue-900 to-purple-900 rounded-xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}
-                <div className="p-6 border-b border-white/20">
-                    <div className="flex items-center gap-4">
+                <div className="p-4 sm:p-6 border-b border-white/20">
+                    <div className="flex items-center gap-3 sm:gap-4">
                         <button
                             onClick={onBack}
-                            className="text-white hover:text-blue-200 transition-colors p-2 rounded-lg hover:bg-white/10"
+                            className="text-white hover:text-blue-200 transition-colors p-2 rounded-lg hover:bg-white/10 flex-shrink-0"
                         >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>
                         </button>
-                        <div className="flex-1">
-                            <h1 className="text-2xl font-bold text-white">Game Room</h1>
-                            <p className="text-blue-200 text-sm">Room #{roomId}</p>
+                        <div className="flex-1 min-w-0">
+                            <h1 className="text-lg sm:text-2xl font-bold text-white truncate">Game Room</h1>
+                            <p className="text-blue-200 text-xs sm:text-sm truncate">Room #{roomId}</p>
                         </div>
-                        <div className="relative">
-                            <button
-                                onClick={handleShare}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                                </svg>
-                                Share
-                            </button>
+                        <div className="flex gap-2 sm:gap-2 flex-shrink-0">
+                            {isHost && (
+                                <button
+                                    onClick={handleOpenSettings}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-xs sm:text-sm min-w-[44px] sm:min-w-0"
+                                    title="Settings"
+                                >
+                                    <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    <span className="hidden sm:inline">Settings</span>
+                                </button>
+                            )}
+                            <div className="relative">
+                                <button
+                                    onClick={handleShare}
+                                    className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm min-w-[44px] sm:min-w-0"
+                                    title="Share"
+                                >
+                                    <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                                    </svg>
+                                    <span className="hidden sm:inline">Share</span>
+                                </button>
 
-                            {/* Share Menu Dropdown */}
-                            {showShareMenu && (
-                                <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                                {/* Share Menu Dropdown */}
+                                {showShareMenu && (
+                                    <div className="absolute right-0 mt-2 w-56 sm:w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[80vh] overflow-y-auto">
                                     {/* Share Success Message */}
                                     {shareSuccess && (
                                         <div className="m-2 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center gap-2">
@@ -426,7 +492,8 @@ export default function RoomDetails({
                                         </button>
                                     </div>
                                 </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -557,6 +624,95 @@ export default function RoomDetails({
                     className="fixed inset-0 z-40"
                     onClick={() => setShowShareMenu(false)}
                 />
+            )}
+
+            {/* Settings Modal */}
+            {showSettingsModal && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-3 sm:p-4">
+                    <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Room Settings</h2>
+
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-3">
+                                Room Type
+                            </label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => setRoomType('public')}
+                                    className={`px-3 py-3 sm:py-4 rounded-lg border-2 transition-all ${roomType === 'public'
+                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                        }`}
+                                >
+                                    <div className="flex flex-col items-center gap-2">
+                                        <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <div>
+                                            <p className="font-semibold text-sm sm:text-base">Public</p>
+                                            <p className="text-xs mt-0.5">Visible to all</p>
+                                        </div>
+                                    </div>
+                                </button>
+                                <button
+                                    onClick={() => setRoomType('private')}
+                                    className={`px-3 py-3 sm:py-4 rounded-lg border-2 transition-all ${roomType === 'private'
+                                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                        }`}
+                                >
+                                    <div className="flex flex-col items-center gap-2">
+                                        <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                        <div>
+                                            <p className="font-semibold text-sm sm:text-base">Private</p>
+                                            <p className="text-xs mt-0.5">Only for you</p>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Minimum ELO Rating
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={minimumElo}
+                                onChange={(e) => setMinimumElo(parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                                placeholder="0.00"
+                            />
+                            <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                                {minimumElo > 0
+                                    ? `Only teams with ELO ≥ ${minimumElo.toFixed(2)} can join`
+                                    : 'No ELO restriction - anyone can join'}
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowSettingsModal(false);
+                                }}
+                                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors text-sm sm:text-base"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleUpdateSettings}
+                                disabled={updating}
+                                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                            >
+                                {updating ? 'Updating...' : 'Save'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
