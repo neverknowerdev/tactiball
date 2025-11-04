@@ -50,6 +50,7 @@ const GAME_STARTED_TOPIC = toEventHash('event GameStarted(uint256 indexed gameId
 const GAME_FINISHED_TOPIC = toEventHash('event GameFinished(uint256 indexed gameId, uint8 winner, uint8 finishReason)');
 const GOAL_SCORED_TOPIC = toEventHash('event GoalScored(uint256 indexed gameId, uint8 scoringTeam)');
 const ELO_UPDATED_TOPIC = toEventHash('event EloUpdated(uint256 indexed teamId, uint256 gameId, uint64 eloRating)');
+const TEAM_CREATED_TOPIC = toEventHash('event TeamCreated(uint256 indexed teamId, address indexed owner, string name, uint8 country)');
 
 interface ContractEvent {
     blockNumber: string;
@@ -596,6 +597,95 @@ async function updateTeamStatistics(
 }
 
 /**
+ * Fetch all team IDs from TeamCreated events
+ */
+async function fetchAllTeamIdsFromEvents(
+    contractAddress: string,
+    network: 'baseSepolia' | 'baseMainnet' = 'baseMainnet',
+    fromBlock: number = 0,
+    toBlock: number = 99999999
+): Promise<number[]> {
+    const basescanUrl = network === 'baseSepolia' 
+        ? 'https://api-sepolia.basescan.org/api'
+        : BASESCAN_API_URL;
+
+    try {
+        console.log(`  📡 Fetching TeamCreated events from Basescan...`);
+        console.log(`  📍 Contract: ${contractAddress}`);
+        console.log(`  🔗 URL: ${basescanUrl}`);
+        console.log(`  📊 Event hash: ${TEAM_CREATED_TOPIC}`);
+        console.log(`  📦 Block range: ${fromBlock} to ${toBlock}`);
+
+        const url = new URL(basescanUrl);
+        url.searchParams.set('module', 'logs');
+        url.searchParams.set('action', 'getLogs');
+        url.searchParams.set('address', contractAddress);
+        url.searchParams.set('topic0', TEAM_CREATED_TOPIC);
+        url.searchParams.set('fromBlock', fromBlock.toString());
+        url.searchParams.set('toBlock', toBlock === 99999999 ? 'latest' : toBlock.toString());
+        url.searchParams.set('apikey', BASESCAN_API_KEY);
+        // Add pagination parameters to ensure we get all results
+        url.searchParams.set('page', '1');
+        url.searchParams.set('offset', '10000'); // Max offset to get all results
+
+        console.log(`  🔗 Full URL: ${url.toString().replace(BASESCAN_API_KEY, '***')}`);
+
+        const response = await fetch(url.toString());
+        const data = await response.json();
+
+        console.log(`  📥 Response status: ${data.status}`);
+        if (data.message) {
+            console.log(`  📝 Response message: ${data.message}`);
+        }
+        if (data.result) {
+            console.log(`  📦 Response result type: ${typeof data.result}, isArray: ${Array.isArray(data.result)}`);
+        }
+
+        if (data.status !== '1') {
+            if (data.message && !data.message.includes('No records found')) {
+                console.warn(`  ⚠️  TeamCreated events API error: ${data.message}`);
+                // Log full response for debugging
+                console.log(`  🔍 Full API response:`, JSON.stringify(data, null, 2));
+            } else {
+                console.log(`  ℹ️  No TeamCreated events found in Basescan`);
+            }
+            return [];
+        }
+
+        if (data.result && Array.isArray(data.result)) {
+            console.log(`  ✅ Found ${data.result.length} TeamCreated event(s) in Basescan`);
+            
+            // Extract team IDs from topics (topic1 is the indexed teamId)
+            const teamIds: number[] = data.result.map((event: ContractEvent, index: number) => {
+                // topic1 is the teamId (indexed parameter)
+                if (!event.topics || event.topics.length < 2) {
+                    console.warn(`  ⚠️  Event ${index} has invalid topics:`, event);
+                    return null;
+                }
+                const teamIdHex = event.topics[1];
+                const teamId = Number(BigInt(teamIdHex));
+                console.log(`  📋 Event ${index + 1}: Team ID ${teamId} (from ${teamIdHex})`);
+                return teamId;
+            }).filter((id: number | null): id is number => id !== null);
+
+            // Remove duplicates and sort
+            const uniqueTeamIds: number[] = [...new Set(teamIds)].sort((a: number, b: number) => a - b);
+            console.log(`  ✅ Extracted ${uniqueTeamIds.length} unique team ID(s): ${uniqueTeamIds.join(', ')}`);
+            return uniqueTeamIds;
+        }
+
+        console.log(`  ⚠️  No result array in response`);
+        return [];
+    } catch (error) {
+        console.error(`  ❌ Error fetching TeamCreated events:`, error);
+        if (error instanceof Error) {
+            console.error(`  ❌ Error message: ${error.message}`);
+        }
+        return [];
+    }
+}
+
+/**
  * Fetch a single team from the contract
  */
 async function fetchTeamFromContract(
@@ -658,28 +748,93 @@ export async function syncTeamsFromContract(
     const supabase = createSupabaseClient();
     const viemClient = createViemClient(network);
 
-    // Get nextTeamId from contract
-    console.log(`\n📡 Fetching nextTeamId from contract...`);
-    const nextTeamId = await viemClient.readContract({
-        address: finalContractAddress as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: 'nextTeamId',
-        args: []
-    }) as bigint;
+    // Fetch all team IDs from TeamCreated events (primary method)
+    console.log(`\n📡 Fetching all team IDs from TeamCreated events...`);
+    let teamIdsToSync: number[] = [];
+    
+    const teamIdsFromEvents = await fetchAllTeamIdsFromEvents(finalContractAddress, network);
+    
+    if (teamIdsFromEvents.length > 0) {
+        console.log(`✅ Found ${teamIdsFromEvents.length} teams from TeamCreated events:`, teamIdsFromEvents);
+        teamIdsToSync = teamIdsFromEvents;
+    } else {
+        // Fallback to nextTeamId method if events are not available
+        console.log(`⚠️  No TeamCreated events found, falling back to nextTeamId method...`);
+        const nextTeamId = await viemClient.readContract({
+            address: finalContractAddress as `0x${string}`,
+            abi: CONTRACT_ABI,
+            functionName: 'nextTeamId',
+            args: []
+        }) as bigint;
 
-    const totalTeams = Number(nextTeamId) - 1;
-    console.log(`✅ Found ${totalTeams} teams in contract (nextTeamId: ${nextTeamId})`);
+        const totalTeams = Number(nextTeamId) - 1;
+        console.log(`✅ Found ${totalTeams} teams from nextTeamId (nextTeamId: ${nextTeamId})`);
 
-    if (totalTeams <= 0) {
-        console.log(`\n⚠️  No teams found in contract`);
+        if (totalTeams <= 0) {
+            console.log(`\n⚠️  No teams found in contract`);
+            return;
+        }
+
+        // Generate team IDs from 1 to totalTeams, but also try to verify each team exists
+        // by attempting to fetch it from the contract
+        const startId = startTeamId || 1;
+        // Always check at least up to nextTeamId (which might be 2, meaning teams 1 and 2 exist)
+        // Also check a few beyond nextTeamId in case the contract state is inconsistent
+        const endId = endTeamId || Math.max(totalTeams, Number(nextTeamId));
+        teamIdsToSync = [];
+        
+        console.log(`\n🔍 Verifying team IDs from ${startId} to ${endId}...`);
+        for (let i = startId; i <= endId; i++) {
+            try {
+                const team = await fetchTeamFromContract(viemClient, finalContractAddress, i);
+                if (team) {
+                    teamIdsToSync.push(i);
+                    console.log(`  ✅ Team ${i} exists: ${team.name}`);
+                } else {
+                    console.log(`  ⏭️  Team ${i} does not exist, skipping...`);
+                }
+            } catch (error) {
+                console.log(`  ⏭️  Team ${i} does not exist (error: ${error instanceof Error ? error.message : 'unknown'})`);
+            }
+        }
+        
+        // Always check a few more IDs beyond nextTeamId in case events show teams that 
+        // nextTeamId doesn't account for (e.g., if nextTeamId is 2 but team 2 exists)
+        if (!startTeamId && !endTeamId) {
+            const maxIdToCheck = Math.max(Number(nextTeamId) + 2, endId + 3);
+            console.log(`\n🔍 Checking additional IDs up to ${maxIdToCheck} to catch any missed teams...`);
+            for (let i = endId + 1; i <= maxIdToCheck; i++) {
+                try {
+                    const team = await fetchTeamFromContract(viemClient, finalContractAddress, i);
+                    if (team) {
+                        teamIdsToSync.push(i);
+                        console.log(`  ✅ Team ${i} exists: ${team.name}`);
+                    }
+                } catch (error) {
+                    // Team doesn't exist, continue
+                }
+            }
+        }
+        
+        if (teamIdsToSync.length === 0) {
+            console.log(`\n⚠️  No teams found after verification`);
+            return;
+        }
+    }
+
+    // Apply manual range filters if provided
+    if (startTeamId !== undefined || endTeamId !== undefined) {
+        const startId = startTeamId || Math.min(...teamIdsToSync);
+        const endId = endTeamId || Math.max(...teamIdsToSync);
+        teamIdsToSync = teamIdsToSync.filter(id => id >= startId && id <= endId);
+    }
+
+    if (teamIdsToSync.length === 0) {
+        console.log(`\n⚠️  No teams to sync after filtering`);
         return;
     }
 
-    // Determine team ID range to sync
-    const startId = startTeamId || 1;
-    const endId = endTeamId || totalTeams;
-
-    console.log(`\n📊 Syncing teams from ID ${startId} to ${endId}...`);
+    console.log(`\n📊 Syncing ${teamIdsToSync.length} team(s):`, teamIdsToSync);
 
     // Fetch game events if statistics are enabled
     let allGames: Map<number, GameResult> | null = null;
@@ -703,7 +858,7 @@ export async function syncTeamsFromContract(
     let statsCount = 0;
 
     // Fetch and sync teams
-    for (let teamId = startId; teamId <= endId; teamId++) {
+    for (const teamId of teamIdsToSync) {
         try {
             console.log(`\n👤 Processing team ${teamId}...`);
 
@@ -780,8 +935,9 @@ export async function syncTeamsFromContract(
     }
     console.log(`  ⏭️  Skipped (not found): ${skipCount}`);
     console.log(`  ❌ Errors: ${errorCount}`);
-    console.log(`  📊 Total processed: ${startId} to ${endId}`);
-    console.log(`  📈 Success rate: ${((successCount / (successCount + errorCount + skipCount)) * 100).toFixed(1)}%`);
+    console.log(`  📊 Total teams to sync: ${teamIdsToSync.length}`);
+    console.log(`  📊 Team IDs synced: ${teamIdsToSync.join(', ')}`);
+    console.log(`  📈 Success rate: ${teamIdsToSync.length > 0 ? ((successCount / (successCount + errorCount + skipCount)) * 100).toFixed(1) : 0}%`);
 }
 
 // Main execution
