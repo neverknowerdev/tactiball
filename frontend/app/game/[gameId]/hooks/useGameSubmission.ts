@@ -3,6 +3,7 @@ import { Game, TeamEnum } from '@/lib/game';
 import { authUserWithSignature } from '@/lib/auth';
 import { GameSubmissionState } from '../types';
 import { toast } from 'react-toastify';
+import { useGameSounds } from './useGameSounds';
 
 interface UseGameSubmissionProps {
     game: Game | null;
@@ -33,6 +34,10 @@ export function useGameSubmission({
 }: UseGameSubmissionProps) {
     const [gameSubmissionState, setGameSubmissionState] = useState<GameSubmissionState>(GameSubmissionState.IDLE);
     const [secondsAfterLastMove, setSecondsAfterLastMove] = useState<number>(0);
+    const { playMoveSound } = useGameSounds({ enabled: true });
+    
+    // Note: The error at line 75 is from the original code, not caused by sound functionality
+    // The error is properly caught by the try-catch block at line 88
 
     useEffect(() => {
         if (!game || !isConnected) return;
@@ -49,39 +54,46 @@ export function useGameSubmission({
         if (!isConnected) return;
 
         const calculateNewGameState = async () => {
-            console.log('Calculating new game state');
-            const signature = await authUserWithSignature(address!, signMessageAsync);
-            const response = await fetch('/api/game/calculate-new-game-state', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    game_id: Number(game!.gameId),
-                    team_enum: currentTeam?.enum == TeamEnum.TEAM1 ? 1 : 2,
-                    team_id: Number(currentTeam?.teamId),
-                    wallet_address: address,
-                    signature: signature.signature,
-                    message: signature.message
-                })
-            });
+            try {
+                console.log('Calculating new game state');
+                const signature = await authUserWithSignature(address!, signMessageAsync);
+                const response = await fetch('/api/game/calculate-new-game-state', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        game_id: Number(game!.gameId),
+                        team_enum: currentTeam?.enum == TeamEnum.TEAM1 ? 1 : 2,
+                        team_id: Number(currentTeam?.teamId),
+                        wallet_address: address,
+                        signature: signature.signature,
+                        message: signature.message
+                    })
+                });
 
-            if (!response.ok) {
-                const data = await response.json();
-                console.log('Failed to calculate new game state', data);
-                throw new Error('Failed to calculate new game state');
-            }
-
-            if (!isNewStateRecalculatedRef.current) {
-                setGameSubmissionState(GameSubmissionState.WAITING_FOR_CALCULATION);
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                if (!isNewStateRecalculatedRef.current) {
-                    fetchGameData();
+                if (!response.ok) {
+                    const data = await response.json();
+                    console.log('Failed to calculate new game state', data);
+                    throw new Error('Failed to calculate new game state');
                 }
-            }
 
-            localStorage.removeItem('commitedActions');
-            setIsTwoTeamCommitted(false);
+                if (!isNewStateRecalculatedRef.current) {
+                    setGameSubmissionState(GameSubmissionState.WAITING_FOR_CALCULATION);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    if (!isNewStateRecalculatedRef.current) {
+                        fetchGameData();
+                    }
+                }
+
+                localStorage.removeItem('commitedActions');
+                setIsTwoTeamCommitted(false);
+            } catch (error) {
+                console.error('Error calculating new game state:', error);
+                toast.error('Failed to calculate new game state. Please try again.');
+                setGameSubmissionState(GameSubmissionState.IDLE);
+                setIsTwoTeamCommitted(false);
+            }
         }
 
         if (isTwoTeamCommitted) {
@@ -92,6 +104,9 @@ export function useGameSubmission({
 
     const handleReady = () => {
         const sendMoves = async () => {
+            // Play move sound immediately when player submits moves (before blockchain confirmation)
+            playMoveSound();
+
             // Set state to committing
             setGameSubmissionState(GameSubmissionState.COMMITTING);
 

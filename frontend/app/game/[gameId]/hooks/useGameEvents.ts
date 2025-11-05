@@ -3,6 +3,7 @@ import { Game } from '@/lib/game';
 import { convertEventStateToGameState, GameStateType, TeamEnum } from '@/lib/game';
 import { toast } from 'react-toastify';
 import { GameSubmissionState } from '../types';
+import { useGameSounds } from './useGameSounds';
 
 interface UseGameEventsProps {
     game: Game | null;
@@ -21,6 +22,8 @@ export function useGameEvents({
     setLastMoveAt,
     isNewStateRecalculatedRef
 }: UseGameEventsProps) {
+    const { playGoalSound, playGameEndSound } = useGameSounds({ enabled: true });
+
     useEffect(() => {
         const handleGameEvent = (event: CustomEvent) => {
             const gameEvent = event.detail;
@@ -64,6 +67,8 @@ export function useGameEvents({
             }
             if (gameEvent.type === 'GAME_FINISHED') {
                 console.log('Game finished notification received:', gameEvent);
+                // Play celebration sound when game ends
+                playGameEndSound();
                 // Show game result modal
                 setGameResultModal({
                     isOpen: true,
@@ -77,6 +82,9 @@ export function useGameEvents({
             }
             if (gameEvent.type === 'GOAL_SCORED') {
                 console.log('Goal scored notification received:', gameEvent);
+
+                // Play goal sound when a player scores
+                playGoalSound();
 
                 // Update the appropriate team's score
                 if (gameEvent.teamEnum == 1) {
@@ -114,6 +122,6 @@ export function useGameEvents({
         return () => {
             window.removeEventListener('game-event', handleGameEvent as EventListener);
         };
-    }, [game, setGame, setGameSubmissionState, setGameResultModal, setLastMoveAt, isNewStateRecalculatedRef]);
+    }, [game, setGame, setGameSubmissionState, setGameResultModal, setLastMoveAt, isNewStateRecalculatedRef, playGoalSound, playGameEndSound]);
 }
 
