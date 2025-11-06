@@ -4,6 +4,7 @@ import { convertEventStateToGameState, GameStateType, TeamEnum } from '@/lib/gam
 import { toast } from 'react-toastify';
 import { GameSubmissionState } from '../types';
 import { useGameSounds } from './useGameSounds';
+import { useBrowserNotifications } from '@/app/hooks/useBrowserNotifications';
 
 interface UseGameEventsProps {
     game: Game | null;
@@ -23,6 +24,13 @@ export function useGameEvents({
     isNewStateRecalculatedRef
 }: UseGameEventsProps) {
     const { playGoalSound, playGameEndSound } = useGameSounds({ enabled: true });
+    const { showNotification } = useBrowserNotifications();
+    const gameFinishedNotifiedRef = useRef(false);
+
+    // Reset notification flag when game changes
+    useEffect(() => {
+        gameFinishedNotifiedRef.current = false;
+    }, [game?.gameId]);
 
     useEffect(() => {
         const handleGameEvent = (event: CustomEvent) => {
@@ -67,8 +75,29 @@ export function useGameEvents({
             }
             if (gameEvent.type === 'GAME_FINISHED') {
                 console.log('Game finished notification received:', gameEvent);
+                
                 // Play celebration sound when game ends
                 playGameEndSound();
+                
+                // Show browser notification when game ends (only once)
+                if (!gameFinishedNotifiedRef.current && game) {
+                    const winnerText = gameEvent.winner === 1 
+                        ? `${game!.team1.name} won!` 
+                        : gameEvent.winner === 2 
+                        ? `${game!.team2.name} won!` 
+                        : 'It\'s a tie!';
+                    
+                    showNotification({
+                        title: '🏆 Game Finished!',
+                        body: winnerText,
+                        tag: `game-finished-${gameEvent.game_id}`,
+                        onClick: () => {
+                            window.focus();
+                        }
+                    });
+                    gameFinishedNotifiedRef.current = true;
+                }
+                
                 // Show game result modal
                 setGameResultModal({
                     isOpen: true,

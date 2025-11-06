@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { useComposeCast } from '@coinbase/onchainkit/minikit';
 import { authUserWithSignature } from '@/lib/auth';
 import { toast } from 'react-toastify';
+import { useBrowserNotifications } from '@/app/hooks/useBrowserNotifications';
 
 interface Team {
     id: number;
@@ -50,9 +51,17 @@ export default function RoomDetails({
     const { address } = useAccount();
     const { signMessageAsync } = useSignMessage();
     const { composeCast } = useComposeCast();
+    const { showNotification, requestPermission } = useBrowserNotifications();
+    const previousGuestTeamIdRef = useRef<number | null>(null);
+    const previousGameRequestIdRef = useRef<number | null>(null);
 
     // Check if user is host
     const isHost = room?.host_team.id === userTeamId;
+
+    // Request notification permission on mount
+    useEffect(() => {
+        requestPermission();
+    }, [requestPermission]);
 
     // Fetch room details
     const fetchRoom = async () => {
@@ -61,12 +70,39 @@ export default function RoomDetails({
             const data = await response.json();
 
             if (data.success) {
+                const wasHost = room?.host_team.id === userTeamId;
                 setRoom(data.room);
 
                 // Check if game request was created
                 if (data.room.game_request_id) {
+                    // Notify guest when host starts the game
+                    const isGuest = data.room.guest_team?.id === userTeamId;
+                    if (!wasHost && isGuest && previousGameRequestIdRef.current !== data.room.game_request_id) {
+                        showNotification({
+                            title: '🎮 Game Starting!',
+                            body: `${data.room.host_team.name} has started the game!`,
+                            tag: `game-start-${roomId}`,
+                            onClick: () => {
+                                onGameStarting(data.room.game_request_id!);
+                            }
+                        });
+                    }
+                    previousGameRequestIdRef.current = data.room.game_request_id;
                     onGameStarting(data.room.game_request_id);
                 }
+
+                // Notify host when someone joins the room
+                if (wasHost && data.room.guest_team_id && previousGuestTeamIdRef.current !== data.room.guest_team_id) {
+                    showNotification({
+                        title: '👋 Player Joined!',
+                        body: `${data.room.guest_team?.name || 'Someone'} joined your room!`,
+                        tag: `room-join-${roomId}`,
+                        onClick: () => {
+                            window.focus();
+                        }
+                    });
+                }
+                previousGuestTeamIdRef.current = data.room.guest_team_id;
             } else {
                 toast.error('Room not found');
                 onBack();

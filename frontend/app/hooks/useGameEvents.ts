@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { toast } from "react-toastify";
+import { useBrowserNotifications } from './useBrowserNotifications';
 
 export function useGameEvents(
     teamInfo: any,
@@ -7,6 +8,8 @@ export function useGameEvents(
     setIsGameRequestModalOpen: (open: boolean) => void,
     setGameRequestData: (data: any) => void
 ) {
+    const { showNotification } = useBrowserNotifications();
+
     useEffect(() => {
         const handleGameEvent = (event: CustomEvent) => {
             const gameEvent = event.detail;
@@ -37,6 +40,21 @@ export function useGameEvents(
                 // Check if this event is relevant to the current user's team
                 if (gameEvent.team1_id === teamInfo?.id || gameEvent.team2_id === teamInfo?.id) {
                     console.log('Game started for current team:', gameEvent);
+
+                    // Show browser notification when game starts
+                    const opponentName = gameEvent.team1_id === teamInfo?.id 
+                        ? gameEvent.team2_info?.name || 'Opponent'
+                        : gameEvent.team1_info?.name || 'Opponent';
+                    
+                    showNotification({
+                        title: '🎮 Game Started!',
+                        body: `Your game against ${opponentName} has begun!`,
+                        tag: `game-started-${gameEvent.game_id}`,
+                        onClick: () => {
+                            const gameUrl = `/game/${gameEvent.game_id}/`;
+                            window.location.href = gameUrl;
+                        }
+                    });
 
                     const gameUrl = `/game/${gameEvent.game_id}/`;
                     console.log('Redirecting to game:', gameUrl);
