@@ -4,7 +4,7 @@ import { chain } from '@/config/chains';
 // Create a public client for reading contract data
 export const publicClient = createPublicClient({
     chain: chain,
-    transport: http(process.env.RPC_URL || 'https://mainnet.base.org')
+    transport: http(process.env.RPC_URL || 'https://sepolia.base.org')
 });
 
 // Utility function to wait for transaction receipt

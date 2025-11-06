@@ -7,10 +7,10 @@ set -e
 
 # Configuration
 DB_NAME=${DB_NAME:-"postgres"}
-DB_HOST=${DB_HOST:-"localhost"}
+DB_HOST=${DB_HOST:-"aws-1-us-east-2.pooler.supabase.com"}
 DB_PORT=${DB_PORT:-"5432"}
-DB_USER=${DB_USER:-"postgres"}
-DB_PASSWORD=${DB_PASSWORD:-""}
+DB_USER=${DB_USER:-"postgres.fbczuemyuopzctgztsxc"}
+DB_PASSWORD=${DB_PASSWORD:-"VEEk49hPMyDfUBLs"}
 SSL_MODE=${SSL_MODE:-"require"}
 
 echo "🚀 Starting Chessball database migrations..."

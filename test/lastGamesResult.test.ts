@@ -25,7 +25,7 @@ describe('Last Games Results Functionality', () => {
   let supabase: SupabaseClient;
   let testTeams: { teamA: Team; teamB: Team; teamC: Team };
 
-  before(() => {
+  before(async () => {
     // Initialize Supabase client
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -35,11 +35,18 @@ describe('Last Games Results Functionality', () => {
     }
 
     supabase = createClient(supabaseUrl!, supabaseKey!);
+    
+    // Clean up any leftover test data before starting
+    await cleanupTestData();
+    await new Promise(resolve => setTimeout(resolve, 100));
   });
 
   beforeEach(async () => {
     // Clean up test data
     await cleanupTestData();
+    
+    // Small delay to ensure cleanup completes
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Create fresh test teams
     testTeams = await setupTestTeams();
@@ -52,26 +59,50 @@ describe('Last Games Results Functionality', () => {
 
   // Helper Functions
   async function cleanupTestData() {
-    // Delete test games first (foreign key constraint)
-    const { data: teams } = await supabase
-      .from('teams')
-      .select('id')
-      .like('name', 'TEST_TEAM_%');
+    try {
+      // Get all test teams first
+      const { data: teams } = await supabase
+        .from('teams')
+        .select('id')
+        .like('name', 'TEST_TEAM_%');
 
-    if (teams && teams.length > 0) {
-      const teamIds = teams.map(t => t.id);
+      if (teams && teams.length > 0) {
+        const teamIds = teams.map(t => t.id);
 
-      await supabase
-        .from('games')
+        // Delete games where team1 or team2 matches any test team
+        // Use a more reliable approach: delete games where team1 is in the list OR team2 is in the list
+        const { error: gamesError } = await supabase
+          .from('games')
+          .delete()
+          .in('team1', teamIds);
+        
+        if (gamesError) {
+          console.warn('Error deleting games by team1:', gamesError);
+        }
+
+        const { error: gamesError2 } = await supabase
+          .from('games')
+          .delete()
+          .in('team2', teamIds);
+        
+        if (gamesError2) {
+          console.warn('Error deleting games by team2:', gamesError2);
+        }
+      }
+
+      // Delete test teams
+      const { error: teamsError } = await supabase
+        .from('teams')
         .delete()
-        .or(`team1.in.(${teamIds.join(',')}),team2.in.(${teamIds.join(',')})`);
+        .like('name', 'TEST_TEAM_%');
+      
+      if (teamsError) {
+        console.warn('Error deleting test teams:', teamsError);
+      }
+    } catch (error) {
+      // Ignore cleanup errors - they might be expected if data doesn't exist
+      console.warn('Cleanup warning:', error);
     }
-
-    // Delete test teams
-    await supabase
-      .from('teams')
-      .delete()
-      .like('name', 'TEST_TEAM_%');
   }
 
   async function setupTestTeams() {
@@ -118,20 +149,38 @@ describe('Last Games Results Functionality', () => {
     status: GameStatus,
     createdAt?: Date
   ): Promise<Game> {
-    const { data, error } = await supabase
-      .from('games')
-      .insert({
-        team1: team1Id,
-        team2: team2Id,
-        winner: winnerId,
-        status: status,
-        created_at: createdAt?.toISOString() || new Date().toISOString(),
-      })
-      .select()
-      .single();
+    // Use a unique timestamp to help avoid conflicts
+    const uniqueTimestamp = createdAt || new Date(Date.now() + Math.random() * 1000);
+    
+    // Retry logic for handling potential race conditions
+    let retries = 3;
+    while (retries > 0) {
+      const { data, error } = await supabase
+        .from('games')
+        .insert({
+          team1: team1Id,
+          team2: team2Id,
+          winner: winnerId,
+          status: status,
+          created_at: uniqueTimestamp.toISOString(),
+        })
+        .select()
+        .single();
 
-    if (error) throw error;
-    return data;
+      if (error) {
+        // If it's a duplicate key error, wait a bit and retry with a new timestamp
+        if (error.code === '23505' && retries > 1) {
+          retries--;
+          await new Promise(resolve => setTimeout(resolve, 100));
+          // Update timestamp for retry
+          uniqueTimestamp.setTime(Date.now() + Math.random() * 1000);
+          continue;
+        }
+        throw error;
+      }
+      return data;
+    }
+    throw new Error('Failed to create game after retries');
   }
 
   async function updateGameStatus(
