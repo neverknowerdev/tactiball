@@ -14,7 +14,8 @@ export enum GameStateType {
     START_POSITIONS = 'startPositions',
     MOVE = 'move',
     GOAL_TEAM1 = 'goal_team1',
-    GOAL_TEAM2 = 'goal_team2'
+    GOAL_TEAM2 = 'goal_team2',
+    PENALTY = 'penalty'
 }
 
 export enum GameStatus {
@@ -144,6 +145,11 @@ export class Game implements GameType {
     public createdAt: number;
     public lastMoveAt: number | null;
     public status: GameStatus;
+    
+    // Penalty tracking
+    private isPenaltyMode: boolean = false;
+    private penaltyTeam: TeamEnum | null = null;
+    private consecutiveBallControlMoves: { [key: string]: number } = {}; // playerKey -> consecutive moves
 
     constructor(gameId: number) {
         this.gameId = gameId;
@@ -313,6 +319,232 @@ export class Game implements GameType {
         team.isCommittedMove = true;
     }
 
+    // Check if a team has 3 or more players in a vertical row
+    private checkVerticalRowPenalty(team: Team): boolean {
+        const positionsByX: { [x: number]: number[] } = {};
+        
+        // Group players by x coordinate
+        for (const player of team.players) {
+            const x = player.position.x;
+            if (!positionsByX[x]) {
+                positionsByX[x] = [];
+            }
+            positionsByX[x].push(player.position.y);
+        }
+
+        // Check if any x coordinate has 3 or more players
+        for (const x in positionsByX) {
+            if (positionsByX[x].length >= 3) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Check if a player has controlled the ball for more than 15 consecutive moves
+    private checkConsecutiveBallControlPenalty(): { shouldPenalty: boolean, team: TeamEnum | null } {
+        // Get the last state to check ball owner history
+        if (this.history.length === 0) {
+            return { shouldPenalty: false, team: null };
+        }
+
+        const lastState = this.history[this.history.length - 1];
+        if (!lastState.ballOwner) {
+            return { shouldPenalty: false, team: null };
+        }
+
+        // Find which player has the ball in the last state
+        let lastPlayerWithBall: string | null = null;
+        if (lastState.ballOwner === TeamEnum.TEAM1) {
+            for (let j = 0; j < lastState.team1PlayerPositions.length; j++) {
+                if (isPosEquals(lastState.team1PlayerPositions[j], lastState.ballPosition)) {
+                    lastPlayerWithBall = `1_${j}`;
+                    break;
+                }
+            }
+        } else if (lastState.ballOwner === TeamEnum.TEAM2) {
+            for (let j = 0; j < lastState.team2PlayerPositions.length; j++) {
+                if (isPosEquals(lastState.team2PlayerPositions[j], lastState.ballPosition)) {
+                    lastPlayerWithBall = `2_${j}`;
+                    break;
+                }
+            }
+        }
+
+        if (!lastPlayerWithBall) {
+            return { shouldPenalty: false, team: null };
+        }
+
+        // Track consecutive moves by same player with ball
+        let consecutiveCount = 1; // Count the last state
+
+        // Go through history backwards to find consecutive ball control
+        for (let i = this.history.length - 2; i >= 0; i--) {
+            const state = this.history[i];
+            
+            // Skip START_POSITIONS states (reset count)
+            if (state.type === GameStateType.START_POSITIONS) {
+                break;
+            }
+
+            // Find which player had the ball in this state
+            let playerWithBall: string | null = null;
+            if (state.ballOwner === TeamEnum.TEAM1) {
+                for (let j = 0; j < state.team1PlayerPositions.length; j++) {
+                    if (isPosEquals(state.team1PlayerPositions[j], state.ballPosition)) {
+                        playerWithBall = `1_${j}`;
+                        break;
+                    }
+                }
+            } else if (state.ballOwner === TeamEnum.TEAM2) {
+                for (let j = 0; j < state.team2PlayerPositions.length; j++) {
+                    if (isPosEquals(state.team2PlayerPositions[j], state.ballPosition)) {
+                        playerWithBall = `2_${j}`;
+                        break;
+                    }
+                }
+            }
+
+            // Check if same player has ball
+            if (playerWithBall === lastPlayerWithBall && state.ballOwner === lastState.ballOwner) {
+                consecutiveCount++;
+                if (consecutiveCount >= 15) {
+                    return { shouldPenalty: true, team: lastState.ballOwner };
+                }
+            } else {
+                // Different player or no ball owner, stop counting
+                break;
+            }
+        }
+
+        return { shouldPenalty: false, team: null };
+    }
+
+    // Check if a player didn't move the ball at all (no ball movement moves)
+    // This penalty triggers when the team that had the ball at the start of the turn
+    // makes moves, but the player with the ball doesn't make any move
+    private checkNoBallMovementPenalty(): { shouldPenalty: boolean, team: TeamEnum | null } {
+        if (this.history.length === 0) {
+            return { shouldPenalty: false, team: null };
+        }
+
+        const lastState = this.history[this.history.length - 1];
+        if (!lastState.ballOwner) {
+            return { shouldPenalty: false, team: null };
+        }
+
+        // Find which player has the ball in the last state (before moves are processed)
+        let playerWithBallId: number | null = null;
+        if (lastState.ballOwner === TeamEnum.TEAM1) {
+            for (let i = 0; i < lastState.team1PlayerPositions.length; i++) {
+                if (isPosEquals(lastState.team1PlayerPositions[i], lastState.ballPosition)) {
+                    playerWithBallId = i;
+                    break;
+                }
+            }
+        } else {
+            for (let i = 0; i < lastState.team2PlayerPositions.length; i++) {
+                if (isPosEquals(lastState.team2PlayerPositions[i], lastState.ballPosition)) {
+                    playerWithBallId = i;
+                    break;
+                }
+            }
+        }
+
+        if (playerWithBallId === null) {
+            return { shouldPenalty: false, team: null };
+        }
+
+        // Check if the player with the ball made a move
+        const ballPlayerMove = this.playerMoves.find(move => 
+            move.teamEnum === lastState.ballOwner && 
+            move.playerId === playerWithBallId
+        );
+
+        // Get all moves by the team that had the ball at the start
+        const teamMoves = this.playerMoves.filter(move => move.teamEnum === lastState.ballOwner);
+
+        // Penalty triggers only if:
+        // 1. Team that had the ball made moves, AND
+        // 2. The player who had the ball didn't make any move at all (didn't move the ball)
+        // Note: This means the team made other moves but the ball carrier didn't move
+        if (teamMoves.length > 0 && !ballPlayerMove) {
+            return { shouldPenalty: true, team: lastState.ballOwner };
+        }
+
+        return { shouldPenalty: false, team: null };
+    }
+
+    // Set up penalty positions
+    // For left goal: goalkeeper at {6,2}, attacker at {6,3}, target cells {4,1}, {6,1}, {8,1}
+    // For right goal: mirror positions appropriately
+    private setupPenaltyPositions(penaltyTeam: TeamEnum) {
+        const attackingTeam = penaltyTeam === TeamEnum.TEAM1 ? this.team1 : this.team2;
+        const defendingTeam = penaltyTeam === TeamEnum.TEAM1 ? this.team2 : this.team1;
+
+        // Determine which goal to use (left or right)
+        // Left goal is Team1's goal (x=0), right goal is Team2's goal (x=16)
+        // Team that gets penalty attacks the opponent's goal
+        const isLeftGoal = penaltyTeam === TeamEnum.TEAM2; // Team2 gets penalty, attacks left goal
+        
+        if (isLeftGoal) {
+            // Left goal penalty setup (Team2 attacking Team1's goal)
+            defendingTeam.players[0].position = { x: 6, y: 2 }; // goalkeeper at center of goal
+            
+            // Find a player from attacking team to be the penalty taker (preferably forward)
+            const penaltyTaker = attackingTeam.players.find(p => p.playerType === PlayerType.FORWARD) || attackingTeam.players[5];
+            penaltyTaker.position = { x: 6, y: 3 }; // attacker in front of goalkeeper
+            this.ball.position = { x: 6, y: 3 };
+            this.ball.ownerTeam = attackingTeam.enum;
+            this.changeBallOwner(penaltyTaker);
+            
+            // Move other players out of the way (to safe positions)
+            let playerIndex = 0;
+            for (const player of attackingTeam.players) {
+                if (player.id !== penaltyTaker.id) {
+                    player.position = { x: 8 + playerIndex, y: 5 };
+                    playerIndex++;
+                }
+            }
+            
+            playerIndex = 0;
+            for (const player of defendingTeam.players) {
+                if (player.id !== 0) { // not goalkeeper
+                    player.position = { x: 8 + playerIndex, y: 3 + playerIndex % 3 };
+                    playerIndex++;
+                }
+            }
+        } else {
+            // Right goal penalty setup (Team1 attacking Team2's goal)
+            // Mirror the positions: goalkeeper at {10, 2}, attacker at {10, 3}
+            defendingTeam.players[0].position = { x: 10, y: 2 }; // goalkeeper at center of goal
+            
+            const penaltyTaker = attackingTeam.players.find(p => p.playerType === PlayerType.FORWARD) || attackingTeam.players[5];
+            penaltyTaker.position = { x: 10, y: 3 }; // attacker in front of goalkeeper
+            this.ball.position = { x: 10, y: 3 };
+            this.ball.ownerTeam = attackingTeam.enum;
+            this.changeBallOwner(penaltyTaker);
+            
+            // Move other players out of the way
+            let playerIndex = 0;
+            for (const player of attackingTeam.players) {
+                if (player.id !== penaltyTaker.id) {
+                    player.position = { x: 8 - playerIndex, y: 5 };
+                    playerIndex++;
+                }
+            }
+            
+            playerIndex = 0;
+            for (const player of defendingTeam.players) {
+                if (player.id !== 0) { // not goalkeeper
+                    player.position = { x: 8 - playerIndex, y: 3 + playerIndex % 3 };
+                    playerIndex++;
+                }
+            }
+        }
+    }
+
     calculateNewState(randomNumbers: number[] = []): { newState: GameState, rendererStates: GameState[] } {
         // Create new state based on current team and ball positions
         if (!this.team1.isCommittedMove || !this.team2.isCommittedMove) {
@@ -324,6 +556,40 @@ export class Game implements GameType {
 
         // restore last state
         this.restoreState(this.history[this.history.length - 1]);
+
+        // Check for penalties BEFORE processing moves (only if not already in penalty mode)
+        // Note: Vertical row penalty is checked AFTER moves are processed
+        if (!this.isPenaltyMode) {
+            // Check consecutive ball control penalty (based on history)
+            const consecutiveCheck = this.checkConsecutiveBallControlPenalty();
+            if (consecutiveCheck.shouldPenalty && consecutiveCheck.team) {
+                this.isPenaltyMode = true;
+                this.penaltyTeam = consecutiveCheck.team;
+                this.setupPenaltyPositions(consecutiveCheck.team);
+                const penaltyState = fillState(this.team1, this.team2, this.ball, GameStateType.PENALTY);
+                this.saveState(penaltyState);
+                // Don't process moves - just return the penalty state
+                this.team1.isCommittedMove = false;
+                this.team2.isCommittedMove = false;
+                this.playerMoves = [];
+                return { newState: penaltyState, rendererStates: [penaltyState] };
+            } else {
+                // Check no ball movement penalty (based on current moves)
+                const noBallMovementCheck = this.checkNoBallMovementPenalty();
+                if (noBallMovementCheck.shouldPenalty && noBallMovementCheck.team) {
+                    this.isPenaltyMode = true;
+                    this.penaltyTeam = noBallMovementCheck.team;
+                    this.setupPenaltyPositions(noBallMovementCheck.team);
+                    const penaltyState = fillState(this.team1, this.team2, this.ball, GameStateType.PENALTY);
+                    this.saveState(penaltyState);
+                    // Don't process moves - just return the penalty state
+                    this.team1.isCommittedMove = false;
+                    this.team2.isCommittedMove = false;
+                    this.playerMoves = [];
+                    return { newState: penaltyState, rendererStates: [penaltyState] };
+                }
+            }
+        }
 
         const validationError = this.validateMoves();
         if (validationError) {
@@ -383,6 +649,9 @@ export class Game implements GameType {
                     this.saveState(goalState);
 
                     fillStartPositions(this.team1, this.team2, this.ball, goalForTeam);
+                    // Reset penalty mode after goal (new start positions)
+                    this.isPenaltyMode = false;
+                    this.penaltyTeam = null;
                     rendererStates.push(fillState(this.team1, this.team2, this.ball, GameStateType.START_POSITIONS));
                     break;
                 }
@@ -438,9 +707,64 @@ export class Game implements GameType {
             }
 
             rendererStates.push(fillState(this.team1, this.team2, this.ball, GameStateType.MOVE));
+        }
 
+        // Check for vertical row penalty AFTER moves are processed (based on final positions)
+        // Only check the team that currently has the ball
+        // Only trigger if vertical row is NEW (wasn't present in previous state)
+        if (!this.isPenaltyMode && this.ball.ownerTeam && this.history.length > 0) {
+            const teamWithBall = this.ball.ownerTeam === TeamEnum.TEAM1 ? this.team1 : this.team2;
+            const hasVerticalRowNow = this.checkVerticalRowPenalty(teamWithBall);
+            
+            if (hasVerticalRowNow) {
+                // Check if vertical row existed in previous state
+                const lastState = this.history[this.history.length - 1];
+                const previousPositions = this.ball.ownerTeam === TeamEnum.TEAM1 
+                    ? lastState.team1PlayerPositions 
+                    : lastState.team2PlayerPositions;
+                
+                // Check if vertical row existed before
+                const positionsByX: { [x: number]: number[] } = {};
+                for (let i = 0; i < previousPositions.length; i++) {
+                    const x = previousPositions[i].x;
+                    if (!positionsByX[x]) {
+                        positionsByX[x] = [];
+                    }
+                    positionsByX[x].push(previousPositions[i].y);
+                }
+                
+                let hadVerticalRowBefore = false;
+                for (const x in positionsByX) {
+                    if (positionsByX[x].length >= 3) {
+                        hadVerticalRowBefore = true;
+                        break;
+                    }
+                }
+                
+                // Only trigger penalty if vertical row is NEW (didn't exist before)
+                if (!hadVerticalRowBefore) {
+                    this.isPenaltyMode = true;
+                    this.penaltyTeam = this.ball.ownerTeam;
+                    this.setupPenaltyPositions(this.ball.ownerTeam);
+                    const penaltyState = fillState(this.team1, this.team2, this.ball, GameStateType.PENALTY);
+                    rendererStates.push(penaltyState);
+                    this.saveState(penaltyState);
+                    // Reset penalty mode will happen after this turn
+                }
+            }
+        }
 
-            // TODO: check if penalty
+        // Reset penalty mode after a shot or pass (ball movement) OR after penalty was just set up
+        // If we're in penalty mode and moves were processed, reset it after this turn
+        if (this.isPenaltyMode && rendererStates.length > 0) {
+            const hasBallMovement = this.playerMoves.some(move => 
+                move.moveType === MoveType.PASS || move.moveType === MoveType.SHOT
+            );
+            // Reset penalty mode if ball was moved, or if this was the turn that set up the penalty
+            if (hasBallMovement || rendererStates.some(state => state.type === GameStateType.PENALTY)) {
+                this.isPenaltyMode = false;
+                this.penaltyTeam = null;
+            }
         }
 
         // clear oldP
@@ -503,6 +827,29 @@ export class Game implements GameType {
 
     validateMoves(): ValidationError | null {
         const destinationMap: { [key: string]: boolean } = {};
+        
+        // In penalty mode, player with ball can only PASS or SHOT, cannot RUN
+        if (this.isPenaltyMode && this.penaltyTeam) {
+            const penaltyTeam = this.penaltyTeam === TeamEnum.TEAM1 ? this.team1 : this.team2;
+            const playerWithBall = penaltyTeam.players.find(p => p.ball);
+            
+            if (playerWithBall) {
+                const ballPlayerMove = this.playerMoves.find(move => 
+                    move.teamEnum === this.penaltyTeam && 
+                    move.playerId === playerWithBall.id
+                );
+                
+                if (ballPlayerMove && ballPlayerMove.moveType !== MoveType.PASS && ballPlayerMove.moveType !== MoveType.SHOT) {
+                    return new ValidationError(
+                        ballPlayerMove.teamEnum,
+                        ballPlayerMove.playerId,
+                        ballPlayerMove,
+                        'In penalty mode, player with ball can only PASS or SHOT, cannot RUN or TACKLE'
+                    );
+                }
+            }
+        }
+        
         // check that all moves are valid
         for (const move of this.playerMoves) {
             const availablePath = this.calculatePath(move.oldPosition, move.newPosition, move.moveType);
@@ -892,7 +1239,8 @@ export function convertEventStateToGameState(eventState: any): GameState {
         type: eventState.type === 1 ? GameStateType.MOVE :
             eventState.type === 0 ? GameStateType.START_POSITIONS :
                 eventState.type === 2 ? GameStateType.GOAL_TEAM1 :
-                    eventState.type === 3 ? GameStateType.GOAL_TEAM2 : GameStateType.MOVE,
+                    eventState.type === 3 ? GameStateType.GOAL_TEAM2 :
+                        eventState.type === 4 ? GameStateType.PENALTY : GameStateType.MOVE,
         clashRandomResults: eventState.clash_random_numbers || []
     };
 }
