@@ -3,25 +3,27 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createWriteClient } from '@/lib/supabase';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
 
 const supabase = createWriteClient();
 
 export async function POST(request: NextRequest) {
     try {
+        const body = await request.json();
         const {
             room_id,
             room_type,
             minimum_elo_rating,
-            wallet_address,
-            signature,
-            message
-        } = await request.json();
+            wallet_address
+        } = body;
+
+        // Authentication is handled by Next.js middleware
+        // wallet_address is already validated by middleware
+        // Sentry user context is set in middleware
 
         // Validate required fields
-        if (!room_id || !wallet_address || !signature || !message) {
+        if (!room_id) {
             return NextResponse.json(
-                { success: false, error: 'Missing required fields' },
+                { success: false, error: 'Missing required field: room_id' },
                 { status: 400 }
             );
         }
@@ -31,20 +33,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 { success: false, error: 'Invalid room type. Must be "public" or "private"' },
                 { status: 400 }
-            );
-        }
-
-        // Validate signature
-        const { isValid, error: authError } = await checkAuthSignatureAndMessage(
-            signature,
-            message,
-            wallet_address
-        );
-
-        if (!isValid) {
-            return NextResponse.json(
-                { success: false, error: authError },
-                { status: 401 }
             );
         }
 

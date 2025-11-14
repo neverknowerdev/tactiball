@@ -1,35 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkAuthSignatureAndMessage } from "@/lib/auth";
 import { createAnonClient } from "@/lib/supabase";
 
 export async function POST(req: NextRequest) {
   try {
-    const { walletAddress, zealyUserId, signature, message } = await req.json();
+    const body = await req.json();
+    const { zealyUserId, walletAddress } = body;
 
-    if (!walletAddress || !zealyUserId || !signature || !message) {
+    // Authentication is handled by Next.js middleware
+    // walletAddress is already validated by middleware
+    // Sentry user context is set in middleware
+
+    if (!zealyUserId) {
       return NextResponse.json(
         {
           success: false,
-          error: "Missing required fields",
+          error: "Missing required field: zealyUserId",
         },
         { status: 400 },
-      );
-    }
-
-    // Verify wallet signature using checkAuthSignatureAndMessage
-    const verificationResult = await checkAuthSignatureAndMessage(
-      signature,
-      message,
-      walletAddress
-    );
-
-    if (!verificationResult.isValid) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: verificationResult.error || "Invalid wallet signature",
-        },
-        { status: 401 },
       );
     }
 

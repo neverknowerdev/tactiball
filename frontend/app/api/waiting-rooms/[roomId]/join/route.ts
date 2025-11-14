@@ -3,7 +3,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,21 +16,12 @@ export async function POST(
     try {
         // Await params in Next.js 15
         const { roomId } = await params;
-        const { team_id, wallet_address, signature, message } = await request.json();
+        const body = await request.json();
+        const { team_id, wallet_address } = body;
 
-        // Validate signature
-        const { isValid, error: authError } = await checkAuthSignatureAndMessage(
-            signature, 
-            message, 
-            wallet_address
-        );
-        
-        if (!isValid) {
-            return NextResponse.json(
-                { success: false, error: authError },
-                { status: 401 }
-            );
-        }
+        // Authentication is handled by Next.js middleware
+        // wallet_address is already validated by middleware
+        // Sentry user context is set in middleware
 
         // Check if room exists and is open
         const { data: room, error: roomError } = await supabase
@@ -54,7 +44,7 @@ export async function POST(
                 .from('waiting_rooms')
                 .update({ status: 'expired' })
                 .eq('id', roomId);
-                
+
             return NextResponse.json(
                 { success: false, error: 'Room has expired' },
                 { status: 400 }
@@ -102,7 +92,7 @@ export async function POST(
         // Update room with guest team
         const { data: updatedRoom, error: updateError } = await supabase
             .from('waiting_rooms')
-            .update({ 
+            .update({
                 guest_team_id: team_id,
                 status: 'full'
             })

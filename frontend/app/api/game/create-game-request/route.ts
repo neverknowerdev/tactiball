@@ -5,7 +5,6 @@ import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
 import { createWriteClient } from '@/lib/supabase';
 
@@ -25,20 +24,17 @@ interface CreateGameRequestRequest {
 
 export async function POST(request: NextRequest) {
     try {
-        const { team1_id, team2_id, signature, message, wallet_address } = await request.json();
+        const body = await request.json();
+        const { team1_id, team2_id, wallet_address } = body;
+
+        // Authentication is handled by Next.js middleware
+        // wallet_address is already validated by middleware
+        // Sentry user context is set in middleware
 
         // Validate required fields
-        if (!team1_id || !team2_id || !signature || !message || !wallet_address) {
+        if (!team1_id || !team2_id) {
             return NextResponse.json(
-                { success: false, error: 'Missing required fields' },
-                { status: 400 }
-            );
-        }
-
-        // Validate wallet address format
-        if (!/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
-            return NextResponse.json(
-                { success: false, error: 'Invalid wallet address format' },
+                { success: false, error: 'Missing required fields: team1_id and team2_id' },
                 { status: 400 }
             );
         }
@@ -55,15 +51,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 { success: false, error: 'Teams cannot be the same' },
                 { status: 400 }
-            );
-        }
-
-        // Validate signature and message
-        const { isValid, error } = await checkAuthSignatureAndMessage(signature, message, wallet_address);
-        if (!isValid) {
-            return NextResponse.json(
-                { success: false, error: error },
-                { status: 401 }
             );
         }
 
