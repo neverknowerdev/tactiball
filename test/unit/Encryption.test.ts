@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { ethers, upgrades } from 'hardhat';
-import { ChessBallGame } from '../typechain-types';
+import { ChessBallGame } from '../../typechain-types';
 import {
     generateECIESKeyPair,
     generateSymmetricKey,
@@ -10,8 +10,8 @@ import {
     decodeData,
     bigintToBuffer,
     bufferToBigint
-} from '../frontend/lib/encrypting';
-import { serializeMoves, MoveType, TeamEnum } from '../frontend/lib/game';
+} from '../../frontend/lib/encrypting';
+import { serializeMoves, MoveType, TeamEnum } from '../../frontend/lib/game';
 
 describe('Hybrid Encryption Flow', () => {
     let eciesKeyPair: { publicKey: string; privateKey: string };

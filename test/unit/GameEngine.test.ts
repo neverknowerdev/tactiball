@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { Game, isPosEquals, GameStateType, TeamEnum, MoveType } from "../frontend/lib/game";
+import { Game, isPosEquals, GameStateType, TeamEnum, MoveType } from "../../frontend/lib/game";
 
 describe("Game Engine", function () {
     it("should create a game and fill start positions", async function () {

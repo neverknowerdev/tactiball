@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { ChessBallGame } from "../typechain-types";
+import { ChessBallGame } from "../../typechain-types";
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
@@ -36,7 +36,7 @@ async function main() {
     // Get contract address from deployment.json
     const deploymentPath = path.join(__dirname, '..', 'deployment.json');
     let deploymentData: any = {};
-    
+
     try {
         const deploymentContent = fs.readFileSync(deploymentPath, 'utf8');
         deploymentData = JSON.parse(deploymentContent);
@@ -86,10 +86,10 @@ async function main() {
         try {
             // Check if team already exists in contract for this wallet
             const existingTeamId = await gameContract.teamIdByWallet(team.wallet);
-            
+
             if (existingTeamId > 0) {
                 console.log(`⚠️  Team already exists in contract for wallet ${team.wallet}. Team ID: ${existingTeamId}`);
-                
+
                 // Check if team exists in database
                 const { data: dbTeam } = await supabase
                     .from('teams')
@@ -123,7 +123,7 @@ async function main() {
             } else {
                 // Create team on contract - use createTeamRelayer for the default wallet, createTeam for relayer wallet
                 console.log(`🚀 Creating team "${team.name}" on contract for wallet ${team.wallet}...`);
-                
+
                 const gasPrice = await provider.getFeeData();
                 const adjustedGasPrice = gasPrice.gasPrice ? gasPrice.gasPrice * 150n / 100n : undefined;
 

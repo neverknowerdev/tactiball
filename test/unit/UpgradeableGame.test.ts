@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { ChessBallGame } from "../typechain-types";
+import { ChessBallGame } from "../../typechain-types";
 
 import { upgrades } from "hardhat";
 

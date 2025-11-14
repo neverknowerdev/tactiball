@@ -6,7 +6,7 @@ import {
     MoveType,
     TeamEnum,
     Position
-} from '../frontend/lib/game';
+} from '../../frontend/lib/game';
 
 describe('SerializeMoves and DeserializeMoves', function () {
     // Helper function to create a GameAction
