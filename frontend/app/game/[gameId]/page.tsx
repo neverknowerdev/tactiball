@@ -6,6 +6,7 @@ import { useAccount, useSignMessage } from "wagmi";
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import '../game.css';
+import * as Sentry from "@sentry/nextjs";
 
 // Game utilities
 import { Game, TeamPlayer } from '@/lib/game';
@@ -139,6 +140,17 @@ export default function GamePage() {
         setLastMoveAt,
         isNewStateRecalculatedRef
     });
+
+    useEffect(() => {
+        if (isConnected && address) {
+            Sentry.setUser({
+                id: address as `0x${string}`,
+                username: address,
+            });
+        } else {
+            Sentry.setUser(null);
+        }
+    }, [isConnected, address]);
 
     // Debug mode detection effect
     useEffect(() => {

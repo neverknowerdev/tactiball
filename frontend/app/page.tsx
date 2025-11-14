@@ -6,6 +6,7 @@ import { useAccount, useSignMessage, useChainId, useSwitchChain } from "wagmi";
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import { useSearchParams } from 'next/navigation';
+import * as Sentry from "@sentry/nextjs";
 
 // Components
 import { WalletConnection } from './components/WalletConnection';
@@ -71,7 +72,18 @@ function AppContent() {
     setGameRequestData
   );
   useFrameManager(setFrameReady, isFrameReady);
-  
+
+  useEffect(() => {
+    if (isConnected && address) {
+      Sentry.setUser({
+        id: address as `0x${string}`,
+        username: address,
+      });
+    } else {
+      Sentry.setUser(null);
+    }
+  }, [isConnected, address]);
+
   // Handle room invite from URL
   useRoomInvite(
     searchParams,
@@ -105,7 +117,7 @@ function AppContent() {
     setIsCreatingTeam(true);
     try {
       await createTeam(teamName, countryIndex, address, signMessageAsync);
-      
+
       toast.success(`Team "${teamName}" created successfully!`, {
         position: "top-center",
         autoClose: 3000,
@@ -128,7 +140,7 @@ function AppContent() {
 
       <div className="w-full max-w-md">
         <ActiveGameWarning teamInfo={teamInfo} />
-        
+
         <TeamInfoSection
           isConnected={isConnected}
           loading={loading}
