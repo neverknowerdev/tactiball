@@ -6,9 +6,9 @@ import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract'
 import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { createWriteClient } from '@/lib/supabase';
-
-const supabase = createWriteClient();
+import { db } from '@/lib/database';
+import { waitingRooms } from '@/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 interface CreateGameRequestRequest {
     wallet_address: string;
@@ -84,28 +84,30 @@ export async function POST(request: NextRequest) {
 
         // Check if this game request came from a waiting room
         try {
-            const { data: room } = await supabase
-                .from('waiting_rooms')
-                .select('id')
-                .eq('host_team_id', team1_id)
-                .eq('guest_team_id', team2_id)
-                .eq('status', 'full')
-                .single();
+            const [room] = await db
+                .select({ id: waitingRooms.id })
+                .from(waitingRooms)
+                .where(
+                    and(
+                        eq(waitingRooms.hostTeamId, team1_id),
+                        eq(waitingRooms.guestTeamId, team2_id),
+                        eq(waitingRooms.status, 'full')
+                    )
+                )
+                .limit(1);
 
             if (room) {
-                // Update room with game request ID
-                await supabase
-                    .from('waiting_rooms')
-                    .update({
-                        game_request_id: gameRequestId,
+                await db
+                    .update(waitingRooms)
+                    .set({
+                        gameRequestId: gameRequestId,
                         status: 'starting'
                     })
-                    .eq('id', room.id);
+                    .where(eq(waitingRooms.id, room.id));
 
                 console.log('Updated waiting room:', room.id);
             }
         } catch (waitingRoomError) {
-            // Log error but don't fail the request
             console.error('Error updating waiting room:', waitingRoomError);
         }
 

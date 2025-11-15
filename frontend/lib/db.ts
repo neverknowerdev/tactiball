@@ -1,4 +1,6 @@
-import { createAnonClient, createWriteClient } from './supabase';
+import { db } from '@/lib/database';
+import { games } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 
 export interface GameInfo {
@@ -33,24 +35,40 @@ export type GameFetchResult = {
 };
 
 export async function getGameFromDB(gameId: string): Promise<GameFetchResult> {
-    const supabase = createAnonClient();
-    const { data, error } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .single();
-
-    if (error) {
-        console.error('Error fetching game from DB:', error);
+    const numericId = Number(gameId);
+    if (Number.isNaN(numericId)) {
         return {
             success: false,
             error: 'GAME_NOT_FOUND',
-            message: 'Failed to fetch game data from DB'
+            message: 'Invalid game id'
         };
     }
 
-    return {
-        success: true,
-        data: data
-    };
+    try {
+        const [game] = await db
+            .select()
+            .from(games)
+            .where(eq(games.id, numericId))
+            .limit(1);
+
+        if (!game) {
+            return {
+                success: false,
+                error: 'GAME_NOT_FOUND',
+                message: 'Game not found'
+            };
+        }
+
+        return {
+            success: true,
+            data: game as GameInfo
+        };
+    } catch (error) {
+        console.error('Error fetching game from DB:', error);
+        return {
+            success: false,
+            error: 'DB_ERROR',
+            message: 'Failed to fetch game data from DB'
+        };
+    }
 }

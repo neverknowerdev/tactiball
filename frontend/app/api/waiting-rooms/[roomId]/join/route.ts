@@ -2,12 +2,10 @@
 // Join a waiting room
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { db } from '@/lib/database';
+import { waitingRooms, teams } from '@/db/schema';
+import { alias } from 'drizzle-orm/pg-core';
+import { and, eq } from 'drizzle-orm';
 
 export async function POST(
     request: NextRequest,
@@ -23,15 +21,29 @@ export async function POST(
         // wallet_address is already validated by middleware
         // Sentry user context is set in middleware
 
-        // Check if room exists and is open
-        const { data: room, error: roomError } = await supabase
-            .from('waiting_rooms')
-            .select('*, host_team:teams!host_team_id(id, elo_rating)')
-            .eq('id', roomId)
-            .eq('status', 'open')
-            .single();
+        const numericRoomId = Number(roomId);
+        const hostTeam = alias(teams, 'host_team');
 
-        if (roomError || !room) {
+        const [room] = await db
+            .select({
+                id: waitingRooms.id,
+                host_team_id: waitingRooms.hostTeamId,
+                guest_team_id: waitingRooms.guestTeamId,
+                status: waitingRooms.status,
+                expires_at: waitingRooms.expiresAt,
+                minimum_elo_rating: waitingRooms.minimumEloRating
+            })
+            .from(waitingRooms)
+            .leftJoin(hostTeam, eq(waitingRooms.hostTeamId, hostTeam.id))
+            .where(
+                and(
+                    eq(waitingRooms.id, numericRoomId),
+                    eq(waitingRooms.status, 'open')
+                )
+            )
+            .limit(1);
+
+        if (!room) {
             return NextResponse.json(
                 { success: false, error: 'Room not found or not open' },
                 { status: 404 }
@@ -40,10 +52,10 @@ export async function POST(
 
         // Check if room has expired
         if (new Date(room.expires_at) < new Date()) {
-            await supabase
-                .from('waiting_rooms')
-                .update({ status: 'expired' })
-                .eq('id', roomId);
+            await db
+                .update(waitingRooms)
+                .set({ status: 'expired' })
+                .where(eq(waitingRooms.id, numericRoomId));
 
             return NextResponse.json(
                 { success: false, error: 'Room has expired' },
@@ -52,14 +64,22 @@ export async function POST(
         }
 
         // Verify team
-        const { data: team, error: teamError } = await supabase
-            .from('teams')
-            .select('id, elo_rating, active_game_id')
-            .eq('id', team_id)
-            .eq('primary_wallet', wallet_address)
-            .single();
+        const [team] = await db
+            .select({
+                id: teams.id,
+                elo_rating: teams.eloRating,
+                active_game_id: teams.activeGameId
+            })
+            .from(teams)
+            .where(
+                and(
+                    eq(teams.id, team_id),
+                    eq(teams.primaryWallet, wallet_address)
+                )
+            )
+            .limit(1);
 
-        if (teamError || !team) {
+        if (!team) {
             return NextResponse.json(
                 { success: false, error: 'Team not found' },
                 { status: 404 }
@@ -82,7 +102,7 @@ export async function POST(
         }
 
         // Check ELO rating requirement
-        if (team.elo_rating < room.minimum_elo_rating) {
+        if (team.elo_rating < (room.minimum_elo_rating || 0)) {
             return NextResponse.json(
                 { success: false, error: 'Your ELO rating is below the minimum requirement' },
                 { status: 400 }
@@ -90,18 +110,21 @@ export async function POST(
         }
 
         // Update room with guest team
-        const { data: updatedRoom, error: updateError } = await supabase
-            .from('waiting_rooms')
-            .update({
-                guest_team_id: team_id,
+        const [updatedRoom] = await db
+            .update(waitingRooms)
+            .set({
+                guestTeamId: team_id,
                 status: 'full'
             })
-            .eq('id', roomId)
-            .eq('status', 'open') // Ensure room is still open
-            .select()
-            .single();
+            .where(
+                and(
+                    eq(waitingRooms.id, numericRoomId),
+                    eq(waitingRooms.status, 'open')
+                )
+            )
+            .returning();
 
-        if (updateError) {
+        if (!updatedRoom) {
             return NextResponse.json(
                 { success: false, error: 'Failed to join room (may be full)' },
                 { status: 500 }

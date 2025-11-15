@@ -3,36 +3,24 @@
 // ============================================================================
 
 import { expect } from 'chai';
-import { createClient } from '@supabase/supabase-js';
+import { pool } from '../../db/client';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
 
 // Test configuration
-const TEST_WALLET_ADDRESS = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'; // Change to actual test wallet
+const TEST_WALLET_ADDRESS = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb';
 const TEST_ZEALY_USER_ID = 'test-zealy-user-123';
 const ZEALY_API_KEY = process.env.ZEALY_API_KEY || 'eb50c37i_YJBlFllX6ojkZycqFd';
 
 describe('Zealy - Verify User Played Game', () => {
-    let supabase: any;
-    let testTeamId: number;
+    let testTeamId: number | undefined;
 
     before(async () => {
-        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
-
-        if (!supabaseUrl || !supabaseKey) {
-            throw new Error('Missing Supabase environment variables');
-        }
-
-        supabase = createClient(supabaseUrl, supabaseKey);
-
-        // Get or create test team
-        const { data: team } = await supabase
-            .from('teams')
-            .select('id')
-            .eq('primary_wallet', TEST_WALLET_ADDRESS)
-            .maybeSingle();
+        const { rows: [team] } = await pool.query(
+            'SELECT id FROM teams WHERE primary_wallet = $1',
+            [TEST_WALLET_ADDRESS]
+        );
 
         if (team) {
             testTeamId = team.id;
@@ -42,18 +30,16 @@ describe('Zealy - Verify User Played Game', () => {
         }
     });
 
-    it('should have valid Supabase connection', async () => {
-        const { data, error } = await supabase.from('teams').select('count').limit(1);
-        expect(error).to.be.null;
-        expect(data).to.exist;
+    it('should have valid database connection', async () => {
+        const { rows: [{ count }] } = await pool.query<{ count: string }>('SELECT COUNT(*)::int AS count FROM teams');
+        expect(Number(count)).to.be.a('number');
     });
 
     it('should find test team with correct wallet address', async () => {
-        const { data: team, error } = await supabase
-            .from('teams')
-            .select('id, name, primary_wallet, zealy_user_id')
-            .eq('primary_wallet', TEST_WALLET_ADDRESS)
-            .maybeSingle();
+        const { rows: [team] } = await pool.query(
+            'SELECT id, name, primary_wallet, zealy_user_id FROM teams WHERE primary_wallet = $1',
+            [TEST_WALLET_ADDRESS]
+        );
 
         console.log('\n📊 Test team data:', team);
 
@@ -67,11 +53,10 @@ describe('Zealy - Verify User Played Game', () => {
     });
 
     it('should have zealy_user_id set on test team', async () => {
-        const { data: team } = await supabase
-            .from('teams')
-            .select('zealy_user_id')
-            .eq('primary_wallet', TEST_WALLET_ADDRESS)
-            .maybeSingle();
+        const { rows: [team] } = await pool.query(
+            'SELECT zealy_user_id FROM teams WHERE primary_wallet = $1',
+            [TEST_WALLET_ADDRESS]
+        );
 
         if (team) {
             console.log(`\n🔗 Zealy User ID: ${team.zealy_user_id || 'NOT SET'}`);
@@ -90,37 +75,30 @@ describe('Zealy - Verify User Played Game', () => {
 
         const todayStart = new Date();
         todayStart.setUTCHours(0, 0, 0, 0);
-        const todayStartISO = todayStart.toISOString();
 
-        const { data: games, error } = await supabase
-            .from('games')
-            .select('id, status, created_at, team1, team2')
-            .or(`team1.eq.${testTeamId},team2.eq.${testTeamId}`)
-            .eq('status', 'finished')
-            .gte('created_at', todayStartISO);
+        const { rows: games } = await pool.query(
+            `SELECT id, status, created_at, team1, team2
+             FROM games
+             WHERE (team1 = $1 OR team2 = $1)
+               AND status = 'finished'
+               AND created_at >= $2`,
+            [testTeamId, todayStart.toISOString()]
+        );
 
-        console.log(`\n🎮 Games played today: ${games?.length || 0}`);
+        console.log(`\n🎮 Games played today: ${games.length}`);
 
-        if (games && games.length > 0) {
-            console.log('  Game IDs:', games.map((g: any) => g.id));
+        if (games.length > 0) {
+            console.log('  Game IDs:', games.map(g => g.id));
             expect(games.length).to.be.greaterThan(0);
         } else {
             console.log('  ℹ️  No games played today (expected if no games)');
         }
-
-        expect(error).to.be.null;
     });
 
     it('should verify game query filters are correct', async () => {
-        if (!testTeamId) {
-            console.warn('⚠️  Skipping: No test team ID');
-            return;
-        }
-
         const todayStart = new Date();
         todayStart.setUTCHours(0, 0, 0, 0);
 
-        // Verify date filter
         expect(todayStart.getUTCHours()).to.equal(0);
         expect(todayStart.getUTCMinutes()).to.equal(0);
         expect(todayStart.getUTCSeconds()).to.equal(0);
@@ -135,19 +113,21 @@ describe('Zealy - Verify User Played Game', () => {
             return;
         }
 
-        const { data: allGames } = await supabase
-            .from('games')
-            .select('id, status, created_at, team1, team2')
-            .or(`team1.eq.${testTeamId},team2.eq.${testTeamId}`)
-            .eq('status', 'finished')
-            .order('created_at', { ascending: false })
-            .limit(10);
+        const { rows: games } = await pool.query(
+            `SELECT id, status, created_at, team1, team2
+             FROM games
+             WHERE (team1 = $1 OR team2 = $1)
+               AND status = 'finished'
+             ORDER BY created_at DESC
+             LIMIT 10`,
+            [testTeamId]
+        );
 
-        console.log(`\n📊 Total finished games (last 10): ${allGames?.length || 0}`);
+        console.log(`\n📊 Total finished games (last 10): ${games.length}`);
 
-        if (allGames && allGames.length > 0) {
+        if (games.length > 0) {
             console.log('  Most recent games:');
-            allGames.forEach((game: any, idx: number) => {
+            games.forEach((game, idx) => {
                 const date = new Date(game.created_at);
                 console.log(`    ${idx + 1}. Game ${game.id} - ${date.toISOString()}`);
             });
@@ -155,16 +135,13 @@ describe('Zealy - Verify User Played Game', () => {
     });
 
     it('should validate game status values', async () => {
-        const { data: games } = await supabase
-            .from('games')
-            .select('status')
-            .limit(20);
+        const { rows: games } = await pool.query(
+            `SELECT status FROM games LIMIT 20`
+        );
 
-        if (games && games.length > 0) {
-            const statuses = [...new Set(games.map((g: any) => g.status))];
+        if (games.length > 0) {
+            const statuses = [...new Set(games.map(g => g.status))];
             console.log(`\n🎯 Game statuses found in DB:`, statuses);
-
-            // Verify 'finished' status exists
             const hasFinished = statuses.includes('finished');
             console.log(`  Has 'finished' status: ${hasFinished ? '✅' : '❌'}`);
         }
@@ -176,7 +153,6 @@ describe('Zealy - Verify User Played Game', () => {
             return;
         }
 
-        // Simulate what Zealy sends
         const zealyRequest = {
             userId: TEST_ZEALY_USER_ID,
             communityId: 'chessball',
@@ -190,12 +166,10 @@ describe('Zealy - Verify User Played Game', () => {
 
         console.log('\n📨 Simulated Zealy request:', zealyRequest);
 
-        // Verify team exists
-        const { data: team } = await supabase
-            .from('teams')
-            .select('id, name, primary_wallet, zealy_user_id')
-            .eq('primary_wallet', zealyRequest.accounts['zealy-connect'])
-            .maybeSingle();
+        const { rows: [team] } = await pool.query(
+            'SELECT id, name, primary_wallet, zealy_user_id FROM teams WHERE primary_wallet = $1',
+            [zealyRequest.accounts['zealy-connect']]
+        );
 
         if (team) {
             console.log('✅ Team found:', team.name);
@@ -204,19 +178,19 @@ describe('Zealy - Verify User Played Game', () => {
             console.log('❌ Team not found');
         }
 
-        // Check for games today
         const todayStart = new Date();
         todayStart.setUTCHours(0, 0, 0, 0);
 
-        const { data: games } = await supabase
-            .from('games')
-            .select('id')
-            .or(`team1.eq.${team?.id},team2.eq.${team?.id}`)
-            .eq('status', 'finished')
-            .gte('created_at', todayStart.toISOString())
-            .limit(1);
+        const { rows: games } = await pool.query(
+            `SELECT id FROM games
+             WHERE (team1 = $1 OR team2 = $1)
+               AND status = 'finished'
+               AND created_at >= $2
+             LIMIT 1`,
+            [team?.id, todayStart.toISOString()]
+        );
 
-        if (games && games.length > 0) {
+        if (games.length > 0) {
             console.log('✅ Quest would PASS - game played today');
             expect(games.length).to.be.greaterThan(0);
         } else {
@@ -230,29 +204,28 @@ describe('Zealy - Verify User Played Game', () => {
             return;
         }
 
-        // Query for tomorrow (should have no games)
         const tomorrow = new Date();
         tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
         tomorrow.setUTCHours(0, 0, 0, 0);
 
-        const { data: futureGames } = await supabase
-            .from('games')
-            .select('id')
-            .or(`team1.eq.${testTeamId},team2.eq.${testTeamId}`)
-            .eq('status', 'finished')
-            .gte('created_at', tomorrow.toISOString())
-            .limit(1);
+        const { rows: games } = await pool.query(
+            `SELECT id FROM games
+             WHERE (team1 = $1 OR team2 = $1)
+               AND status = 'finished'
+               AND created_at >= $2
+             LIMIT 1`,
+            [testTeamId, tomorrow.toISOString()]
+        );
 
-        console.log(`\n🔮 Future games check: ${futureGames?.length || 0}`);
-        expect(futureGames?.length || 0).to.equal(0);
+        console.log(`\n🔮 Future games check: ${games.length}`);
+        expect(games.length).to.equal(0);
     });
 
     it('should check for Zealy user ID mismatch scenario', async () => {
-        const { data: team } = await supabase
-            .from('teams')
-            .select('zealy_user_id')
-            .eq('primary_wallet', TEST_WALLET_ADDRESS)
-            .maybeSingle();
+        const { rows: [team] } = await pool.query(
+            'SELECT zealy_user_id FROM teams WHERE primary_wallet = $1',
+            [TEST_WALLET_ADDRESS]
+        );
 
         if (team && team.zealy_user_id) {
             const requestUserId = 'different-user-456';
@@ -275,15 +248,16 @@ describe('Zealy - Verify User Played Game', () => {
             return;
         }
 
-        const { data: allStatusGames } = await supabase
-            .from('games')
-            .select('status')
-            .or(`team1.eq.${testTeamId},team2.eq.${testTeamId}`)
-            .limit(100);
+        const { rows: games } = await pool.query(
+            `SELECT status FROM games
+             WHERE (team1 = $1 OR team2 = $1)
+             LIMIT 100`,
+            [testTeamId]
+        );
 
-        if (allStatusGames && allStatusGames.length > 0) {
+        if (games.length > 0) {
             const statusCounts: Record<string, number> = {};
-            allStatusGames.forEach((game: any) => {
+            games.forEach(game => {
                 statusCounts[game.status] = (statusCounts[game.status] || 0) + 1;
             });
 
@@ -298,41 +272,27 @@ describe('Zealy - Verify User Played Game', () => {
 });
 
 describe('Quick Validation - Played Game Quest', () => {
-    let supabase: any;
-
-    before(() => {
-        const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
-
-        if (!supabaseUrl || !supabaseKey) {
-            throw new Error('Missing Supabase environment variables');
-        }
-
-        supabase = createClient(supabaseUrl, supabaseKey);
-    });
-
     it('should check all teams with Zealy linked', async () => {
-        const { data: teamsWithZealy } = await supabase
-            .from('teams')
-            .select('id, name, primary_wallet, zealy_user_id')
-            .not('zealy_user_id', 'is', null);
+        const { rows: teamsWithZealy } = await pool.query(
+            `SELECT id, name, primary_wallet, zealy_user_id
+             FROM teams
+             WHERE zealy_user_id IS NOT NULL`
+        );
 
-        console.log(`\n🔗 Teams with Zealy linked: ${teamsWithZealy?.length || 0}`);
+        console.log(`\n🔗 Teams with Zealy linked: ${teamsWithZealy.length}`);
 
-        if (teamsWithZealy && teamsWithZealy.length > 0) {
+        if (teamsWithZealy.length > 0) {
             console.log('  Sample teams:');
-            teamsWithZealy.slice(0, 5).forEach((team: any) => {
+            teamsWithZealy.slice(0, 5).forEach(team => {
                 console.log(`    - ${team.name} (${team.primary_wallet})`);
             });
         }
     });
 
     it('should verify database schema has required columns', async () => {
-        const { data: sampleGame } = await supabase
-            .from('games')
-            .select('id, status, created_at, team1, team2')
-            .limit(1)
-            .maybeSingle();
+        const { rows: [sampleGame] } = await pool.query(
+            `SELECT id, status, created_at, team1, team2 FROM games LIMIT 1`
+        );
 
         if (sampleGame) {
             console.log('\n✅ Database schema validation:');

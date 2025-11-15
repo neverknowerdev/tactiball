@@ -2,12 +2,9 @@
 // Leave a waiting room
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { db } from '@/lib/database';
+import { waitingRooms } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(
     request: NextRequest,
@@ -23,14 +20,19 @@ export async function POST(
         // wallet_address is already validated by middleware
         // Sentry user context is set in middleware
 
-        // Get room
-        const { data: room, error: roomError } = await supabase
-            .from('waiting_rooms')
-            .select('*')
-            .eq('id', roomId)
-            .single();
+        const numericRoomId = Number(roomId);
 
-        if (roomError || !room) {
+        const [room] = await db
+            .select({
+                id: waitingRooms.id,
+                host_team_id: waitingRooms.hostTeamId,
+                guest_team_id: waitingRooms.guestTeamId
+            })
+            .from(waitingRooms)
+            .where(eq(waitingRooms.id, numericRoomId))
+            .limit(1);
+
+        if (!room) {
             return NextResponse.json(
                 { success: false, error: 'Room not found' },
                 { status: 404 }
@@ -40,12 +42,13 @@ export async function POST(
         // Check if user is host or guest
         if (room.host_team_id === team_id) {
             // Host is leaving, cancel the room
-            const { error: cancelError } = await supabase
-                .from('waiting_rooms')
-                .update({ status: 'cancelled' })
-                .eq('id', roomId);
+            const [updated] = await db
+                .update(waitingRooms)
+                .set({ status: 'cancelled' })
+                .where(eq(waitingRooms.id, numericRoomId))
+                .returning({ id: waitingRooms.id });
 
-            if (cancelError) {
+            if (!updated) {
                 return NextResponse.json(
                     { success: false, error: 'Failed to cancel room' },
                     { status: 500 }
@@ -58,15 +61,16 @@ export async function POST(
             });
         } else if (room.guest_team_id === team_id) {
             // Guest is leaving, remove them and reopen room
-            const { error: leaveError } = await supabase
-                .from('waiting_rooms')
-                .update({
-                    guest_team_id: null,
+            const [updated] = await db
+                .update(waitingRooms)
+                .set({
+                    guestTeamId: null,
                     status: 'open'
                 })
-                .eq('id', roomId);
+                .where(eq(waitingRooms.id, numericRoomId))
+                .returning({ id: waitingRooms.id });
 
-            if (leaveError) {
+            if (!updated) {
                 return NextResponse.json(
                     { success: false, error: 'Failed to leave room' },
                     { status: 500 }

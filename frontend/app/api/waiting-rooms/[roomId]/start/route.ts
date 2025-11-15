@@ -2,12 +2,9 @@
 // Update room with game request ID and change status to 'starting'
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { db } from '@/lib/database';
+import { waitingRooms } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(
     request: NextRequest,
@@ -26,18 +23,17 @@ export async function POST(
         }
 
         // Update room status to 'starting' and add game request ID
-        const { data: updatedRoom, error } = await supabase
-            .from('waiting_rooms')
-            .update({ 
-                game_request_id,
+        const [updatedRoom] = await db
+            .update(waitingRooms)
+            .set({
+                gameRequestId: game_request_id,
                 status: 'starting'
             })
-            .eq('id', roomId)
-            .select()
-            .single();
+            .where(eq(waitingRooms.id, Number(roomId)))
+            .returning();
 
-        if (error) {
-            console.error('Error updating room:', error);
+        if (!updatedRoom) {
+            console.error('Error updating room: not found');
             return NextResponse.json(
                 { success: false, error: 'Failed to update room' },
                 { status: 500 }

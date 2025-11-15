@@ -1,9 +1,9 @@
 import { createPublicClient, http, decodeEventLog, toEventHash } from 'viem';
 import { base } from 'viem/chains';
-import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import { pool } from '../db/client';
 
 dotenv.config();
 
@@ -59,17 +59,6 @@ interface TeamStats {
     goals_conceded: number;
     last_game_results: string[]; // ['VICTORY', 'DEFEAT', 'DRAW', etc.]
     elo_rating?: number; // Latest ELO rating
-}
-
-function createSupabaseClient() {
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-        throw new Error('Missing Supabase environment variables');
-    }
-
-    return createClient(supabaseUrl, supabaseKey);
 }
 
 function createViemClient() {
@@ -344,80 +333,95 @@ function calculateTeamStats(teamId: number, games: GameResult[]): TeamStats {
 }
 
 // FIXED: Get all teams that had games between monthStart and monthEnd
-async function getTeamsForMonth(supabase: any, year: number, month: number): Promise<number[]> {
+async function getTeamsForMonth(year: number, month: number): Promise<number[]> {
     const monthStart = new Date(Date.UTC(year, month - 1, 1));
     const monthEnd = new Date(Date.UTC(year, month, 1));
 
-    const { data, error } = await supabase
-        .from('games')
-        .select('team1, team2')
-        .gte('created_at', monthStart.toISOString())
-        .lt('created_at', monthEnd.toISOString());
+    try {
+        const { rows } = await pool.query<{ team1: number; team2: number }>(
+            `SELECT team1, team2
+             FROM games
+             WHERE created_at >= $1
+               AND created_at < $2`,
+            [monthStart.toISOString(), monthEnd.toISOString()]
+        );
 
-    if (error) {
+        const teamIds = new Set<number>();
+        rows.forEach(game => {
+            teamIds.add(game.team1);
+            teamIds.add(game.team2);
+        });
+
+        return Array.from(teamIds);
+    } catch (error) {
         console.error('Error fetching teams:', error);
         return [];
     }
-
-    const teamIds = new Set<number>();
-    data?.forEach((game: any) => {
-        teamIds.add(game.team1);
-        teamIds.add(game.team2);
-    });
-
-    return Array.from(teamIds);
 }
 
 // Get team by wallet address
-async function getTeamByWallet(supabase: any, wallet: string): Promise<number | null> {
-    const { data, error } = await supabase
-        .from('teams')
-        .select('id')
-        .eq('primary_wallet', wallet)
-        .single();
+async function getTeamByWallet(wallet: string): Promise<number | null> {
+    try {
+        const { rows } = await pool.query<{ id: number }>(
+            'SELECT id FROM teams WHERE primary_wallet = $1 LIMIT 1',
+            [wallet]
+        );
 
-    if (error) {
+        return rows[0]?.id ?? null;
+    } catch (error) {
         console.error('Error fetching team by wallet:', error);
         return null;
     }
-
-    return data?.id || null;
 }
 
 // Update team stats in database
-async function updateTeamStats(supabase: any, stats: TeamStats): Promise<boolean> {
+async function updateTeamStats(stats: TeamStats): Promise<boolean> {
+    const columns = [
+        'team_id',
+        'total_games',
+        'wins',
+        'draws',
+        'losses',
+        'goals_scored',
+        'goals_conceded',
+        'last_game_results',
+        'updated_at'
+    ];
+
+    const values: any[] = [
+        stats.team_id,
+        stats.total_games,
+        stats.wins,
+        stats.draws,
+        stats.losses,
+        stats.goals_scored,
+        stats.goals_conceded,
+        stats.last_game_results,
+        new Date().toISOString()
+    ];
+
+    if (stats.elo_rating !== undefined) {
+        columns.push('elo_rating');
+        values.push(stats.elo_rating);
+    }
+
+    const valuePlaceholders = columns.map((_, idx) => `$${idx + 1}`);
+
+    const updates = columns
+        .filter(column => column !== 'team_id')
+        .map(column => `${column} = EXCLUDED.${column}`)
+        .join(', ');
+
     try {
-        const updateData: any = {
-            team_id: stats.team_id,
-            total_games: stats.total_games,
-            wins: stats.wins,
-            draws: stats.draws,
-            losses: stats.losses,
-            goals_scored: stats.goals_scored,
-            goals_conceded: stats.goals_conceded,
-            last_game_results: stats.last_game_results,
-            updated_at: new Date().toISOString()
-        };
-
-        // Only include ELO if it was captured
-        if (stats.elo_rating !== undefined) {
-            updateData.elo_rating = stats.elo_rating;
-        }
-
-        const { error } = await supabase
-            .from('team_stats')
-            .upsert(updateData, {
-                onConflict: 'team_id'
-            });
-
-        if (error) {
-            console.error('Error updating team stats:', error);
-            return false;
-        }
-
+        await pool.query(
+            `INSERT INTO team_stats (${columns.join(', ')})
+             VALUES (${valuePlaceholders.join(', ')})
+             ON CONFLICT (team_id) DO UPDATE SET ${updates}`,
+            values
+        );
         return true;
     } catch (error) {
-        console.error('Error in updateTeamStats:', error);
+        console.error('Error updating team stats:', error);
         return false;
     }
 }
@@ -434,7 +438,6 @@ async function recalculateTeamStatsFromChain(
     console.log(`📅 Period: ${year}-${String(month).padStart(2, '0')}`);
     console.log(`📍 Contract: ${contractAddress}`);
 
-    const supabase = createSupabaseClient();
     const viemClient = createViemClient();
 
     // Get block range for the month
@@ -460,12 +463,12 @@ async function recalculateTeamStatsFromChain(
 
     if (allTeams) {
         console.log(`\n👥 Getting all teams for the month...`);
-        teamsToProcess = await getTeamsForMonth(supabase, year, month);
+        teamsToProcess = await getTeamsForMonth(year, month);
         console.log(`✅ Found ${teamsToProcess.length} teams`);
     } else if (teamIdOrWallet) {
         if (typeof teamIdOrWallet === 'string') {
             console.log(`\n👤 Looking up team by wallet: ${teamIdOrWallet}`);
-            const teamId = await getTeamByWallet(supabase, teamIdOrWallet);
+            const teamId = await getTeamByWallet(teamIdOrWallet);
             if (teamId) {
                 teamsToProcess = [teamId];
                 console.log(`✅ Found team ID: ${teamId}`);
@@ -510,7 +513,7 @@ async function recalculateTeamStatsFromChain(
         console.log(`    Last results: ${stats.last_game_results.join(', ')}`);
 
         // Update database
-        const success = await updateTeamStats(supabase, stats);
+        const success = await updateTeamStats(stats);
         if (success) {
             console.log(`  ✅ Stats updated in database`);
             successCount++;

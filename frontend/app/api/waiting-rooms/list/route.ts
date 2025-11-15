@@ -2,7 +2,9 @@
 // List public waiting rooms + user's own private rooms
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { db } from '@/lib/database';
+import { waitingRooms, teams } from '@/db/schema';
+import { and, eq, gt, or, desc } from 'drizzle-orm';
 
 type WaitingRoom = {
     id: string;
@@ -20,87 +22,54 @@ type WaitingRoom = {
     };
 };
 
-// Create client outside the handler to reuse connections
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-        auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-        },
-        global: {
-            fetch: (...args) => {
-                return fetch(...args).catch(err => {
-                    console.error('Fetch error:', err);
-                    throw err;
-                });
-            }
-        }
-    }
-);
-
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const limit = parseInt(searchParams.get('limit') || '20');
         const offset = parseInt(searchParams.get('offset') || '0');
-        const teamId = searchParams.get('team_id'); // Get user's team ID
+        const teamId = searchParams.get('team_id');
+        const parsedTeamId = teamId ? Number(teamId) : null;
+        const now = new Date();
 
-        // Add timeout to prevent hanging requests
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Request timeout')), 8000)
-        );
-
-        // Build query to fetch:
-        // 1. All public rooms (room_type = 'public')
-        // 2. User's own private rooms (room_type = 'private' AND host_team_id = teamId)
-        let query = supabase
-            .from('waiting_rooms')
-            .select(`
-                *,
-                host_team:teams!host_team_id (
-                    id,
-                    name,
-                    elo_rating,
-                    country
+        const visibilityCondition = parsedTeamId
+            ? or(
+                eq(waitingRooms.roomType, 'public'),
+                and(
+                    eq(waitingRooms.roomType, 'private'),
+                    eq(waitingRooms.hostTeamId, parsedTeamId)
                 )
-            `)
-            .eq('status', 'open')
-            .gt('expires_at', new Date().toISOString());
+            )
+            : eq(waitingRooms.roomType, 'public');
 
-        // If team_id is provided, fetch public rooms + user's private rooms
-        if (teamId) {
-            query = query.or(`room_type.eq.public,and(room_type.eq.private,host_team_id.eq.${teamId})`);
-        } else {
-            // If no team_id, only show public rooms
-            query = query.eq('room_type', 'public');
-        }
-
-        query = query
-            .order('created_at', { ascending: false })
-            .range(offset, offset + limit - 1);
-
-        const { data: rooms, error } = await Promise.race([
-            query,
-            timeoutPromise
-        ]).catch(err => {
-            console.error('Query failed:', err);
-            return { data: null, error: err };
-        }) as any;
-
-        if (error) {
-            console.error('Error fetching waiting rooms:', {
-                message: error.message,
-                details: error.details,
-                hint: error.hint,
-                code: error.code
-            });
-            return NextResponse.json(
-                { success: false, error: 'Failed to fetch waiting rooms' },
-                { status: 500 }
-            );
-        }
+        const rooms = await db
+            .select({
+                id: waitingRooms.id,
+                host_team_id: waitingRooms.hostTeamId,
+                guest_team_id: waitingRooms.guestTeamId,
+                created_at: waitingRooms.createdAt,
+                status: waitingRooms.status,
+                room_type: waitingRooms.roomType,
+                expires_at: waitingRooms.expiresAt,
+                minimum_elo_rating: waitingRooms.minimumEloRating,
+                host_team: {
+                    id: teams.id,
+                    name: teams.name,
+                    elo_rating: teams.eloRating,
+                    country: teams.country
+                }
+            })
+            .from(waitingRooms)
+            .innerJoin(teams, eq(waitingRooms.hostTeamId, teams.id))
+            .where(
+                and(
+                    eq(waitingRooms.status, 'open'),
+                    gt(waitingRooms.expiresAt, now),
+                    visibilityCondition
+                )
+            )
+            .orderBy(desc(waitingRooms.createdAt))
+            .limit(limit)
+            .offset(offset);
 
         // Sort rooms: empty rooms first, then by creation date
         const sortedRooms = rooms.sort((a: WaitingRoom, b: WaitingRoom) => {

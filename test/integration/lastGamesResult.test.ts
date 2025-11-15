@@ -1,6 +1,6 @@
 // lastGamesResults.test.ts
 import { expect } from 'chai';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { pool } from '../../db/client';
 
 // Types
 type GameStatus = 'active' | 'finished' | 'finished_by_timeout';
@@ -22,20 +22,9 @@ interface Game {
 }
 
 describe('Last Games Results Functionality', () => {
-  let supabase: SupabaseClient;
   let testTeams: { teamA: Team; teamB: Team; teamC: Team };
 
   before(async () => {
-    // Initialize Supabase client
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase environment variables');
-    }
-
-    supabase = createClient(supabaseUrl!, supabaseKey!);
-    
     // Clean up any leftover test data before starting
     await cleanupTestData();
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -60,45 +49,19 @@ describe('Last Games Results Functionality', () => {
   // Helper Functions
   async function cleanupTestData() {
     try {
-      // Get all test teams first
-      const { data: teams } = await supabase
-        .from('teams')
-        .select('id')
-        .like('name', 'TEST_TEAM_%');
+      const { rows: teams } = await pool.query<{ id: number }>(
+        `SELECT id FROM teams WHERE name LIKE 'TEST_TEAM_%'`
+      );
 
-      if (teams && teams.length > 0) {
+      if (teams.length > 0) {
         const teamIds = teams.map(t => t.id);
-
-        // Delete games where team1 or team2 matches any test team
-        // Use a more reliable approach: delete games where team1 is in the list OR team2 is in the list
-        const { error: gamesError } = await supabase
-          .from('games')
-          .delete()
-          .in('team1', teamIds);
-        
-        if (gamesError) {
-          console.warn('Error deleting games by team1:', gamesError);
-        }
-
-        const { error: gamesError2 } = await supabase
-          .from('games')
-          .delete()
-          .in('team2', teamIds);
-        
-        if (gamesError2) {
-          console.warn('Error deleting games by team2:', gamesError2);
-        }
+        await pool.query(
+          `DELETE FROM games WHERE team1 = ANY($1::bigint[]) OR team2 = ANY($1::bigint[])`,
+          [teamIds]
+        );
       }
 
-      // Delete test teams
-      const { error: teamsError } = await supabase
-        .from('teams')
-        .delete()
-        .like('name', 'TEST_TEAM_%');
-      
-      if (teamsError) {
-        console.warn('Error deleting test teams:', teamsError);
-      }
+      await pool.query(`DELETE FROM teams WHERE name LIKE 'TEST_TEAM_%'`);
     } catch (error) {
       // Ignore cleanup errors - they might be expected if data doesn't exist
       console.warn('Cleanup warning:', error);
@@ -106,40 +69,35 @@ describe('Last Games Results Functionality', () => {
   }
 
   async function setupTestTeams() {
-    const { data: teamA, error: errorA } = await supabase
-      .from('teams')
-      .insert({ name: 'TEST_TEAM_A', last_games_results: [] })
-      .select()
-      .single();
+    const { rows: [teamA] } = await pool.query<Team>(
+      `INSERT INTO teams (name, last_games_results) VALUES ($1, $2) RETURNING id, name, last_games_results`,
+      ['TEST_TEAM_A', []]
+    );
+    const { rows: [teamB] } = await pool.query<Team>(
+      `INSERT INTO teams (name, last_games_results) VALUES ($1, $2) RETURNING id, name, last_games_results`,
+      ['TEST_TEAM_B', []]
+    );
+    const { rows: [teamC] } = await pool.query<Team>(
+      `INSERT INTO teams (name, last_games_results) VALUES ($1, $2) RETURNING id, name, last_games_results`,
+      ['TEST_TEAM_C', []]
+    );
 
-    const { data: teamB, error: errorB } = await supabase
-      .from('teams')
-      .insert({ name: 'TEST_TEAM_B', last_games_results: [] })
-      .select()
-      .single();
-
-    const { data: teamC, error: errorC } = await supabase
-      .from('teams')
-      .insert({ name: 'TEST_TEAM_C', last_games_results: [] })
-      .select()
-      .single();
-
-    if (errorA || errorB || errorC) {
+    if (!teamA || !teamB || !teamC) {
       throw new Error('Failed to setup test teams');
     }
 
-    return { teamA: teamA!, teamB: teamB!, teamC: teamC! };
+    return { teamA, teamB, teamC };
   }
 
   async function getTeamResults(teamId: number): Promise<GameResult[]> {
-    const { data, error } = await supabase
-      .from('teams')
-      .select('last_games_results')
-      .eq('id', teamId)
-      .single();
-
-    if (error) throw error;
-    return data.last_games_results || [];
+    const { rows: [team] } = await pool.query<{ last_games_results: GameResult[] | null }>(
+      `SELECT last_games_results FROM teams WHERE id = $1`,
+      [teamId]
+    );
+    if (!team) {
+      throw new Error(`Team ${teamId} not found`);
+    }
+    return team.last_games_results || [];
   }
 
   async function createGame(
@@ -153,34 +111,18 @@ describe('Last Games Results Functionality', () => {
     const uniqueTimestamp = createdAt || new Date(Date.now() + Math.random() * 1000);
     
     // Retry logic for handling potential race conditions
-    let retries = 3;
-    while (retries > 0) {
-      const { data, error } = await supabase
-        .from('games')
-        .insert({
-          team1: team1Id,
-          team2: team2Id,
-          winner: winnerId,
-          status: status,
-          created_at: uniqueTimestamp.toISOString(),
-        })
-        .select()
-        .single();
+    const { rows: [game] } = await pool.query<Game>(
+      `INSERT INTO games (team1, team2, winner, status, created_at)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, team1, team2, winner, status, created_at`,
+      [team1Id, team2Id, winnerId, status, uniqueTimestamp.toISOString()]
+    );
 
-      if (error) {
-        // If it's a duplicate key error, wait a bit and retry with a new timestamp
-        if (error.code === '23505' && retries > 1) {
-          retries--;
-          await new Promise(resolve => setTimeout(resolve, 100));
-          // Update timestamp for retry
-          uniqueTimestamp.setTime(Date.now() + Math.random() * 1000);
-          continue;
-        }
-        throw error;
-      }
-      return data;
+    if (!game) {
+      throw new Error('Failed to create game');
     }
-    throw new Error('Failed to create game after retries');
+
+    return game;
   }
 
   async function updateGameStatus(
@@ -188,15 +130,17 @@ describe('Last Games Results Functionality', () => {
     status: GameStatus,
     winnerId: number | null
   ): Promise<Game> {
-    const { data, error } = await supabase
-      .from('games')
-      .update({ status, winner: winnerId })
-      .eq('id', gameId)
-      .select()
-      .single();
+    const { rows: [game] } = await pool.query<Game>(
+      `UPDATE games SET status = $2, winner = $3 WHERE id = $1
+       RETURNING id, team1, team2, winner, status, created_at`,
+      [gameId, status, winnerId]
+    );
 
-    if (error) throw error;
-    return data;
+    if (!game) {
+      throw new Error('Failed to update game');
+    }
+
+    return game;
   }
 
   // Tests

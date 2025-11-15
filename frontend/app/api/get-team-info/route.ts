@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAnonClient } from '@/lib/supabase';
 import moment from 'moment';
+import { db } from '@/lib/database';
+import { teams } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
     try {
@@ -15,40 +18,30 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Fetch team info from Supabase
-        const supabase = createAnonClient();
+        const [team] = await db
+            .select({
+                id: teams.id,
+                name: teams.name,
+                created_at: teams.createdAt,
+                primary_wallet: teams.primaryWallet,
+                country: teams.country,
+                elo_rating: teams.eloRating,
+                last_games_results: teams.lastGamesResults,
+                active_game_id: teams.activeGameId
+            })
+            .from(teams)
+            .where(
+                teamId
+                    ? eq(teams.id, Number(teamId))
+                    : eq(teams.primaryWallet, walletAddress!)
+            )
+            .limit(1);
 
-        let teamQuery = supabase
-            .from('teams')
-            .select(`
-                id,
-                name,
-                created_at,
-                primary_wallet,
-                country,
-                elo_rating,
-                last_games_results,
-                active_game_id
-            `);
-
-        // Query by team_id or wallet address
-        if (teamId) {
-            teamQuery = teamQuery.eq('id', teamId);
-        } else {
-            teamQuery = teamQuery.eq('primary_wallet', walletAddress);
-        }
-
-        const { data: team, error } = await teamQuery.single();
-
-        if (error) {
-            if (error.code === 'PGRST116') {
-                // No team found
-                return NextResponse.json({
-                    is_found: false,
-                    message: teamId ? `No team found with ID: ${teamId}` : `No team found for wallet address: ${walletAddress}`
-                });
-            }
-            throw error;
+        if (!team) {
+            return NextResponse.json({
+                is_found: false,
+                message: teamId ? `No team found with ID: ${teamId}` : `No team found for wallet address: ${walletAddress}`
+            });
         }
 
         // Calculate team age in days
@@ -65,39 +58,11 @@ export async function GET(request: NextRequest) {
 
         // Fetch all data in parallel
         const [rankData, weekStats, monthStats, alltimeStats] = await Promise.all([
-            supabase.rpc('get_team_rankings', { team_id_param: team.id }),
-            supabase.rpc('get_team_period_rankings', {
-                team_id_param: team.id,
-                period_type: 'week',
-                period_start_date: startOfWeek
-            }),
-            supabase.rpc('get_team_period_rankings', {
-                team_id_param: team.id,
-                period_type: 'month',
-                period_start_date: startOfMonth
-            }),
-            supabase.rpc('get_team_period_rankings', {
-                team_id_param: team.id,
-                period_type: 'alltime',
-                period_start_date: '1900-01-01' // Dummy date for alltime
-            })
+            db.execute(sql`SELECT * FROM public.get_team_rankings(${team.id})`),
+            db.execute(sql`SELECT * FROM public.get_team_period_rankings(${team.id}, ${'week'}, ${startOfWeek})`),
+            db.execute(sql`SELECT * FROM public.get_team_period_rankings(${team.id}, ${'month'}, ${startOfMonth})`),
+            db.execute(sql`SELECT * FROM public.get_team_period_rankings(${team.id}, ${'alltime'}, ${'1900-01-01'})`)
         ]);
-
-        // Log any errors
-        if (rankData.error) {
-            console.error('Error fetching team rankings:', rankData.error);
-        }
-        if (weekStats.error) {
-            console.error('Error fetching week rankings:', weekStats.error);
-        }
-        if (monthStats.error) {
-            console.error('Error fetching month rankings:', monthStats.error);
-        }
-        if (alltimeStats.error) {
-            console.error('Error fetching alltime rankings:', alltimeStats.error);
-        }
-
-        console.log('monthStats.data', monthStats.data);
 
         // Extract league and global positions
         let leaguePosition = null;
@@ -105,14 +70,14 @@ export async function GET(request: NextRequest) {
 
         console.log('rankData', rankData.data);
 
-        if (!rankData.error && rankData.data && rankData.data.length > 0) {
-            const rankings = rankData.data[0];
+        if (rankData.rows.length > 0) {
+            const rankings = rankData.rows[0] as any;
             globalPosition = rankings.global_rank;
             leaguePosition = rankings.country_rank;
         }
 
         // Helper function to format statistics data
-        const formatStats = (data: any) => {
+        const formatStats = (data: any[]) => {
             if (!data || data.length === 0) {
                 return {
                     goal_scored: 0,
@@ -155,9 +120,9 @@ export async function GET(request: NextRequest) {
             active_game_id: team.active_game_id,
             last_games: team.last_games_results || [],
             leaderboard: {
-                week: formatStats(weekStats.data),
-                month: formatStats(monthStats.data),
-                alltime: formatStats(alltimeStats.data)
+                week: formatStats(weekStats.rows as any[]),
+                month: formatStats(monthStats.rows as any[]),
+                alltime: formatStats(alltimeStats.rows as any[])
             }
         };
 

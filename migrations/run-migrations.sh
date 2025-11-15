@@ -6,18 +6,10 @@
 set -e
 
 # Configuration
-DB_NAME=${DB_NAME:-"postgres"}
-DB_HOST=${DB_HOST:-"aws-1-us-east-2.pooler.supabase.com"}
-DB_PORT=${DB_PORT:-"5432"}
-DB_USER=${DB_USER:-"postgres.fbczuemyuopzctgztsxc"}
-DB_PASSWORD=${DB_PASSWORD:-"VEEk49hPMyDfUBLs"}
-SSL_MODE=${SSL_MODE:-"require"}
+DB_URL=${DB_CONNECTION_STRING:-"postgres://postgres:postgres@localhost:5432/postgres"}
 
 echo "🚀 Starting Chessball database migrations..."
-echo "Database: $DB_NAME"
-echo "Host: $DB_HOST:$DB_PORT"
-echo "User: $DB_USER"
-echo "SSL Mode: $SSL_MODE"
+echo "Database URL: $DB_URL"
 echo ""
 
 # Function to run a migration
@@ -28,7 +20,7 @@ run_migration() {
     echo "📋 Running: $description"
     echo "File: $migration_file"
     
-    if psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" --set=sslmode="$SSL_MODE" -f "$migration_file"; then
+    if psql "$DB_URL" -f "$migration_file"; then
         echo "✅ Successfully applied: $description"
     else
         echo "❌ Failed to apply: $description"
@@ -46,38 +38,14 @@ fi
 
 # Test database connection
 echo "🔌 Testing database connection..."
-export PGPASSWORD="$DB_PASSWORD"
-if psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" --set=sslmode="$SSL_MODE" -c "SELECT 1;" > /dev/null 2>&1; then
+if psql "$DB_URL" -c "SELECT 1;" > /dev/null 2>&1; then
     echo "✅ Database connection successful"
 else
     echo "❌ Database connection failed"
-    echo "Please check your connection parameters:"
-    echo "  - Host: $DB_HOST"
-    echo "  - Port: $DB_PORT"
-    echo "  - User: $DB_USER"
-    echo "  - Database: $DB_NAME"
-    echo "  - SSL Mode: $SSL_MODE"
-    echo ""
-    echo "For Supabase, you might need to set:"
-    echo "  export DB_PASSWORD='your_password'"
-    echo "  export SSL_MODE='require'"
+    echo "Please check DB_CONNECTION_STRING (currently $DB_URL)"
     exit 1
 fi
 echo ""
-
-# Check if we can connect to the database (skip database creation for remote hosts like Supabase)
-if [[ "$DB_HOST" == "localhost" || "$DB_HOST" == "127.0.0.1" ]]; then
-    # Check if database exists (only for local connections)
-    if ! psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" --set=sslmode="$SSL_MODE" -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
-        echo "⚠️  Database '$DB_NAME' does not exist. Creating it..."
-        createdb -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$DB_NAME"
-        echo "✅ Database '$DB_NAME' created successfully"
-        echo ""
-    fi
-else
-    echo "🌐 Remote database detected. Skipping database existence check."
-    echo ""
-fi
 
 # Run all up migrations in order
 echo "🔍 Finding migration files..."

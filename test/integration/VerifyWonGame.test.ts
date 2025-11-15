@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { createClient } from '@supabase/supabase-js';
+import { pool } from '../../db/client';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -11,37 +11,19 @@ const TEST_USER_ID = "test-zealy-user-123";
 const TEST_TEAM_ID = 1;
 
 describe('Zealy Verify User Won Game API', () => {
-  let supabase: any;
   let mockTeam: any;
 
   before(async () => {
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.TEST_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.TEST_SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase environment variables');
-    }
-
-    supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Setup test data - get or create a test team
-    const { data: existingTeam } = await supabase
-      .from('teams')
-      .select('*')
-      .eq('id', TEST_TEAM_ID)
-      .maybeSingle();
-
+    const { rows: [existingTeam] } = await pool.query(
+      'SELECT id, name, primary_wallet, zealy_user_id FROM teams WHERE id = $1',
+      [TEST_TEAM_ID]
+    );
     mockTeam = existingTeam;
   });
 
   it('should have valid Supabase connection', async () => {
-    const { data, error } = await supabase
-      .from('teams')
-      .select('count')
-      .limit(1);
-
-    expect(error).to.be.null;
-    expect(data).to.exist;
+    const { rows: [{ count }] } = await pool.query<{ count: string }>('SELECT COUNT(*)::int AS count FROM teams');
+    expect(Number(count)).to.be.a('number');
   });
 
   // REMOVED tests that import the route file directly since they cause module resolution errors
@@ -53,13 +35,11 @@ describe('Zealy Verify User Won Game API', () => {
       return;
     }
 
-    const { data: team, error } = await supabase
-      .from('teams')
-      .select('id, name, primary_wallet, zealy_user_id')
-      .eq('id', mockTeam.id)
-      .maybeSingle();
+    const { rows: [team] } = await pool.query(
+      'SELECT id, name, primary_wallet, zealy_user_id FROM teams WHERE id = $1',
+      [mockTeam.id]
+    );
 
-    expect(error).to.be.null;
     expect(team).to.exist;
     expect(team.id).to.equal(mockTeam.id);
     console.log('✅ Test team found:', team.name);
@@ -75,18 +55,19 @@ describe('Zealy Verify User Won Game API', () => {
     todayStart.setUTCHours(0, 0, 0, 0);
     const todayStartISO = todayStart.toISOString();
 
-    const { data: games, error } = await supabase
-      .from('games')
-      .select('id, status, created_at, team1, team2, winner')
-      .or(`team1.eq.${mockTeam.id},team2.eq.${mockTeam.id}`)
-      .eq('status', 'finished')
-      .eq('winner', mockTeam.id)
-      .gte('created_at', todayStartISO);
+    const { rows: games } = await pool.query(
+      `SELECT id, status, created_at, team1, team2, winner
+       FROM games
+       WHERE (team1 = $1 OR team2 = $1)
+         AND status = 'finished'
+         AND winner = $1
+         AND created_at >= $2`,
+      [mockTeam.id, todayStartISO]
+    );
 
-    expect(error).to.be.null;
-    console.log(`\n🎮 Games won today by team ${mockTeam.id}: ${games?.length || 0}`);
+    console.log(`\n🎮 Games won today by team ${mockTeam.id}: ${games.length}`);
 
-    if (games && games.length > 0) {
+    if (games.length > 0) {
       console.log('  Recent wins:', games.slice(0, 3).map((g: any) => ({
         id: g.id,
         created_at: g.created_at
@@ -116,14 +97,16 @@ describe('Zealy Verify User Won Game API', () => {
       return;
     }
 
-    const { data: recentGames } = await supabase
-      .from('games')
-      .select('id, status, winner, team1, team2')
-      .or(`team1.eq.${mockTeam.id},team2.eq.${mockTeam.id}`)
-      .eq('status', 'finished')
-      .limit(5);
+    const { rows: recentGames } = await pool.query(
+      `SELECT id, status, winner, team1, team2
+       FROM games
+       WHERE (team1 = $1 OR team2 = $1)
+         AND status = 'finished'
+       LIMIT 5`,
+      [mockTeam.id]
+    );
 
-    if (recentGames && recentGames.length > 0) {
+    if (recentGames.length > 0) {
       console.log(`\n📊 Recent finished games: ${recentGames.length}`);
 
       recentGames.forEach((game: any) => {

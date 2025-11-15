@@ -13,7 +13,6 @@
     "@coinbase/onchainkit": "0.38.19",
     "@farcaster/frame-sdk": "^0.1.8",
     "@sentry/nextjs": "^10",
-    "@supabase/supabase-js": "^2.57.4",
     "@tanstack/react-query": "^5",
     "@upstash/redis": "^1.34.4",
     "ably": "^2.12.0",
@@ -24,13 +23,15 @@
     "minimatch": "^10.0.3",
     "moment": "^2.30.1",
     "next": "^15.3.3",
+    "drizzle-orm": "^0.35.0",
     "ngrok": "^5.0.0-beta.2",
     "react": "^18",
     "react-dom": "^18",
     "react-toastify": "^11.0.5",
     "use-immer": "^0.11.0",
     "viem": "^2.27.2",
-    "wagmi": "^2.16.0"
+    "wagmi": "^2.16.0",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/deno": "^2.3.0",

@@ -4,7 +4,9 @@
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createAnonClient } from '@/lib/supabase';
+import { db } from '@/lib/database';
+import { teams, games } from '@/db/schema';
+import { eq, or, and, gte } from 'drizzle-orm';
 
 const ZEALY_API_KEY = process.env.ZEALY_API_KEY;
 
@@ -44,21 +46,16 @@ export async function POST(req: NextRequest) {
     console.log("typeof zealyConnectIdentifier", typeof zealyConnectIdentifier);
     zealyConnectIdentifier = String(zealyConnectIdentifier).replace(/"/g, '').trim();
     console.log('zealyConnectIdentifier', zealyConnectIdentifier);
-    const supabase = createAnonClient();
-
-    // Verify team exists and has correct Zealy user ID
-    const { data: team, error: teamError } = await supabase
-      .from('teams')
-      .select('id, name, primary_wallet, zealy_user_id')
-      .eq('primary_wallet', zealyConnectIdentifier)
-      .maybeSingle();
-
-    if (teamError) {
-      console.error('Database error:', teamError, 'RequestID:', requestId);
-      return NextResponse.json({
-        message: `Database error occurred. Please contact support with Request ID: ${requestId}`
-      }, { status: 400 });
-    }
+    const [team] = await db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        primary_wallet: teams.primaryWallet,
+        zealy_user_id: teams.zealyUserId
+      })
+      .from(teams)
+      .where(eq(teams.primaryWallet, zealyConnectIdentifier))
+      .limit(1);
 
     if (!team) {
       return NextResponse.json({
@@ -75,10 +72,10 @@ export async function POST(req: NextRequest) {
 
     // Update zealy_user_id if not set
     if (!team.zealy_user_id) {
-      await supabase
-        .from('teams')
-        .update({ zealy_user_id: userId })
-        .eq('id', team.id);
+      await db
+        .update(teams)
+        .set({ zealyUserId: userId })
+        .where(eq(teams.id, team.id));
     }
 
     // Get today's start time (00:00:00 UTC)
@@ -87,23 +84,20 @@ export async function POST(req: NextRequest) {
     const todayStartISO = todayStart.toISOString();
 
     // Query for games won today - using correct column names from schema
-    const { data: games, error: gamesError } = await supabase
-      .from('games')
-      .select('id, status, created_at, team1, team2, winner')
-      .or(`team1.eq.${team.id},team2.eq.${team.id}`)
-      .eq('status', 'finished')
-      .eq('winner', team.id)
-      .gte('created_at', todayStartISO)
+    const wonGames = await db
+      .select({ id: games.id })
+      .from(games)
+      .where(
+        and(
+          eq(games.status, 'finished'),
+          eq(games.winner, team.id),
+          gte(games.createdAt, todayStartISO),
+          or(eq(games.team1, team.id), eq(games.team2, team.id))
+        )
+      )
       .limit(1);
 
-    if (gamesError) {
-      console.error('Error querying games:', gamesError, 'RequestID:', requestId);
-      return NextResponse.json({
-        message: `Error checking games. Please contact support with Request ID: ${requestId}`
-      }, { status: 400 });
-    }
-
-    if (!games || games.length === 0) {
+    if (wonGames.length === 0) {
       return NextResponse.json({
         message: `No games won today. Win at least one game at play.tactiball.fun to complete this quest!`
       }, { status: 400 });

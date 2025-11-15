@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CONTRACT_ADDRESS } from '@/lib/contract';
-import { createAnonClient } from '@/lib/supabase';
 import { redis } from '@/lib/redis';
+import { db } from '@/lib/database';
+import { teams, games } from '@/db/schema';
+import { sql } from 'drizzle-orm';
 
 // Function to prettify numbers (1M, 140K, etc.)
 function prettifyNumber(num: number): string {
@@ -95,31 +97,11 @@ async function getEventCountFromBasescan(): Promise<number> {
 export async function GET(req: NextRequest): Promise<NextResponse> {
     try {
         // Get team count from Supabase
-        const supabase = createAnonClient();
-        const { count: teamCount, error: teamError } = await supabase
-            .from('teams')
-            .select('*', { count: 'exact', head: true });
+        const teamCountResult = await db.select({ value: sql<number>`count(*)::int` }).from(teams);
+        const teamCount = teamCountResult[0]?.value ?? 0;
 
-        if (teamError) {
-            console.error('Error fetching team count:', teamError);
-            return NextResponse.json(
-                { success: false, error: 'Failed to fetch team count' },
-                { status: 500 }
-            );
-        }
-
-        // Get total games count from Supabase
-        const { count: gameCount, error: gameError } = await supabase
-            .from('games')
-            .select('*', { count: 'exact', head: true });
-
-        if (gameError) {
-            console.error('Error fetching game count:', gameError);
-            return NextResponse.json(
-                { success: false, error: 'Failed to fetch game count' },
-                { status: 500 }
-            );
-        }
+        const gameCountResult = await db.select({ value: sql<number>`count(*)::int` }).from(games);
+        const gameCount = gameCountResult[0]?.value ?? 0;
 
         // Get event count from Basescan API
         let eventCount = 0;
@@ -133,25 +115,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
                 // Estimate: ~45 events per game (moves + state changes) * 3 (average multiplier)
                 // Based on your data: 45x3 events per game, 23 games played
                 const estimatedEventsPerGame = 45 * 3;
-                eventCount = (gameCount || 0) * estimatedEventsPerGame;
+                eventCount = gameCount * estimatedEventsPerGame;
             }
         } catch (eventError) {
             console.error('Error fetching event count:', eventError);
             // Fallback to estimated count
             const estimatedEventsPerGame = 45 * 3;
-            eventCount = (gameCount || 0) * estimatedEventsPerGame;
+            eventCount = gameCount * estimatedEventsPerGame;
         }
 
         // Format the numbers for display
         const formattedEventCount = prettifyNumber(eventCount);
-        const formattedTeamCount = prettifyNumber(teamCount || 0);
-        const formattedGameCount = prettifyNumber(gameCount || 0);
+        const formattedTeamCount = prettifyNumber(teamCount);
+        const formattedGameCount = prettifyNumber(gameCount);
 
         return NextResponse.json({
             success: true,
             data: {
-                total_teams: teamCount || 0,
-                total_games: gameCount || 0,
+                total_teams: teamCount,
+                total_games: gameCount,
                 total_events: eventCount,
                 // Include formatted versions for display
                 formatted: {

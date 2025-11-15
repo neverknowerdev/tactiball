@@ -1,9 +1,9 @@
 // app/api/cron/cleanup-rooms/route.ts
 
 import { NextResponse } from 'next/server';
-import { createWriteClient } from '@/lib/supabase';
-
-const supabase = createWriteClient();
+import { db } from '@/lib/database';
+import { waitingRooms } from '@/db/schema';
+import { and, eq, lt } from 'drizzle-orm';
 
 export async function POST(request: Request) {
     // Verify cron secret
@@ -13,16 +13,15 @@ export async function POST(request: Request) {
     }
 
     // Mark expired rooms
-    const { error } = await supabase
-        .from('waiting_rooms')
-        .update({ status: 'expired' })
-        .eq('status', 'open')
-        .lt('expires_at', new Date().toISOString());
-
-    if (error) {
-        console.error('Error cleaning up rooms:', error);
-        return NextResponse.json({ error: 'Failed to cleanup' }, { status: 500 });
-    }
+    await db
+        .update(waitingRooms)
+        .set({ status: 'expired' })
+        .where(
+            and(
+                eq(waitingRooms.status, 'open'),
+                lt(waitingRooms.expiresAt, new Date())
+            )
+        );
 
     return NextResponse.json({ success: true });
 }
