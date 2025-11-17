@@ -6,12 +6,12 @@
 CREATE TABLE IF NOT EXISTS public.teams (
     id BIGSERIAL PRIMARY KEY,
     created_at TIMESTAMP DEFAULT NOW(),
-    primary_wallet VARCHAR,
-    name VARCHAR,
-    country SMALLINT,
+    primary_wallet VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    country SMALLINT NOT NULL,
     game_request_id INTEGER,
     active_game_id INTEGER,
-    elo_rating NUMERIC DEFAULT '100'::NUMERIC
+    elo_rating NUMERIC DEFAULT '100'::NUMERIC NOT NULL
 );
 
 -- Create index on primary wallet for faster lookups

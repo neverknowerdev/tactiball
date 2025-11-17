@@ -92,7 +92,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             .where(
                 and(
                     eq(teamsStatistic.period, typedPeriod),
-                        eq(teamsStatistic.period, typedPeriod),
+                    eq(teamsStatistic.period, typedPeriod),
                     eq(teamsStatistic.periodStart, periodStart)
                 )
             )

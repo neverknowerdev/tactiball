@@ -555,24 +555,26 @@ async function handleGoalScored(decodedData: DecodedEvent, database: Database, w
         return;
     }
 
-    let updateData;
+    let updateData: { team1Score?: number; team2Score?: number } | undefined;
     if (scoringTeam === 1) {
         if (gameInfo.team1_score === null) {
             gameInfo.team1_score = 0;
         }
-        updateData = { team1_score: Number(gameInfo.team1_score) + 1 };
+        updateData = { team1Score: Number(gameInfo.team1_score) + 1 };
     } else if (scoringTeam === 2) {
         if (gameInfo.team2_score === null) {
             gameInfo.team2_score = 0;
         }
-        updateData = { team2_score: Number(gameInfo.team2_score) + 1 };
+        updateData = { team2Score: Number(gameInfo.team2_score) + 1 };
     }
 
     // Update score in database based on which team scored
-    await database
-        .update(games)
-        .set(updateData)
-        .where(eq(games.id, gameId));
+    if (updateData) {
+        await database
+            .update(games)
+            .set(updateData)
+            .where(eq(games.id, gameId));
+    }
 
     console.log(`Updated score for game ${gameId}`);
 

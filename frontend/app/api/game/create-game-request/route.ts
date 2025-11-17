@@ -73,13 +73,26 @@ export async function POST(request: NextRequest) {
 
         await sendWebhookMessage(logs);
 
-        const gameRequestId = paymasterReceipt.receipt.transactionHash;
+        // Extract gameRequestId from GameRequestCreated event
+        const gameRequestCreatedEvent = logs.find(
+            (log: any) => log.eventName === 'GameRequestCreated'
+        ) as { eventName: string; args: { gameRequestId: bigint } } | undefined;
+
+        if (!gameRequestCreatedEvent) {
+            return NextResponse.json(
+                { success: false, error: 'GameRequestCreated event not found in transaction logs' },
+                { status: 500 }
+            );
+        }
+
+        const gameRequestId = Number(gameRequestCreatedEvent.args.gameRequestId);
 
         console.log('Creating game request with relayer:', {
             wallet_address,
             team1_id,
             team2_id,
-            transactionHash: gameRequestId
+            gameRequestId,
+            transactionHash: paymasterReceipt.receipt.transactionHash
         });
 
         // Check if this game request came from a waiting room
@@ -119,7 +132,7 @@ export async function POST(request: NextRequest) {
                 team1_id,
                 team2_id,
                 status: 'pending',
-                transactionHash: gameRequestId
+                transactionHash: paymasterReceipt.receipt.transactionHash
             }
         });
 

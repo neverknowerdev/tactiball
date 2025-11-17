@@ -8,21 +8,21 @@ CREATE TYPE public.game_status AS ENUM ('active', 'finished', 'finished_by_timeo
 -- Create games table
 CREATE TABLE IF NOT EXISTS public.games (
     id BIGSERIAL PRIMARY KEY,
-    created_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL,
     last_move_at TIMESTAMP,
     last_move_team BIGINT,
-    team1 BIGINT,
-    team2 BIGINT,
-    status public.game_status DEFAULT 'active',
-    moves_made INTEGER DEFAULT 0,
-    winner BIGINT,
+    team1 BIGINT NOT NULL,
+    team2 BIGINT NOT NULL,
+    status public.game_status DEFAULT 'active' NOT NULL,
+    moves_made INTEGER DEFAULT 0 NOT NULL,
+    winner BIGINT NOT NULL,
     history JSONB,
-    team1_info JSONB DEFAULT '{}'::JSONB,
-    team2_info JSONB DEFAULT '{}'::JSONB,
-    team1_score SMALLINT DEFAULT '0'::SMALLINT,
-    team2_score SMALLINT DEFAULT '0'::SMALLINT,
+    team1_info JSONB DEFAULT '{}'::JSONB NOT NULL,
+    team2_info JSONB DEFAULT '{}'::JSONB NOT NULL,
+    team1_score SMALLINT DEFAULT '0'::SMALLINT NOT NULL,
+    team2_score SMALLINT DEFAULT '0'::SMALLINT NOT NULL,
     history_ipfs_cid VARCHAR,
-    is_verified BOOLEAN DEFAULT FALSE
+    is_verified BOOLEAN DEFAULT FALSE NOT NULL
 );
 
 -- Create foreign key constraints

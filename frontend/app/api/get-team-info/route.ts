@@ -45,7 +45,9 @@ export async function GET(request: NextRequest) {
         }
 
         // Calculate team age in days
-        const teamAge = Math.floor((Date.now() - new Date(team.created_at).getTime()) / (1000 * 60 * 60 * 24));
+        const teamAge = team.created_at
+            ? Math.floor((Date.now() - new Date(team.created_at).getTime()) / (1000 * 60 * 60 * 24))
+            : 0;
 
 
         console.log('team.elo_rating', team.elo_rating);
@@ -68,7 +70,7 @@ export async function GET(request: NextRequest) {
         let leaguePosition = null;
         let globalPosition = null;
 
-        console.log('rankData', rankData.data);
+        console.log('rankData', rankData.rows);
 
         if (rankData.rows.length > 0) {
             const rankings = rankData.rows[0] as any;

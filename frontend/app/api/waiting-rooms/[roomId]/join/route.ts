@@ -51,7 +51,7 @@ export async function POST(
         }
 
         // Check if room has expired
-        if (new Date(room.expires_at) < new Date()) {
+        if (room.expires_at && new Date(room.expires_at) < new Date()) {
             await db
                 .update(waitingRooms)
                 .set({ status: 'expired' })

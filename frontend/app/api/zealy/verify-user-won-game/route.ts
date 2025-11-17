@@ -81,7 +81,6 @@ export async function POST(req: NextRequest) {
     // Get today's start time (00:00:00 UTC)
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
-    const todayStartISO = todayStart.toISOString();
 
     // Query for games won today - using correct column names from schema
     const wonGames = await db
@@ -91,7 +90,7 @@ export async function POST(req: NextRequest) {
         and(
           eq(games.status, 'finished'),
           eq(games.winner, team.id),
-          gte(games.createdAt, todayStartISO),
+          gte(games.createdAt, todayStart),
           or(eq(games.team1, team.id), eq(games.team2, team.id))
         )
       )

@@ -7,18 +7,19 @@ import { waitingRooms, teams } from '@/db/schema';
 import { and, eq, gt, or, desc } from 'drizzle-orm';
 
 type WaitingRoom = {
-    id: string;
-    host_team_id: string;
-    guest_team_id: string | null;
-    created_at: string;
-    status: string;
-    room_type: string;
-    expires_at: string;
+    id: number;
+    host_team_id: number;
+    guest_team_id: number | null;
+    created_at: Date | null;
+    status: string | null;
+    room_type: string | null;
+    expires_at: Date | null;
+    minimum_elo_rating: number | null;
     host_team: {
-        id: string;
-        name: string;
-        elo_rating: number;
-        country: string;
+        id: number;
+        name: string | null;
+        elo_rating: number | null;
+        country: number | null;
     };
 };
 
@@ -72,10 +73,12 @@ export async function GET(request: NextRequest) {
             .offset(offset);
 
         // Sort rooms: empty rooms first, then by creation date
-        const sortedRooms = rooms.sort((a: WaitingRoom, b: WaitingRoom) => {
+        const sortedRooms = rooms.sort((a, b) => {
             if (!a.guest_team_id && b.guest_team_id) return -1;
             if (a.guest_team_id && !b.guest_team_id) return 1;
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return bTime - aTime;
         });
 
         return NextResponse.json({
