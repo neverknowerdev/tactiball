@@ -90,6 +90,7 @@ dist
 # Temporary folders
 tmp/
 temp/
+.postgres/
 
 # Editor directories and files
 .vscode/

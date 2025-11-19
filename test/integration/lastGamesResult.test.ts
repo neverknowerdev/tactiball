@@ -1,5 +1,6 @@
 // lastGamesResults.test.ts
 import { expect } from 'chai';
+import { randomUUID } from 'crypto';
 import { pool } from '../../db/client';
 
 // Types
@@ -59,6 +60,10 @@ describe('Last Games Results Functionality', () => {
           `DELETE FROM games WHERE team1 = ANY($1::bigint[]) OR team2 = ANY($1::bigint[])`,
           [teamIds]
         );
+        await pool.query(
+          `DELETE FROM teams_statistic WHERE team_id = ANY($1::bigint[])`,
+          [teamIds]
+        );
       }
 
       await pool.query(`DELETE FROM teams WHERE name LIKE 'TEST_TEAM_%'`);
@@ -68,18 +73,28 @@ describe('Last Games Results Functionality', () => {
     }
   }
 
+  function generateTestWallet(label: string) {
+    return `0x${label}${randomUUID().replace(/-/g, '')}`.slice(0, 42);
+  }
+
   async function setupTestTeams() {
+    const insertSql = `
+      INSERT INTO teams (primary_wallet, name, country, last_games_results)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, name, last_games_results
+    `;
+
     const { rows: [teamA] } = await pool.query<Team>(
-      `INSERT INTO teams (name, last_games_results) VALUES ($1, $2) RETURNING id, name, last_games_results`,
-      ['TEST_TEAM_A', []]
+      insertSql,
+      [generateTestWallet('A'), 'TEST_TEAM_A', 1, []]
     );
     const { rows: [teamB] } = await pool.query<Team>(
-      `INSERT INTO teams (name, last_games_results) VALUES ($1, $2) RETURNING id, name, last_games_results`,
-      ['TEST_TEAM_B', []]
+      insertSql,
+      [generateTestWallet('B'), 'TEST_TEAM_B', 1, []]
     );
     const { rows: [teamC] } = await pool.query<Team>(
-      `INSERT INTO teams (name, last_games_results) VALUES ($1, $2) RETURNING id, name, last_games_results`,
-      ['TEST_TEAM_C', []]
+      insertSql,
+      [generateTestWallet('C'), 'TEST_TEAM_C', 1, []]
     );
 
     if (!teamA || !teamB || !teamC) {
@@ -91,7 +106,7 @@ describe('Last Games Results Functionality', () => {
 
   async function getTeamResults(teamId: number): Promise<GameResult[]> {
     const { rows: [team] } = await pool.query<{ last_games_results: GameResult[] | null }>(
-      `SELECT last_games_results FROM teams WHERE id = $1`,
+      `SELECT array_to_json(last_games_results) AS last_games_results FROM teams WHERE id = $1`,
       [teamId]
     );
     if (!team) {
