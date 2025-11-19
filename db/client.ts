@@ -92,11 +92,22 @@ function createPool(): Pool {
     return new Pool(poolConfig);
 }
 
-// Always create a fresh pool to ensure SSL config is correctly applied
-// (Node.js module caching means this will only run once per process anyway)
-const pool = createPool();
+// Cache the pool globally to avoid creating multiple pools
+// This prevents connection termination issues when the module is imported multiple times
+const pool = globalForDb.__dbPool ?? createPool();
+if (!globalForDb.__dbPool) {
+    globalForDb.__dbPool = pool;
+    
+    // Handle pool errors gracefully
+    pool.on('error', (err) => {
+        console.error('Unexpected error on idle database client', err);
+    });
+}
 
-const db = drizzle(pool, { schema });
+const db = globalForDb.__db ?? drizzle(pool, { schema });
+if (!globalForDb.__db) {
+    globalForDb.__db = db;
+}
 
 export { db, pool, schema };
 export type { Database };

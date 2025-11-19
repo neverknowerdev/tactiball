@@ -29,9 +29,10 @@ describe('Team Stats Recalculation (DB health)', () => {
         }
 
         const stats = rows[0];
-        expect(stats.team_id).to.equal(TEST_TEAM_ID);
-        expect(stats.total_games).to.be.at.least(0);
-        expect(stats.wins + stats.draws + stats.losses).to.equal(stats.total_games);
+        // PostgreSQL returns bigint as string, so convert to number for comparison
+        expect(Number(stats.team_id)).to.equal(TEST_TEAM_ID);
+        expect(Number(stats.total_games)).to.be.at.least(0);
+        expect(Number(stats.wins) + Number(stats.draws) + Number(stats.losses)).to.equal(Number(stats.total_games));
         if (stats.last_game_results) {
             expect(stats.last_game_results.length).to.be.at.most(10);
         }
