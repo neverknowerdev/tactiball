@@ -1,4 +1,7 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import { fileURLToPath } from "url";
+
+const asyncStorageShimPath = fileURLToPath(new URL("./lib/asyncStorageShim.ts", import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -14,6 +17,10 @@ const nextConfig = {
   // https://github.com/WalletConnect/walletconnect-monorepo/issues/1908
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
+
+    config.resolve = config.resolve || {};
+    config.resolve.alias = config.resolve.alias || {};
+    config.resolve.alias["@react-native-async-storage/async-storage"] = asyncStorageShimPath;
 
     // Ensure source maps are generated for TypeScript files
     if (config.mode === 'production') {
