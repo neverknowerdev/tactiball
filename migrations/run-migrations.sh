@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-DB_URL=${DB_CONNECTION_STRING:-"postgres://postgres:postgres@localhost:5432/postgres"}
+DB_CONNECTION_STRING=postgres://postgres.fbczuemyuopzctgztsxc:VEEk49hPMyDfUBLs@aws-1-us-east-2.pooler.supabase.com:5432/postgres?sslmode=require
 
 echo "🚀 Starting Chessball database migrations..."
 echo "Database URL: $DB_URL"

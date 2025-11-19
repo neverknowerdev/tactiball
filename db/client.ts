@@ -1,4 +1,4 @@
-"use server";
+import 'server-only';
 // Server-only: This module uses Node.js built-in modules (tls, net, etc.)
 // and should only be imported in API routes or server components
 import { drizzle } from 'drizzle-orm/node-postgres';
