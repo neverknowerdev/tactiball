@@ -32,7 +32,7 @@ export async function getGameFromDBServer(gameId: string): Promise<GameFetchResu
 
         return {
             success: true,
-            data: game as GameInfo
+            data: game as unknown as GameInfo
         };
     } catch (error) {
         console.error('Error fetching game from DB:', error);

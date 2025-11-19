@@ -1,7 +1,9 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import { fileURLToPath } from "url";
+import path from "path";
 
 const asyncStorageShimPath = fileURLToPath(new URL("./lib/asyncStorageShim.ts", import.meta.url));
+const rootDrizzlePath = fileURLToPath(new URL("../node_modules/drizzle-orm", import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -21,6 +23,12 @@ const nextConfig = {
     config.resolve = config.resolve || {};
     config.resolve.alias = config.resolve.alias || {};
     config.resolve.alias["@react-native-async-storage/async-storage"] = asyncStorageShimPath;
+    const resolveDrizzle = (subPath = "") => path.join(rootDrizzlePath, subPath);
+    config.resolve.alias["drizzle-orm"] = rootDrizzlePath;
+    config.resolve.alias["drizzle-orm/sql"] = resolveDrizzle("sql");
+    config.resolve.alias["drizzle-orm/sql/sql"] = resolveDrizzle("sql/sql");
+    config.resolve.alias["drizzle-orm/pg-core"] = resolveDrizzle("pg-core");
+    config.resolve.alias["drizzle-orm/node-postgres"] = resolveDrizzle("node-postgres");
 
     // Ensure source maps are generated for TypeScript files
     if (config.mode === 'production') {
