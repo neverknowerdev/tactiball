@@ -250,6 +250,37 @@ get_migrations_to_rollback() {
     "
 }
 
+# Function to find migration file by version and name
+find_migration_file() {
+    local version=$1
+    local name=$2
+    local suffix=$3  # "up" or "down"
+    
+    # Try different version formats: as-is, 3-digit padded, 4-digit padded
+    local formats=(
+        "${version}_${name}.${suffix}.sql"
+        "$(printf "%03d" "$version")_${name}.${suffix}.sql"
+        "$(printf "%04d" "$version")_${name}.${suffix}.sql"
+    )
+    
+    for format in "${formats[@]}"; do
+        local file="${MIGRATIONS_DIR}/${format}"
+        if [ -f "$file" ]; then
+            echo "$file"
+            return 0
+        fi
+    done
+    
+    # If not found, try to find by pattern (in case version format is different)
+    local pattern_file=$(find "$MIGRATIONS_DIR" -maxdepth 1 -name "*_${name}.${suffix}.sql" -type f | head -n 1)
+    if [ -n "$pattern_file" ]; then
+        echo "$pattern_file"
+        return 0
+    fi
+    
+    return 1
+}
+
 # Function to rollback a single migration
 rollback_migration() {
     local version=$1
@@ -257,11 +288,11 @@ rollback_migration() {
     
     echo "🔄 Rolling back migration: $name (version: $version)"
     
-    # Find the down migration file
-    local down_file="${MIGRATIONS_DIR}/${version}_${name}.down.sql"
+    # Find the down migration file (try different version formats)
+    local down_file=$(find_migration_file "$version" "$name" "down")
     
-    if [ ! -f "$down_file" ]; then
-        echo "   ❌ Down migration file not found: $(basename "$down_file")"
+    if [ -z "$down_file" ] || [ ! -f "$down_file" ]; then
+        echo "   ❌ Down migration file not found: ${version}_${name}.down.sql"
         echo "   ⚠️  Cannot rollback this migration"
         return 1
     fi
