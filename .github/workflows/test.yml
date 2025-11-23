@@ -70,7 +70,10 @@ jobs:
         sudo apt-get install -y postgresql-client
       
     - name: Run database migrations
-      run: npm run db:migrate
+      run: |
+        cd migrations
+        ./run-migrations.sh
+
       
     - name: Build frontend
       run: npm run build
