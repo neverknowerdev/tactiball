@@ -104,37 +104,35 @@ calculate_hash() {
     fi
 }
 
-# Function to extract version and name from migration filename (for up migrations)
+# Function to extract version and full filename from migration file (for up migrations)
 extract_up_migration_info() {
     local filename=$1
-    local basename=$(basename "$filename" .up.sql)
+    local basename=$(basename "$filename" .sql)  # Remove .sql, keep .up
     
-    # Extract version (number prefix) and name (rest)
-    # Name includes .up suffix as per requirement
+    # Extract version (number prefix) and store full filename (without .sql)
     if [[ $basename =~ ^([0-9]+)_(.+)$ ]]; then
         # Convert version string to integer immediately
         local version_str="${BASH_REMATCH[1]}"
         local version_num=$(string_to_int "$version_str")
-        echo "${version_num}|${BASH_REMATCH[2]}.up"
+        echo "${version_num}|${basename}"
     else
-        echo "-1|${basename}.up"
+        echo "-1|${basename}"
     fi
 }
 
-# Function to extract version and name from migration filename (for down migrations)
+# Function to extract version and full filename from migration file (for down migrations)
 extract_down_migration_info() {
     local filename=$1
-    local basename=$(basename "$filename" .down.sql)
+    local basename=$(basename "$filename" .sql)  # Remove .sql, keep .down
     
-    # Extract version (number prefix) and name (rest)
-    # Name includes .down suffix as per requirement
+    # Extract version (number prefix) and store full filename (without .sql)
     if [[ $basename =~ ^([0-9]+)_(.+)$ ]]; then
         # Convert version string to integer immediately
         local version_str="${BASH_REMATCH[1]}"
         local version_num=$(string_to_int "$version_str")
-        echo "${version_num}|${BASH_REMATCH[2]}.down"
+        echo "${version_num}|${basename}"
     else
-        echo "-1|${basename}.down"
+        echo "-1|${basename}"
     fi
 }
 
@@ -145,7 +143,7 @@ get_latest_version() {
         SELECT COALESCE(MAX(version), -1)
         FROM migrations
         WHERE is_dirty = false;
-    " | tr -d ' ')
+    " | grep -E '^-?[0-9]+$' | head -n 1 | tr -d ' ')
     
     # Convert to integer immediately
     string_to_int "$version_str"
@@ -154,15 +152,20 @@ get_latest_version() {
 # Function to check if migration is already applied
 is_migration_applied() {
     local version=$1
-    local name=$2
+    local full_name=$2
     local hash=$3
     
     local count=$(psql "$DB_CONNECTION_STRING" -t -A -c "
         SET search_path TO $SCHEMA;
         SELECT COUNT(*)
         FROM migrations
-        WHERE version = $version AND name = '$name' AND hash = '$hash' AND is_dirty = false;
-    " | tr -d ' ')
+        WHERE version = $version AND name = '$full_name' AND hash = '$hash' AND is_dirty = false;
+    " | tr -d ' ' | grep -E '^[0-9]+$' | head -n 1)
+    
+    # Default to 0 if count is empty or invalid
+    if [ -z "$count" ] || ! [[ "$count" =~ ^[0-9]+$ ]]; then
+        count=0
+    fi
     
     [ "$count" -gt 0 ]
 }
@@ -171,19 +174,19 @@ is_migration_applied() {
 apply_migration() {
     local migration_file=$1
     local version=$2
-    local name=$3
+    local full_name=$3  # Full filename without .sql (e.g., "001_create_teams_table.up")
     local hash=$4
     
-    echo "📋 Applying migration: $name (version: $version)"
+    echo "📋 Applying migration: $full_name (version: $version)"
     echo "   File: $(basename "$migration_file")"
     echo "   Hash: ${hash:0:8}..."
     
     # Insert migration record with is_dirty=true
-    # Ensure version is stored as integer
+    # Store full filename (without .sql) in name field
     psql "$DB_CONNECTION_STRING" -c "
         SET search_path TO $SCHEMA;
         INSERT INTO migrations (version, name, hash, is_dirty, created_at)
-        VALUES ($version, '$name', '$hash', true, NOW())
+        VALUES ($version, '$full_name', '$hash', true, NOW())
         ON CONFLICT (version) 
         DO UPDATE SET hash = EXCLUDED.hash, is_dirty = true, name = EXCLUDED.name;
     " > /dev/null 2>&1
@@ -197,7 +200,7 @@ apply_migration() {
             SET search_path TO $SCHEMA;
             UPDATE migrations
             SET is_dirty = false
-            WHERE version = $version AND name = '$name';
+            WHERE version = $version AND name = '$full_name';
         " > /dev/null 2>&1
         
         echo "   ✅ Migration marked as clean"
@@ -222,15 +225,15 @@ find_target_version() {
     fi
     
     # Otherwise, treat as name and find version
-    # Try with .up suffix first (since we store up migrations with .up)
+    # Search for migrations where name contains the target (could be full name or partial)
     local version_str=$(psql "$DB_CONNECTION_STRING" -t -A -c "
         SET search_path TO $SCHEMA;
         SELECT version
         FROM migrations
-        WHERE (name = '$target.up' OR name = '$target') AND is_dirty = false
+        WHERE (name LIKE '%$target%' OR name = '$target') AND is_dirty = false
         ORDER BY version DESC
         LIMIT 1;
-    " | tr -d ' ')
+    " | grep -E '^[0-9]+$' | head -n 1 | tr -d ' ')
     
     if [ -z "$version_str" ]; then
         echo ""
@@ -252,66 +255,26 @@ get_migrations_to_rollback() {
     
     psql "$DB_CONNECTION_STRING" -t -A -c "
         SET search_path TO $SCHEMA;
-        SELECT version || '|' || REPLACE(name, '.up', '')
+        SELECT version || '|' || name
         FROM migrations
         WHERE version > $target_version AND is_dirty = false
         ORDER BY version DESC;
-    "
-}
-
-# Function to find migration file by version and name
-find_migration_file() {
-    local version=$1
-    local name=$2
-    local suffix=$3  # "up" or "down"
-    
-    # Ensure version is a valid integer
-    if ! [[ "$version" =~ ^[0-9]+$ ]]; then
-        return 1
-    fi
-    
-    # Try different version formats: 3-digit padded (most common), 4-digit, 2-digit, as-is
-    local padded3=$(printf "%03d" "$version" 2>/dev/null)
-    local padded4=$(printf "%04d" "$version" 2>/dev/null)
-    local padded2=$(printf "%02d" "$version" 2>/dev/null)
-    
-    local formats=(
-        "${padded3}_${name}.${suffix}.sql"
-        "${padded4}_${name}.${suffix}.sql"
-        "${padded2}_${name}.${suffix}.sql"
-        "${version}_${name}.${suffix}.sql"
-    )
-    
-    for format in "${formats[@]}"; do
-        local file="${MIGRATIONS_DIR}/${format}"
-        if [ -f "$file" ]; then
-            echo "$file"
-            return 0
-        fi
-    done
-    
-    # If not found, try to find by pattern (in case version format is different)
-    local pattern_file=$(find "$MIGRATIONS_DIR" -maxdepth 1 -name "*_${name}.${suffix}.sql" -type f | head -n 1)
-    if [ -n "$pattern_file" ]; then
-        echo "$pattern_file"
-        return 0
-    fi
-    
-    return 1
+    " | grep -E '^[0-9]+\|'  # Filter out any non-matching lines
 }
 
 # Function to rollback a single migration
 rollback_migration() {
     local version=$1
-    local name=$2  # This is the base name (without .up)
+    local full_name=$2  # Full filename without .sql (e.g., "001_create_teams_table.up")
     
-    echo "🔄 Rolling back migration: $name (version: $version)"
+    echo "🔄 Rolling back migration: $full_name (version: $version)"
     
-    # Find the down migration file (try different version formats)
-    local down_file=$(find_migration_file "$version" "$name" "down")
+    # Convert .up to .down to get the down migration filename
+    local down_name="${full_name%.up}.down"
+    local down_file="${MIGRATIONS_DIR}/${down_name}.sql"
     
-    if [ -z "$down_file" ] || [ ! -f "$down_file" ]; then
-        echo "   ❌ Down migration file not found: ${version}_${name}.down.sql"
+    if [ ! -f "$down_file" ]; then
+        echo "   ❌ Down migration file not found: ${down_name}.sql"
         echo "   ⚠️  Cannot rollback this migration"
         return 1
     fi
@@ -323,13 +286,11 @@ rollback_migration() {
     echo "   Hash: ${hash:0:8}..."
     
     # Update migration record with is_dirty=true
-    # Note: name in DB has .up suffix, so we need to add it
-    local db_name="${name}.up"
     psql "$DB_CONNECTION_STRING" -c "
         SET search_path TO $SCHEMA;
         UPDATE migrations
         SET is_dirty = true, hash = '$hash'
-        WHERE version = $version AND name = '$db_name';
+        WHERE version = $version AND name = '$full_name';
     " > /dev/null 2>&1
     
     # Run the down migration with schema set
@@ -340,7 +301,7 @@ rollback_migration() {
         psql "$DB_CONNECTION_STRING" -c "
             SET search_path TO $SCHEMA;
             DELETE FROM migrations
-            WHERE version = $version AND name = '$db_name';
+            WHERE version = $version AND name = '$full_name';
         " > /dev/null 2>&1
         
         echo "   ✅ Migration record removed from database"
