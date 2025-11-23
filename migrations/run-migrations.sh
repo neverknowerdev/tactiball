@@ -70,6 +70,18 @@ ensure_migrations_table() {
     echo ""
 }
 
+# Function to safely convert string to integer
+string_to_int() {
+    local str=$1
+    # Return -1 for empty or invalid strings
+    if [ -z "$str" ] || ! [[ "$str" =~ ^[0-9]+$ ]]; then
+        echo "-1"
+        return
+    fi
+    # Simple arithmetic expansion - bash handles leading zeros automatically
+    echo "$((str))"
+}
+
 # Function to calculate SHA256 hash of a file
 calculate_hash() {
     local file=$1
@@ -91,12 +103,12 @@ extract_up_migration_info() {
     # Extract version (number prefix) and name (rest)
     # Name includes .up suffix as per requirement
     if [[ $basename =~ ^([0-9]+)_(.+)$ ]]; then
-        # Parse version as integer (remove leading zeros if any, but keep as string for DB)
+        # Convert version string to integer immediately
         local version_str="${BASH_REMATCH[1]}"
-        local version_num=$((10#$version_str))  # Convert to integer (handles leading zeros)
+        local version_num=$(string_to_int "$version_str")
         echo "${version_num}|${BASH_REMATCH[2]}.up"
     else
-        echo "|${basename}.up"
+        echo "-1|${basename}.up"
     fi
 }
 
@@ -108,12 +120,12 @@ extract_down_migration_info() {
     # Extract version (number prefix) and name (rest)
     # Name includes .down suffix as per requirement
     if [[ $basename =~ ^([0-9]+)_(.+)$ ]]; then
-        # Parse version as integer
+        # Convert version string to integer immediately
         local version_str="${BASH_REMATCH[1]}"
-        local version_num=$((10#$version_str))  # Convert to integer (handles leading zeros)
+        local version_num=$(string_to_int "$version_str")
         echo "${version_num}|${BASH_REMATCH[2]}.down"
     else
-        echo "|${basename}.down"
+        echo "-1|${basename}.down"
     fi
 }
 
@@ -125,12 +137,8 @@ get_latest_version() {
         WHERE is_dirty = false;
     " | tr -d ' ')
     
-    # Ensure it's a number
-    if [[ "$version_str" =~ ^-?[0-9]+$ ]]; then
-        echo $((10#$version_str))
-    else
-        echo "-1"
-    fi
+    # Convert to integer immediately
+    string_to_int "$version_str"
 }
 
 # Function to check if migration is already applied
@@ -195,8 +203,8 @@ find_target_version() {
     
     # Check if target is a version number
     if [[ "$target" =~ ^[0-9]+$ ]]; then
-        # Parse as integer
-        echo $((10#$target))
+        # Convert to integer immediately
+        string_to_int "$target"
         return
     fi
     
@@ -215,11 +223,12 @@ find_target_version() {
         return
     fi
     
-    # Parse as integer
-    if [[ "$version_str" =~ ^-?[0-9]+$ ]]; then
-        echo $((10#$version_str))
-    else
+    # Convert to integer immediately
+    local version_int=$(string_to_int "$version_str")
+    if [ "$version_int" -eq -1 ]; then
         echo ""
+    else
+        echo "$version_int"
     fi
 }
 
@@ -305,19 +314,19 @@ run_up() {
     echo "📊 Latest applied migration version: $latest_version"
     
     if [ -n "$target_version" ]; then
-        # Parse target version as integer
-        if [[ "$target_version" =~ ^[0-9]+$ ]]; then
-            target_version=$((10#$target_version))
-            echo "📊 Target version: $target_version"
-            
-            if [ "$target_version" -le "$latest_version" ]; then
-                echo "✅ Database is already at or beyond target version $target_version"
-                echo "   No migrations to apply"
-                exit 0
-            fi
-        else
+        # Convert target version to integer immediately
+        local target_version_int=$(string_to_int "$target_version")
+        if [ "$target_version_int" -eq -1 ]; then
             echo "❌ Error: Target version must be a number"
             exit 1
+        fi
+        target_version=$target_version_int
+        echo "📊 Target version: $target_version"
+        
+        if [ "$target_version" -le "$latest_version" ]; then
+            echo "✅ Database is already at or beyond target version $target_version"
+            echo "   No migrations to apply"
+            exit 0
         fi
     fi
     echo ""
@@ -340,13 +349,13 @@ run_up() {
     # Process each migration
     applied_count=0
     for migration_file in "${migration_files[@]}"; do
-        # Extract version and name
+        # Extract version and name (version is already an integer)
         info=$(extract_up_migration_info "$migration_file")
         version=$(echo "$info" | cut -d'|' -f1)
         name=$(echo "$info" | cut -d'|' -f2)
         
-        # Skip if version is empty (invalid format)
-        if [ -z "$version" ] || ! [[ "$version" =~ ^[0-9]+$ ]]; then
+        # Skip if version is invalid (extract_up_migration_info returns -1 for invalid)
+        if [ "$version" -eq -1 ] || [ -z "$version" ]; then
             echo "⚠️  Skipping invalid migration file: $(basename "$migration_file")"
             continue
         fi
@@ -406,22 +415,31 @@ run_down() {
     
     # Find target version
     echo "🎯 Finding target migration..."
-    target_version=$(find_target_version "$target")
     
-    if [ -z "$target_version" ]; then
-        echo "❌ Error: Could not find migration matching: $target"
-        echo ""
-        echo "Available migrations:"
-        psql "$DB_CONNECTION_STRING" -c "
-            SELECT version, name, is_dirty
-            FROM public.migrations
-            WHERE is_dirty = false
-            ORDER BY version;
-        "
-        exit 1
+    # Special case: if target is "000" or "0", set target_version to 0
+    if [[ "$target" =~ ^0+$ ]]; then
+        target_version=0
+        echo "✅ Target migration version: 0 (rollback all migrations)"
+    else
+        # find_target_version returns integer or empty string
+        local found_version=$(find_target_version "$target")
+        
+        if [ -z "$found_version" ]; then
+            echo "❌ Error: Could not find migration matching: $target"
+            echo ""
+            echo "Available migrations:"
+            psql "$DB_CONNECTION_STRING" -c "
+                SELECT version, name, is_dirty
+                FROM public.migrations
+                WHERE is_dirty = false
+                ORDER BY version;
+            "
+            exit 1
+        fi
+        
+        target_version=$found_version
+        echo "✅ Target migration version: $target_version"
     fi
-    
-    echo "✅ Target migration version: $target_version"
     echo ""
     
     # Get current latest version
@@ -474,18 +492,17 @@ run_down() {
             continue
         fi
         
-        # Parse version as integer
-        if [[ "$version" =~ ^[0-9]+$ ]]; then
-            version=$((10#$version))
-        else
+        # Convert version string to integer immediately
+        local version_int=$(string_to_int "$version")
+        if [ "$version_int" -eq -1 ]; then
             echo "⚠️  Skipping invalid version: $version"
             continue
         fi
         
-        if rollback_migration "$version" "$name"; then
+        if rollback_migration "$version_int" "$name"; then
             rolled_back_count=$((rolled_back_count + 1))
         else
-            echo "❌ Failed to rollback migration: $name (version: $version)"
+            echo "❌ Failed to rollback migration: $name (version: $version_int)"
             echo "   Stopping rollback process"
             exit 1
         fi

@@ -84,6 +84,11 @@ jobs:
       env:
         # Use hardhat network for testing - no external RPC needed
         HARDHAT_NETWORK: hardhat
+
+    - name: DB Migrations down
+      env:
+        DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
+      run: ./migrations/run-migrations.sh down 001
       
     - name: Generate test coverage report
       run: npm run hardhat:coverage
