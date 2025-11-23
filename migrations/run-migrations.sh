@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 echo "🚀 Starting Chessball database migrations..."
-echo "Database URL: $DB_URL"
+echo "Database URL: $DB_CONNECTION_STRING"
 echo ""
 
 # Function to run a migration
@@ -18,7 +18,7 @@ run_migration() {
     echo "📋 Running: $description"
     echo "File: $migration_file"
     
-    if psql "$DB_URL" -f "$migration_file"; then
+    if psql "$DB_CONNECTION_STRING" -f "$migration_file"; then
         echo "✅ Successfully applied: $description"
     else
         echo "❌ Failed to apply: $description"
@@ -36,11 +36,11 @@ fi
 
 # Test database connection
 echo "🔌 Testing database connection..."
-if psql "$DB_URL" -c "SELECT 1;" > /dev/null 2>&1; then
+if psql "$DB_CONNECTION_STRING" -c "SELECT 1;" > /dev/null 2>&1; then
     echo "✅ Database connection successful"
 else
     echo "❌ Database connection failed"
-    echo "Please check DB_CONNECTION_STRING (currently $DB_URL)"
+    echo "Please check DB_CONNECTION_STRING (currently $DB_CONNECTION_STRING)"
     exit 1
 fi
 echo ""
