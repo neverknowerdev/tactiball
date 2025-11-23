@@ -1,5 +1,5 @@
 import {
-    pgTable,
+    pgSchema,
     bigserial,
     bigint,
     integer,
@@ -10,16 +10,18 @@ import {
     jsonb,
     timestamp,
     boolean,
-    date,
-    pgEnum
+    date
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-export const gameStatusEnum = pgEnum('game_status', ['active', 'finished', 'finished_by_timeout']);
-export const gameResultEnum = pgEnum('game_result', ['VICTORY', 'DRAW', 'DEFEAT', 'DEFEAT_BY_TIMEOUT']);
-export const statisticPeriodEnum = pgEnum('statistic_period', ['week', 'month', 'alltime']);
+const schemaName = process.env.DB_SCHEMA || 'public';
+export const mySchema = pgSchema(schemaName);
 
-export const teams = pgTable('teams', {
+export const gameStatusEnum = mySchema.enum('game_status', ['active', 'finished', 'finished_by_timeout']);
+export const gameResultEnum = mySchema.enum('game_result', ['VICTORY', 'DRAW', 'DEFEAT', 'DEFEAT_BY_TIMEOUT']);
+export const statisticPeriodEnum = mySchema.enum('statistic_period', ['week', 'month', 'alltime']);
+
+export const teams = mySchema.table('teams', {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     createdAt: timestamp('created_at', { withTimezone: false }).defaultNow(),
     primaryWallet: varchar('primary_wallet', { length: 255 }),
@@ -32,7 +34,7 @@ export const teams = pgTable('teams', {
     zealyUserId: text('zealy_user_id')
 });
 
-export const games = pgTable('games', {
+export const games = mySchema.table('games', {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     createdAt: timestamp('created_at', { withTimezone: false }).defaultNow().notNull(),
     lastMoveAt: timestamp('last_move_at', { withTimezone: false }),
@@ -53,7 +55,7 @@ export const games = pgTable('games', {
     team2Moves: jsonb('team2_moves').$type<any[]>()
 });
 
-export const teamsStatistic = pgTable('teams_statistic', {
+export const teamsStatistic = mySchema.table('teams_statistic', {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     teamId: bigint('team_id', { mode: 'number' }).notNull(),
     period: statisticPeriodEnum('period').notNull(),
@@ -74,7 +76,7 @@ export const teamsStatistic = pgTable('teams_statistic', {
     updatedAt: timestamp('updated_at', { withTimezone: false }).defaultNow().notNull()
 });
 
-export const messages = pgTable('messages', {
+export const messages = mySchema.table('messages', {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     blockNumber: bigint('block_number', { mode: 'number' }).notNull(),
     transactionHash: varchar('transaction_hash', { length: 66 }).notNull(),
@@ -87,7 +89,7 @@ export const messages = pgTable('messages', {
     createdAt: timestamp('created_at', { withTimezone: true }).default(sql`NOW()`)
 });
 
-export const waitingRooms = pgTable('waiting_rooms', {
+export const waitingRooms = mySchema.table('waiting_rooms', {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     createdAt: timestamp('created_at', { withTimezone: true }).default(sql`NOW()`),
     updatedAt: timestamp('updated_at', { withTimezone: true }).default(sql`NOW()`),
