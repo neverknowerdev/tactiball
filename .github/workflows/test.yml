@@ -10,6 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     environment: test
 
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     env:
       NEXT_PUBLIC_ABLY_API_KEY: ${{ secrets.NEXT_PUBLIC_ABLY_API_KEY }}
       ABLY_BROADCASTING_API_KEY: ${{ secrets.ABLY_BROADCASTING_API_KEY }}
@@ -24,6 +39,7 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: gmgmgm
       SENTRY_PROJECT: chessball
+      DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
 
     steps:
     - name: Checkout code
@@ -47,6 +63,14 @@ jobs:
       
     - name: Compile contracts
       run: npx hardhat compile
+      
+    - name: Setup PostgreSQL client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+      
+    - name: Run database migrations
+      run: npm run db:migrate
       
     - name: Build frontend
       run: npm run build
