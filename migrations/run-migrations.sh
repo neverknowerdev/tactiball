@@ -256,11 +256,21 @@ find_migration_file() {
     local name=$2
     local suffix=$3  # "up" or "down"
     
-    # Try different version formats: as-is, 3-digit padded, 4-digit padded
+    # Ensure version is a valid integer
+    if ! [[ "$version" =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+    
+    # Try different version formats: 3-digit padded (most common), 4-digit, 2-digit, as-is
+    local padded3=$(printf "%03d" "$version" 2>/dev/null)
+    local padded4=$(printf "%04d" "$version" 2>/dev/null)
+    local padded2=$(printf "%02d" "$version" 2>/dev/null)
+    
     local formats=(
+        "${padded3}_${name}.${suffix}.sql"
+        "${padded4}_${name}.${suffix}.sql"
+        "${padded2}_${name}.${suffix}.sql"
         "${version}_${name}.${suffix}.sql"
-        "$(printf "%03d" "$version")_${name}.${suffix}.sql"
-        "$(printf "%04d" "$version")_${name}.${suffix}.sql"
     )
     
     for format in "${formats[@]}"; do
