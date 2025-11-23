@@ -11,16 +11,20 @@ DB_CONNECTION_STRING="${DB_CONNECTION_STRING:-postgres://postgres:postgres@local
 
 # Function to show usage
 show_usage() {
-    echo "Usage: $0 <up|down> [version]"
+    echo "Usage: $0 <up|down> [version] [--force]"
     echo ""
     echo "Commands:"
-    echo "  up [version]    Apply migrations (version is optional)"
-    echo "  down <version> Rollback migrations to specified version (version is required)"
+    echo "  up [version]         Apply migrations (version is optional)"
+    echo "  down <version> [--force]  Rollback migrations to specified version (version is required)"
+    echo ""
+    echo "Options:"
+    echo "  --force              Skip confirmation prompt (down migrations only)"
     echo ""
     echo "Examples:"
     echo "  $0 up                    # Apply all new migrations"
     echo "  $0 up 005                # Apply migrations up to version 005"
     echo "  $0 down 005              # Rollback to version 005"
+    echo "  $0 down 005 --force      # Rollback to version 005 without confirmation"
     echo "  $0 down create_teams_table  # Rollback to migration named 'create_teams_table'"
     echo ""
     exit 1
@@ -67,7 +71,7 @@ ensure_migrations_table() {
     " > /dev/null 2>&1
     
     echo "✅ Migrations table ready"
-    echo ""
+echo ""
 }
 
 # Function to safely convert string to integer
@@ -78,8 +82,10 @@ string_to_int() {
         echo "-1"
         return
     fi
-    # Simple arithmetic expansion - bash handles leading zeros automatically
-    echo "$((str))"
+    # Force base 10 interpretation to handle leading zeros (008, 009, etc.)
+    # Use explicit variable syntax to ensure proper evaluation
+    local result=$((10#${str}))
+    echo "$result"
 }
 
 # Function to calculate SHA256 hash of a file
@@ -318,7 +324,7 @@ run_up() {
         local target_version_int=$(string_to_int "$target_version")
         if [ "$target_version_int" -eq -1 ]; then
             echo "❌ Error: Target version must be a number"
-            exit 1
+    exit 1
         fi
         target_version=$target_version_int
         echo "📊 Target version: $target_version"
@@ -328,11 +334,11 @@ run_up() {
             echo "   No migrations to apply"
             exit 0
         fi
-    fi
-    echo ""
-    
+fi
+echo ""
+
     # Find all up migration files and sort them
-    echo "🔍 Finding migration files..."
+echo "🔍 Finding migration files..."
     migration_files=()
     while IFS= read -r -d '' file; do
         migration_files+=("$file")
@@ -397,7 +403,28 @@ run_up() {
 
 # Function to run down migrations
 run_down() {
-    local target=$1  # Required
+    local target=""
+    local force=false
+    
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --force)
+                force=true
+                shift
+                ;;
+            *)
+                if [ -z "$target" ]; then
+                    target="$1"
+                else
+                    echo "❌ Error: Unexpected argument: $1"
+                    echo ""
+                    show_usage
+                fi
+                shift
+                ;;
+        esac
+    done
     
     if [ -z "$target" ]; then
         echo "❌ Error: Target migration name or version is required for down migrations"
@@ -469,17 +496,22 @@ run_down() {
     echo "Found $rollback_count migration(s) to rollback"
     echo ""
     
-    # Confirm with user
+    # Confirm with user (unless --force is used)
     echo "⚠️  WARNING: This will rollback the following migrations:"
     echo "$migrations_to_rollback" | while IFS='|' read -r version name; do
         echo "   - $name (version: $version)"
     done
     echo ""
-    read -p "Are you sure you want to continue? (yes/no): " confirm
     
-    if [ "$confirm" != "yes" ]; then
-        echo "❌ Rollback cancelled"
-        exit 0
+    if [ "$force" = false ]; then
+        read -p "Are you sure you want to continue? (yes/no): " confirm
+        
+        if [ "$confirm" != "yes" ]; then
+            echo "❌ Rollback cancelled"
+            exit 0
+        fi
+    else
+        echo "🚀 --force flag detected, skipping confirmation..."
     fi
     
     echo ""

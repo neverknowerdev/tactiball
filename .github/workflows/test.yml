@@ -88,7 +88,7 @@ jobs:
     - name: DB Migrations down
       env:
         DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
-      run: ./migrations/run-migrations.sh down 001
+      run: ./migrations/run-migrations.sh down 000 --force
       
     - name: Generate test coverage report
       run: npm run hardhat:coverage
