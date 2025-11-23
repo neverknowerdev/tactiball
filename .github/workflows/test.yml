@@ -70,6 +70,8 @@ jobs:
         sudo apt-get install -y postgresql-client
       
     - name: Run database migrations
+      env:  
+        DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
       run: |
         cd migrations
         ./run-migrations.sh
