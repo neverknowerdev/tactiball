@@ -88,7 +88,7 @@ function createPool(): Pool {
     // Add search_path to connection string via options parameter
     // This is more reliable than using the connect event
     const separator = connectionString.includes('?') ? '&' : '?';
-    connectionString = `${connectionString}${separator}search_path=${encodeURIComponent(schemaName)}`;
+    connectionString = `${connectionString}${separator}search_path=${schemaName}`;
 
     const poolConfig: PoolConfig = {
         connectionString,
