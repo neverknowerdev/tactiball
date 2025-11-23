@@ -3,10 +3,10 @@
 -- Date: 2024-12-19
 
 -- Drop function if exists to ensure clean recreation
-DROP FUNCTION IF EXISTS public.get_team_rankings(BIGINT);
+DROP FUNCTION IF EXISTS get_team_rankings(BIGINT);
 
 -- Create function to get team rankings
-CREATE OR REPLACE FUNCTION public.get_team_rankings(team_id_param BIGINT)
+CREATE OR REPLACE FUNCTION get_team_rankings(team_id_param BIGINT)
 RETURNS TABLE(
     team_id BIGINT,
     elo_rating NUMERIC,
@@ -39,7 +39,7 @@ END;
 $$;
 
 -- Grant execute permissions
-GRANT EXECUTE ON FUNCTION public.get_team_rankings(BIGINT) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION get_team_rankings(BIGINT) TO PUBLIC;
 
 -- Add comment
-COMMENT ON FUNCTION public.get_team_rankings(BIGINT) IS 'Returns global and country rankings for a specific team based on ELO rating';
+COMMENT ON FUNCTION get_team_rankings(BIGINT) IS 'Returns global and country rankings for a specific team based on ELO rating';

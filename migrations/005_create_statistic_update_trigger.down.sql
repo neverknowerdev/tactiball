@@ -3,7 +3,7 @@
 -- Date: 2024-12-19
 
 -- Drop trigger first
-DROP TRIGGER IF EXISTS trigger_update_team_statistics ON public.games;
+DROP TRIGGER IF EXISTS trigger_update_team_statistics ON games;
 
 -- Drop function
-DROP FUNCTION IF EXISTS public.trigger_update_team_statistics();
+DROP FUNCTION IF EXISTS trigger_update_team_statistics();

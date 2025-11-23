@@ -8,6 +8,6 @@ DROP INDEX IF EXISTS idx_waiting_rooms_type_status;
 DROP INDEX IF EXISTS idx_waiting_rooms_room_type;
 
 -- Drop column
-ALTER TABLE public.waiting_rooms DROP COLUMN IF EXISTS room_type;
+ALTER TABLE waiting_rooms DROP COLUMN IF EXISTS room_type;
 
 COMMIT;

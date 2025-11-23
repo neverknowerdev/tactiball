@@ -6,4 +6,4 @@
 DROP INDEX IF EXISTS idx_messages_transaction_log_unique;
 
 -- Drop the table
-DROP TABLE IF EXISTS public.messages;
+DROP TABLE IF EXISTS messages;

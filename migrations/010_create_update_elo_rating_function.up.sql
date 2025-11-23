@@ -3,10 +3,10 @@
 -- Date: 2024-12-19
 
 -- Drop function if exists to ensure clean recreation
-DROP FUNCTION IF EXISTS public.update_elo_rating(BIGINT, BIGINT, NUMERIC);
+DROP FUNCTION IF EXISTS update_elo_rating(BIGINT, BIGINT, NUMERIC);
 
 -- Create function to update ELO rating and track changes
-CREATE OR REPLACE FUNCTION public.update_elo_rating(
+CREATE OR REPLACE FUNCTION update_elo_rating(
     team_id_param BIGINT,
     game_id_param BIGINT,
     new_elo_rating NUMERIC
@@ -92,7 +92,7 @@ END;
 $$;
 
 -- Grant execute permissions
-GRANT EXECUTE ON FUNCTION public.update_elo_rating(BIGINT, BIGINT, NUMERIC) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION update_elo_rating(BIGINT, BIGINT, NUMERIC) TO PUBLIC;
 
 -- Add comment
-COMMENT ON FUNCTION public.update_elo_rating(BIGINT, BIGINT, NUMERIC) IS 'Updates team ELO rating and tracks changes in game record with old/new/diff values';
+COMMENT ON FUNCTION update_elo_rating(BIGINT, BIGINT, NUMERIC) IS 'Updates team ELO rating and tracks changes in game record with old/new/diff values';

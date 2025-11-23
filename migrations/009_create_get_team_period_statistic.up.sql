@@ -3,12 +3,12 @@
 -- Date: 2024-12-19
 
 -- Drop function if exists to ensure clean recreation
-DROP FUNCTION IF EXISTS public.get_team_period_rankings(BIGINT, public.statistic_period, DATE);
+DROP FUNCTION IF EXISTS get_team_period_rankings(BIGINT, statistic_period, DATE);
 
 -- Create function to get team rankings based on statistics for a specific period
-CREATE OR REPLACE FUNCTION public.get_team_period_rankings(
+CREATE OR REPLACE FUNCTION get_team_period_rankings(
     team_id_param BIGINT,
-    period_type public.statistic_period,
+    period_type statistic_period,
     period_start_date DATE
 )
 RETURNS TABLE(
@@ -78,7 +78,7 @@ END;
 $$;
 
 -- Grant execute permissions
-GRANT EXECUTE ON FUNCTION public.get_team_period_rankings(BIGINT, public.statistic_period, DATE) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION get_team_period_rankings(BIGINT, statistic_period, DATE) TO PUBLIC;
 
 -- Add comment
-COMMENT ON FUNCTION public.get_team_period_rankings(BIGINT, public.statistic_period, DATE) IS 'Returns team rankings and statistics for a specific period based on ELO rating and period statistics';
+COMMENT ON FUNCTION get_team_period_rankings(BIGINT, statistic_period, DATE) IS 'Returns team rankings and statistics for a specific period based on ELO rating and period statistics';

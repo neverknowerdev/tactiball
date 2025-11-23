@@ -14,7 +14,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-const schemaName = process.env.DB_SCHEMA || 'public';
+const schemaName = process.env.DB_SCHEMA || 'tactiball';
 export const mySchema = pgSchema(schemaName);
 
 export const gameStatusEnum = mySchema.enum('game_status', ['active', 'finished', 'finished_by_timeout']);
