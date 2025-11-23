@@ -29,8 +29,8 @@ function buildSslConfig(connectionString: string): PoolConfig['ssl'] {
     }
 
     // Check if this is a localhost connection
-    const isLocalhost = connectionString.includes('localhost') || 
-                        connectionString.includes('127.0.0.1');
+    const isLocalhost = connectionString.includes('localhost') ||
+        connectionString.includes('127.0.0.1');
 
     const rejectUnauthorizedEnv = process.env.DB_SSL_REJECT_UNAUTHORIZED;
     const certFromEnv = process.env.DB_SSL_CERT;
@@ -73,23 +73,37 @@ function buildSslConfig(connectionString: string): PoolConfig['ssl'] {
 
 function createPool(): Pool {
     let connectionString = process.env.DB_CONNECTION_STRING || DEFAULT_CONNECTION;
-    
+
     // Remove sslmode from connection string if present - we'll handle SSL via Pool config
     connectionString = connectionString.replace(/[?&]sslmode=[^&]*/g, '');
-    
+
     const sslConfig = buildSslConfig(connectionString);
-    
+    const schemaName = process.env.DB_SCHEMA || 'tactiball';
+
+    // Validate schema name to prevent SQL injection (only alphanumeric and underscore)
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) {
+        throw new Error(`Invalid schema name: ${schemaName}. Schema names must start with a letter or underscore and contain only alphanumeric characters and underscores.`);
+    }
+
     const poolConfig: PoolConfig = {
         connectionString,
         max: Number(process.env.DB_POOL_MAX || 10),
     };
-    
+
     // Always set SSL config if we have one
     if (sslConfig !== undefined) {
         poolConfig.ssl = sslConfig;
     }
-    
-    return new Pool(poolConfig);
+
+    const pool = new Pool(poolConfig);
+
+    // Set search_path for all connections in the pool
+    pool.on('connect', (client) => {
+        // Schema name is validated above, safe to use in query
+        client.query(`SET search_path TO ${schemaName}`);
+    });
+
+    return pool;
 }
 
 // Cache the pool globally to avoid creating multiple pools
@@ -97,7 +111,7 @@ function createPool(): Pool {
 const pool = globalForDb.__dbPool ?? createPool();
 if (!globalForDb.__dbPool) {
     globalForDb.__dbPool = pool;
-    
+
     // Handle pool errors gracefully
     pool.on('error', (err) => {
         console.error('Unexpected error on idle database client', err);
