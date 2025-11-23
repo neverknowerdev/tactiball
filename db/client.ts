@@ -85,6 +85,11 @@ function createPool(): Pool {
         throw new Error(`Invalid schema name: ${schemaName}. Schema names must start with a letter or underscore and contain only alphanumeric characters and underscores.`);
     }
 
+    // Add search_path to connection string via options parameter
+    // This is more reliable than using the connect event
+    const separator = connectionString.includes('?') ? '&' : '?';
+    connectionString = `${connectionString}${separator}options=-csearch_path%3D${encodeURIComponent(schemaName)}`;
+
     const poolConfig: PoolConfig = {
         connectionString,
         max: Number(process.env.DB_POOL_MAX || 10),
@@ -95,15 +100,7 @@ function createPool(): Pool {
         poolConfig.ssl = sslConfig;
     }
 
-    const pool = new Pool(poolConfig);
-
-    // Set search_path for all connections in the pool
-    pool.on('connect', (client) => {
-        // Schema name is validated above, safe to use in query
-        client.query(`SET search_path TO ${schemaName}`);
-    });
-
-    return pool;
+    return new Pool(poolConfig);
 }
 
 // Cache the pool globally to avoid creating multiple pools
