@@ -289,7 +289,6 @@ jobs:
         
         # Deploy with explicit metadata using -m flags
         # Format: -m key=value (no quotes needed for values without spaces)
-        cd frontend
         vercel deploy \
           --token=${{ secrets.VERCEL_TOKEN }} \
           -m githubCommitRef=$BRANCH_NAME \
