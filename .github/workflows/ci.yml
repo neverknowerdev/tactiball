@@ -157,9 +157,6 @@ jobs:
         
         echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> $GITHUB_ENV
         echo "✅ Contract deployed to: $CONTRACT_ADDRESS"
-      env:
-        BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
-        RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
 
     - name: Display contract address
       run: |
