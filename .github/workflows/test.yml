@@ -79,20 +79,25 @@ jobs:
   #  - name: Run linting
   #    run: npm run lint
       
-    - name: Run all Hardhat tests
-      run: npx hardhat test
+    # - name: Run all Hardhat tests
+    #   run: npx hardhat test
+    #   env:
+    #     DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
+    #     # Use hardhat network for testing - no external RPC needed
+    #     HARDHAT_NETWORK: hardhat
+
+    
+      
+    - name: Generate test coverage report
       env:
         DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
-        # Use hardhat network for testing - no external RPC needed
         HARDHAT_NETWORK: hardhat
+      run: npm run hardhat:coverage
 
     - name: DB Migrations down
       env:
         DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
       run: ./migrations/run-migrations.sh down 000 --force
-      
-    - name: Generate test coverage report
-      run: npm run hardhat:coverage
       
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
@@ -103,73 +108,73 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: false
 
-  deploy-preview:
-    name: Deploy Preview Environment
-    runs-on: ubuntu-latest
-    needs: test
-    if: success()
-    environment: preview
+  # deploy-preview:
+  #   name: Deploy Preview Environment
+  #   runs-on: ubuntu-latest
+  #   needs: test
+  #   if: success()
+  #   environment: preview
 
-    env:
-      NEXT_PUBLIC_ABLY_API_KEY: ${{ secrets.NEXT_PUBLIC_ABLY_API_KEY }}
-      ABLY_BROADCASTING_API_KEY: ${{ secrets.ABLY_BROADCASTING_API_KEY }}
-      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-      BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
-      RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
-      DB_HOST: ${{ secrets.DB_HOST }}
-      DB_PORT: ${{ secrets.DB_PORT }}
-      DB_USER: ${{ secrets.DB_USER }}
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      DB_NAME: ${{ secrets.DB_NAME }}
+  #   env:
+  #     NEXT_PUBLIC_ABLY_API_KEY: ${{ secrets.NEXT_PUBLIC_ABLY_API_KEY }}
+  #     ABLY_BROADCASTING_API_KEY: ${{ secrets.ABLY_BROADCASTING_API_KEY }}
+  #     UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+  #     UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+  #     BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+  #     RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
+  #     DB_HOST: ${{ secrets.DB_HOST }}
+  #     DB_PORT: ${{ secrets.DB_PORT }}
+  #     DB_USER: ${{ secrets.DB_USER }}
+  #     DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+  #     DB_NAME: ${{ secrets.DB_NAME }}
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
       
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
-        cache: 'npm'
+  #   - name: Setup Node.js
+  #     uses: actions/setup-node@v4
+  #     with:
+  #       node-version: '22'
+  #       cache: 'npm'
         
-    - name: Install dependencies
-      run: npm ci
+  #   - name: Install dependencies
+  #     run: npm ci
       
-    - name: Install frontend dependencies
-      run: npm run frontend:install
+  #   - name: Install frontend dependencies
+  #     run: npm run frontend:install
       
-    - name: Compile contracts
-      run: npx hardhat compile
+  #   - name: Compile contracts
+  #     run: npx hardhat compile
       
-    - name: Deploy smart contract to testnet
-      run: npx hardhat run scripts/deploy-testnet.ts --network baseSepolia
-      env:
-        BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
-        RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
+  #   - name: Deploy smart contract to testnet
+  #     run: npx hardhat run scripts/deploy-testnet.ts --network baseSepolia
+  #     env:
+  #       BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+  #       RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
 
-    - name: Setup PostgreSQL client
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y postgresql-client
+  #   - name: Setup PostgreSQL client
+  #     run: |
+  #       sudo apt-get update
+  #       sudo apt-get install -y postgresql-client
 
-    - name: Clear database
-      run: ./scripts/clear-db-preview.sh
-      env:
-        DB_HOST: ${{ secrets.DB_HOST }}
-        DB_PORT: ${{ secrets.DB_PORT }}
-        DB_USER: ${{ secrets.DB_USER }}
-        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        DB_NAME: ${{ secrets.DB_NAME }}
-        SSL_MODE: require
+  #   - name: Clear database
+  #     run: ./scripts/clear-db-preview.sh
+  #     env:
+  #       DB_HOST: ${{ secrets.DB_HOST }}
+  #       DB_PORT: ${{ secrets.DB_PORT }}
+  #       DB_USER: ${{ secrets.DB_USER }}
+  #       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+  #       DB_NAME: ${{ secrets.DB_NAME }}
+  #       SSL_MODE: require
 
-    - name: Seed database with preview data
-      run: npx ts-node scripts/seed-preview-data.ts
-      env:
-        BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
-        RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
-        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  #   - name: Seed database with preview data
+  #     run: npx ts-node scripts/seed-preview-data.ts
+  #     env:
+  #       BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+  #       RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
+  #       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  #       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
   deploy-vercel:
     name: Deploy to Vercel
@@ -205,8 +210,8 @@ jobs:
         cd frontend
         vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
       env:
-        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
 
     - name: Deploy to Vercel
       id: vercel-deploy
@@ -214,8 +219,8 @@ jobs:
         cd frontend
         vercel deploy --token=${{ secrets.VERCEL_TOKEN }} --branch=${{ github.head_ref || github.ref_name }}
       env:
-        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         NEXT_PUBLIC_ABLY_API_KEY: ${{ secrets.NEXT_PUBLIC_ABLY_API_KEY }}
         ABLY_BROADCASTING_API_KEY: ${{ secrets.ABLY_BROADCASTING_API_KEY }}
         UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
