@@ -244,7 +244,10 @@ jobs:
       id: vercel-deploy
       run: |
         # Get commit author information from git (from the actual commit, not merge commit)
-        git log -10
+        git log -10 >> git_log.txt
+
+        echo "Git log:"
+        cat git_log.txt
 
         COMMIT_AUTHOR_NAME=$(git log -1 --format='%an')
         COMMIT_AUTHOR_EMAIL=$(git log -1 --format='%ae')
@@ -267,9 +270,9 @@ jobs:
           -m githubCommitAuthorName="$COMMIT_AUTHOR_NAME" \
           -m githubCommitAuthorEmail="$COMMIT_AUTHOR_EMAIL" \
           -m githubCommitMessage="$COMMIT_MESSAGE" \
-          --env DB_CONNECTION_STRING=${{ env.NEW_DB_CONNECTION_STRING }} \
-          --env CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }} \
-          --env NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }}
+          -e DB_CONNECTION_STRING="${{ env.NEW_DB_CONNECTION_STRING }}" \
+          -e CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
+          -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}"
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
