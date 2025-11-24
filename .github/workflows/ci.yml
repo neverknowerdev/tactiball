@@ -240,40 +240,11 @@ jobs:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
 
-    - name: Update environment variables for deployment
-      run: |
-        cd frontend
-        # Update or add DB_CONNECTION_STRING and CONTRACT_ADDRESS in the env file
-        ENV_FILE=".vercel/.env.preview.local"
-        
-        # Remove existing lines if they exist, then add new ones
-        if [ -f "$ENV_FILE" ]; then
-          # Remove existing DB_CONNECTION_STRING, CONTRACT_ADDRESS, and NEXT_PUBLIC_CONTRACT_ADDRESS lines
-          sed -i.bak '/^DB_CONNECTION_STRING=/d' "$ENV_FILE" 2>/dev/null || true
-          sed -i.bak '/^CONTRACT_ADDRESS=/d' "$ENV_FILE" 2>/dev/null || true
-          sed -i.bak '/^NEXT_PUBLIC_CONTRACT_ADDRESS=/d' "$ENV_FILE" 2>/dev/null || true
-          rm -f "${ENV_FILE}.bak" 2>/dev/null || true
-        else
-          # Create the file if it doesn't exist
-          mkdir -p .vercel
-          touch "$ENV_FILE"
-        fi
-        
-        # Append the new values
-        echo "DB_CONNECTION_STRING=${{ env.NEW_DB_CONNECTION_STRING }}" >> "$ENV_FILE"
-        echo "CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }}" >> "$ENV_FILE"
-        echo "NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }}" >> "$ENV_FILE"
-        
-        echo "✅ Updated environment variables:"
-        echo "   - DB_CONNECTION_STRING"
-        echo "   - CONTRACT_ADDRESS"
-        echo "   - NEXT_PUBLIC_CONTRACT_ADDRESS"
-
     - name: Deploy to Vercel
       id: vercel-deploy
       run: |
         # Get commit author information from git (from the actual commit, not merge commit)
-        git log
+        git log -10
 
         COMMIT_AUTHOR_NAME=$(git log -1 --format='%an')
         COMMIT_AUTHOR_EMAIL=$(git log -1 --format='%ae')
@@ -295,7 +266,10 @@ jobs:
           -m githubCommitSha=$COMMIT_SHA \
           -m githubCommitAuthorName="$COMMIT_AUTHOR_NAME" \
           -m githubCommitAuthorEmail="$COMMIT_AUTHOR_EMAIL" \
-          -m githubCommitMessage="$COMMIT_MESSAGE"
+          -m githubCommitMessage="$COMMIT_MESSAGE" \
+          --env DB_CONNECTION_STRING=${{ env.NEW_DB_CONNECTION_STRING }} \
+          --env CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }} \
+          --env NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }}
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
