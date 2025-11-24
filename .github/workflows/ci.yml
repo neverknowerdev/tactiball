@@ -198,11 +198,11 @@ jobs:
         echo "📦 Creating database: $DB_NAME"
         
         # Connect to 'postgres' database to create the new database
-        psql "$NEW_CONN_STRING" -c "CREATE DATABASE \"$DB_NAME\";" || {
+        psql "$ORIGINAL_CONN_STRING" -c "CREATE DATABASE \"$DB_NAME\";" || {
           # If database already exists, drop and recreate
           echo "Database exists, dropping and recreating..."
-          psql "$NEW_CONN_STRING" -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
-          psql "$NEW_CONN_STRING" -c "CREATE DATABASE \"$DB_NAME\";"
+          psql "$ORIGINAL_CONN_STRING" -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+          psql "$ORIGINAL_CONN_STRING" -c "CREATE DATABASE \"$DB_NAME\";"
         }
         
         # Set as environment variable
