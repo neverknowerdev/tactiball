@@ -43,7 +43,7 @@ CREATE TRIGGER trigger_update_team_statistics
 
 -- Add comments
 COMMENT ON FUNCTION trigger_update_team_statistics() IS 'Trigger function to automatically update team statistics when games are modified';
-COMMENT ON TRIGGER trigger_update_team_statistics ON games IS 'Automatically updates team statistics when games are finished or modified';
+COMMENT ON TRIGGER trigger_update_team_statistics ON public.games IS 'Automatically updates team statistics when games are finished or modified';
 
 -- Grant execute permissions
 GRANT EXECUTE ON FUNCTION trigger_update_team_statistics() TO PUBLIC;

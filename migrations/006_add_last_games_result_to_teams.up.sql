@@ -49,7 +49,7 @@ BEGIN
                 WHEN array_length(last_games_results, 1) >= 10 THEN
                     last_games_results[2:10] || ARRAY[team1_result]
                 ELSE
-                    public.last_games_results || ARRAY[team1_result]
+                    last_games_results || ARRAY[team1_result]
             END
         WHERE id = NEW.team1; 
 
@@ -60,7 +60,7 @@ BEGIN
                 WHEN array_length(last_games_results, 1) >= 10 THEN
                     last_games_results[2:10] || ARRAY[team2_result]
                 ELSE
-                    public.last_games_results || ARRAY[team2_result]
+                    last_games_results || ARRAY[team2_result]
             END
         WHERE id = NEW.team2;
     END IF;
@@ -90,7 +90,7 @@ BEGIN
             WHEN array_length(last_games_results, 1) >= 10 THEN
                 last_games_results[2:10] || ARRAY[new_result]
             ELSE
-                public.last_games_results || ARRAY[new_result]
+                last_games_results || ARRAY[new_result]
         END
     WHERE id = team_id_param;
 END;
@@ -116,7 +116,7 @@ BEGIN
                 CASE 
                     WHEN winner = team_record.id THEN 'VICTORY'::game_result
                     WHEN winner IS NULL AND status = 'finished'::game_status THEN 'DRAW'::game_result
-                    WHEN public.status = 'finished_by_timeout'::game_status AND winner != team_record.id THEN 'DEFEAT_BY_TIMEOUT'::game_result
+                    WHEN status = 'finished_by_timeout'::game_status AND winner != team_record.id THEN 'DEFEAT_BY_TIMEOUT'::game_result
                     ELSE 'DEFEAT'::game_result
                 END as result
             FROM public.games 
@@ -136,7 +136,7 @@ COMMENT ON COLUMN public.teams.last_games_results IS 'Array of last 10 game resu
 COMMENT ON FUNCTION update_team_last_games_result(BIGINT, game_result) IS 'Updates the lastGamesResult array for a specific team by appending a new result and trimming to 10 elements';
 COMMENT ON FUNCTION update_all_teams_last_games_result() IS 'Updates lastGamesResult arrays for all teams';
 COMMENT ON FUNCTION trigger_update_team_last_games_result() IS 'Trigger function to automatically update lastGamesResult when games change';
-COMMENT ON TRIGGER trigger_update_team_last_games_result ON games IS 'Automatically updates team lastGamesResult arrays when games are modified';
+COMMENT ON TRIGGER trigger_update_team_last_games_result ON public.games IS 'Automatically updates team lastGamesResult arrays when games are modified';
 
 -- Grant execute permissions
 GRANT EXECUTE ON FUNCTION update_team_last_games_result(BIGINT, game_result) TO PUBLIC;

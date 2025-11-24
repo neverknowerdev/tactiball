@@ -16,7 +16,7 @@ DROP INDEX IF EXISTS public.idx_waiting_rooms_host_team;
 DROP INDEX IF EXISTS public.idx_waiting_rooms_status;
 
 -- Revoke permissions
-REVOKE ALL ON SEQUENCE waiting_rooms_id_seq FROM PUBLIC;
+REVOKE ALL ON SEQUENCE public.waiting_rooms_id_seq FROM PUBLIC;
 REVOKE ALL ON public.waiting_rooms FROM PUBLIC;
 
 -- Drop the table

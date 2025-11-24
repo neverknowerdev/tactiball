@@ -18,7 +18,7 @@ CREATE TABLE public.messages (
 
 -- Create unique constraint on transaction_hash + log_index
 CREATE UNIQUE INDEX idx_messages_transaction_log_unique 
-ON messages (transaction_hash, log_index);
+ON public.messages (transaction_hash, log_index);
 
 -- Add comments
 COMMENT ON TABLE public.messages IS 'Table storing blockchain event logs and messages';
