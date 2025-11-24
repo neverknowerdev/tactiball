@@ -1,5 +1,4 @@
 {
-    "installCommand": "npm ci",
     "buildCommand": "cd .. && npx hardhat compile && cd frontend && npm run build",
     "crons": [
         {
