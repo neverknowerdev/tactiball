@@ -3,7 +3,7 @@ import { base } from 'viem/chains';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
-import { pool } from '../db/client';
+import { pool } from '../frontend/db/pool';
 
 dotenv.config();
 
@@ -74,7 +74,7 @@ async function getBlockRangeForMonth(client: any, year: number, month: number): 
     try {
         const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
         const endDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
-        
+
         const startTimestamp = Math.floor(startDate.getTime() / 1000);
         const endTimestamp = Math.floor(endDate.getTime() / 1000);
 
@@ -201,7 +201,7 @@ function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> 
             case 'GoalScored': {
                 const gameId = Number(args.gameId);
                 const scoringTeam = Number(args.scoringTeam);
-                
+
                 if (games.has(gameId)) {
                     const game = games.get(gameId)!;
                     if (scoringTeam === 1) {
@@ -217,7 +217,7 @@ function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> 
                 const gameId = Number(args.gameId);
                 const winner = Number(args.winner);
                 const finishReason = Number(args.finishReason);
-                
+
                 if (games.has(gameId)) {
                     const game = games.get(gameId)!;
                     game.winner = winner;
@@ -230,7 +230,7 @@ function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> 
                 const teamId = Number(args.teamId);
                 const gameId = Number(args.gameId);
                 const eloRating = Number(args.eloRating);
-                
+
                 // Store ELO update for this team and game
                 eloUpdates.set(`${gameId}-${teamId}`, eloRating);
                 break;
@@ -242,7 +242,7 @@ function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> 
     for (const [gameId, game] of games) {
         const team1Key = `${gameId}-${game.team1Id}`;
         const team2Key = `${gameId}-${game.team2Id}`;
-        
+
         if (eloUpdates.has(team1Key)) {
             game.team1EloChange = eloUpdates.get(team1Key);
         }
@@ -292,7 +292,7 @@ function calculateTeamStats(teamId: number, games: GameResult[]): TeamStats {
         }
 
         let result: string;
-        
+
         // Check if timeout defeat
         if (game.finishReason === 2 || game.finishReason === 3) {
             // Timeout finish reason

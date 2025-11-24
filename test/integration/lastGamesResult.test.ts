@@ -1,7 +1,7 @@
 // lastGamesResults.test.ts
 import { expect } from 'chai';
 import { randomUUID } from 'crypto';
-import { pool } from '../../db/client';
+import { pool } from '../../frontend/db/pool';
 
 // Types
 type GameStatus = 'active' | 'finished' | 'finished_by_timeout';
@@ -34,7 +34,7 @@ describe('Last Games Results Functionality', () => {
   beforeEach(async () => {
     // Clean up test data
     await cleanupTestData();
-    
+
     // Small delay to ensure cleanup completes
     await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -124,7 +124,7 @@ describe('Last Games Results Functionality', () => {
   ): Promise<Game> {
     // Use a unique timestamp to help avoid conflicts
     const uniqueTimestamp = createdAt || new Date(Date.now() + Math.random() * 1000);
-    
+
     // Retry logic for handling potential race conditions
     const { rows: [game] } = await pool.query<Game>(
       `INSERT INTO games (team1, team2, winner, status, created_at)

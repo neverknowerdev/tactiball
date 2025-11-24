@@ -3,7 +3,7 @@ import { baseSepolia, base } from 'viem/chains';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
-import { pool } from '../db/client';
+import { pool } from '../frontend/db/pool';
 
 dotenv.config();
 
@@ -76,10 +76,10 @@ interface GameResult {
 }
 
 function createViemClient(network: 'baseSepolia' | 'baseMainnet') {
-    const rpcUrl = network === 'baseSepolia' 
+    const rpcUrl = network === 'baseSepolia'
         ? process.env.BASE_SEPOLIA_RPC_URL || process.env.RPC_URL || 'https://sepolia.base.org'
         : process.env.BASE_MAINNET_RPC_URL || process.env.RPC_URL || 'https://mainnet.base.org';
-    
+
     return createPublicClient({
         chain: network === 'baseSepolia' ? baseSepolia : base,
         transport: http(rpcUrl)
@@ -219,7 +219,7 @@ async function fetchEventsFromBasescan(
     const allEvents: ContractEvent[] = [];
 
     // Use correct Basescan API URL based on network
-    const basescanUrl = network === 'baseSepolia' 
+    const basescanUrl = network === 'baseSepolia'
         ? 'https://api-sepolia.basescan.org/api'
         : BASESCAN_API_URL;
 
@@ -319,7 +319,7 @@ function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> 
             case 'GoalScored': {
                 const gameId = Number(args.gameId);
                 const scoringTeam = Number(args.scoringTeam);
-                
+
                 if (games.has(gameId)) {
                     const game = games.get(gameId)!;
                     if (scoringTeam === 1) {
@@ -335,7 +335,7 @@ function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> 
                 const gameId = Number(args.gameId);
                 const winner = Number(args.winner);
                 const finishReason = Number(args.finishReason);
-                
+
                 if (games.has(gameId)) {
                     const game = games.get(gameId)!;
                     game.winner = winner;
@@ -348,7 +348,7 @@ function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> 
                 const teamId = Number(args.teamId);
                 const gameId = Number(args.gameId);
                 const eloRating = Number(args.eloRating);
-                
+
                 eloUpdates.set(`${gameId}-${teamId}`, eloRating);
                 break;
             }
@@ -359,7 +359,7 @@ function processEventsToGames(events: ContractEvent[]): Map<number, GameResult> 
     for (const [gameId, game] of games) {
         const team1Key = `${gameId}-${game.team1Id}`;
         const team2Key = `${gameId}-${game.team2Id}`;
-        
+
         if (eloUpdates.has(team1Key)) {
             game.team1EloChange = eloUpdates.get(team1Key);
         }
@@ -485,7 +485,7 @@ function getPeriodStart(date: Date, period: 'week' | 'month' | 'alltime'): Date 
     if (period === 'alltime') {
         return new Date('2025-08-21'); // Fixed start date for alltime
     }
-    
+
     const d = new Date(date);
     if (period === 'week') {
         const day = d.getDay();
@@ -528,8 +528,8 @@ async function updateTeamStatistics(
             }
 
             // Calculate stats for this period
-            const periodStats = period === 'alltime' 
-                ? stats 
+            const periodStats = period === 'alltime'
+                ? stats
                 : calculateTeamStats(teamId, periodGames, initialElo);
 
             // Upsert statistics
@@ -606,7 +606,7 @@ async function fetchAllTeamIdsFromEvents(
     fromBlock: number = 0,
     toBlock: number = 99999999
 ): Promise<number[]> {
-    const basescanUrl = network === 'baseSepolia' 
+    const basescanUrl = network === 'baseSepolia'
         ? 'https://api-sepolia.basescan.org/api'
         : BASESCAN_API_URL;
 
@@ -655,7 +655,7 @@ async function fetchAllTeamIdsFromEvents(
 
         if (data.result && Array.isArray(data.result)) {
             console.log(`  ✅ Found ${data.result.length} TeamCreated event(s) in Basescan`);
-            
+
             // Extract team IDs from topics (topic1 is the indexed teamId)
             const teamIds: number[] = data.result.map((event: ContractEvent, index: number) => {
                 // topic1 is the teamId (indexed parameter)
@@ -751,9 +751,9 @@ export async function syncTeamsFromContract(
     // Fetch all team IDs from TeamCreated events (primary method)
     console.log(`\n📡 Fetching all team IDs from TeamCreated events...`);
     let teamIdsToSync: number[] = [];
-    
+
     const teamIdsFromEvents = await fetchAllTeamIdsFromEvents(finalContractAddress, network);
-    
+
     if (teamIdsFromEvents.length > 0) {
         console.log(`✅ Found ${teamIdsFromEvents.length} teams from TeamCreated events:`, teamIdsFromEvents);
         teamIdsToSync = teamIdsFromEvents;
@@ -782,7 +782,7 @@ export async function syncTeamsFromContract(
         // Also check a few beyond nextTeamId in case the contract state is inconsistent
         const endId = endTeamId || Math.max(totalTeams, Number(nextTeamId));
         teamIdsToSync = [];
-        
+
         console.log(`\n🔍 Verifying team IDs from ${startId} to ${endId}...`);
         for (let i = startId; i <= endId; i++) {
             try {
@@ -797,7 +797,7 @@ export async function syncTeamsFromContract(
                 console.log(`  ⏭️  Team ${i} does not exist (error: ${error instanceof Error ? error.message : 'unknown'})`);
             }
         }
-        
+
         // Always check a few more IDs beyond nextTeamId in case events show teams that 
         // nextTeamId doesn't account for (e.g., if nextTeamId is 2 but team 2 exists)
         if (!startTeamId && !endTeamId) {
@@ -815,7 +815,7 @@ export async function syncTeamsFromContract(
                 }
             }
         }
-        
+
         if (teamIdsToSync.length === 0) {
             console.log(`\n⚠️  No teams found after verification`);
             return;
@@ -887,7 +887,7 @@ export async function syncTeamsFromContract(
                 if (includeStatistics && allGames && contractTeam.games.length > 0) {
                     try {
                         console.log(`  📊 Updating statistics for team ${teamId}...`);
-                        
+
                         // Filter games for this team
                         const teamGames = Array.from(allGames.values()).filter(
                             game => game.team1Id === teamId || game.team2Id === teamId

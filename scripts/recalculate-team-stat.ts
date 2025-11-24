@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { pool } from '../db/client';
+import { pool } from '../frontend/db/pool';
 
 type Period = 'week' | 'month' | 'alltime';
 

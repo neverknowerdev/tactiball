@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { pool } from '../../db/client';
+import { pool } from '../../frontend/db/pool';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
