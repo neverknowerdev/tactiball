@@ -138,6 +138,9 @@ jobs:
 
     - name: Deploy smart contract to testnet
       id: deploy-contract
+      env:
+        BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+        RELAYER_PRIVATE_KEY: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
       run: |
         npx hardhat run scripts/deploy-testnet.ts --network baseSepolia
         
