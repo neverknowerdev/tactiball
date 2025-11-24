@@ -259,8 +259,32 @@ jobs:
     - name: Deploy to Vercel
       id: vercel-deploy
       run: |
-        vercel deploy --token=${{ secrets.VERCEL_TOKEN }}
+        # Get commit author information from git (from the actual commit, not merge commit)
+        COMMIT_AUTHOR_NAME=$(git log -1 --format='%an')
+        COMMIT_AUTHOR_EMAIL=$(git log -1 --format='%ae')
+        COMMIT_SHA=$(git rev-parse HEAD)
+        COMMIT_MESSAGE=$(git log -1 --format='%s')
+        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+        
+        echo "📦 Deploying to Vercel with:"
+        echo "  Branch: $BRANCH_NAME"
+        echo "  Commit: $COMMIT_SHA"
+        echo "  Commit Message: $COMMIT_MESSAGE"
+        echo "  Author: $COMMIT_AUTHOR_NAME <$COMMIT_AUTHOR_EMAIL>"
+        
+        # Deploy with explicit metadata using -m flags
+        # Format: -m key=value (no quotes needed for values without spaces)
+        vercel deploy \
+          --token=${{ secrets.VERCEL_TOKEN }} \
+          -m githubCommitRef=$BRANCH_NAME \
+          -m githubCommitSha=$COMMIT_SHA \
+          -m githubCommitAuthorName="$COMMIT_AUTHOR_NAME" \
+          -m githubCommitAuthorEmail="$COMMIT_AUTHOR_EMAIL" \
+          -m githubCommitMessage="$COMMIT_MESSAGE"
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        # Also set as environment variables as fallback
+        VERCEL_GIT_COMMIT_REF: ${{ github.head_ref || github.ref_name }}
+        VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
 
