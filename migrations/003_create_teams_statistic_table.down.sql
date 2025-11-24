@@ -3,17 +3,17 @@
 -- Date: 2024-12-19
 
 -- Drop indexes first
-DROP INDEX IF EXISTS idx_teams_statistic_team_period_start;
-DROP INDEX IF EXISTS idx_teams_statistic_team_period;
-DROP INDEX IF EXISTS idx_teams_statistic_period_start;
-DROP INDEX IF EXISTS idx_teams_statistic_period;
-DROP INDEX IF EXISTS idx_teams_statistic_team_id;
+DROP INDEX IF EXISTS public.idx_teams_statistic_team_period_start;
+DROP INDEX IF EXISTS public.idx_teams_statistic_team_period;
+DROP INDEX IF EXISTS public.idx_teams_statistic_period_start;
+DROP INDEX IF EXISTS public.idx_teams_statistic_period;
+DROP INDEX IF EXISTS public.idx_teams_statistic_team_id;
 
 -- Drop foreign key constraint
-ALTER TABLE teams_statistic DROP CONSTRAINT IF EXISTS teams_statistic_team_id_fkey;
+ALTER TABLE public.teams_statistic DROP CONSTRAINT IF EXISTS teams_statistic_team_id_fkey;
 
 -- Drop table
-DROP TABLE IF EXISTS teams_statistic;
+DROP TABLE IF EXISTS public.teams_statistic;
 
 -- Drop enum type
 DROP TYPE IF EXISTS statistic_period;

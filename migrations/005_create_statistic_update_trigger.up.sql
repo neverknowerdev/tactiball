@@ -37,7 +37,7 @@ $$;
 
 -- Create trigger on games table
 CREATE TRIGGER trigger_update_team_statistics
-    AFTER INSERT OR UPDATE OR DELETE ON games
+    AFTER INSERT OR UPDATE OR DELETE ON public.games
     FOR EACH ROW
     EXECUTE FUNCTION trigger_update_team_statistics();
 

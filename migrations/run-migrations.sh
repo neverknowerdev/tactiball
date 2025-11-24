@@ -8,7 +8,6 @@ set -e
 # Configuration
 MIGRATIONS_DIR="$(cd "$(dirname "$0")" && pwd)"
 DB_CONNECTION_STRING="${DB_CONNECTION_STRING:-postgres://postgres:postgres@localhost:5432/postgres}"
-SCHEMA="${SCHEMA:-tactiball}"
 
 # Function to show usage
 show_usage() {
@@ -22,7 +21,6 @@ show_usage() {
     echo "  --force              Skip confirmation prompt (down migrations only)"
     echo ""
     echo "Environment Variables:"
-    echo "  SCHEMA               Database schema name (default: tactiball)"
     echo "  DB_CONNECTION_STRING  Database connection string"
     echo ""
     echo "Examples:"
@@ -30,7 +28,6 @@ show_usage() {
     echo "  $0 up 005                # Apply migrations up to version 005"
     echo "  $0 down 005              # Rollback to version 005"
     echo "  $0 down 005 --force      # Rollback to version 005 without confirmation"
-    echo "  SCHEMA=myschema $0 up    # Use custom schema"
     echo ""
     exit 1
 }
@@ -46,7 +43,7 @@ check_psql() {
 # Function to test database connection
 test_connection() {
     echo "🔌 Testing database connection..."
-    if psql "$DB_CONNECTION_STRING" -c "SET search_path TO $SCHEMA; SELECT 1;" > /dev/null 2>&1; then
+    if psql "$DB_CONNECTION_STRING" -c "SELECT 1;" > /dev/null 2>&1; then
         echo "✅ Database connection successful"
     else
         echo "❌ Database connection failed"
@@ -58,19 +55,17 @@ test_connection() {
 
 # Function to ensure migrations table exists
 ensure_migrations_table() {
-    echo "📋 Ensuring migrations table exists in schema '$SCHEMA'..."
+    echo "📋 Ensuring migrations table exists..."
     psql "$DB_CONNECTION_STRING" -c "
-        CREATE SCHEMA IF NOT EXISTS $SCHEMA;
-        SET search_path TO $SCHEMA;
-        CREATE TABLE IF NOT EXISTS migrations (
+        CREATE TABLE IF NOT EXISTS public.migrations (
             version INTEGER PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             hash VARCHAR(64) NOT NULL,
             is_dirty BOOLEAN NOT NULL DEFAULT false,
             created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
-        CREATE INDEX IF NOT EXISTS idx_migrations_name ON migrations(name);
-        CREATE INDEX IF NOT EXISTS idx_migrations_is_dirty ON migrations(is_dirty);
+        CREATE INDEX IF NOT EXISTS idx_migrations_name ON public.migrations(name);
+        CREATE INDEX IF NOT EXISTS idx_migrations_is_dirty ON public.migrations(is_dirty);
     " > /dev/null 2>&1
     
     echo "✅ Migrations table ready"
@@ -139,9 +134,8 @@ extract_down_migration_info() {
 # Function to get latest applied migration version (as integer)
 get_latest_version() {
     local version_str=$(psql "$DB_CONNECTION_STRING" -t -A -c "
-        SET search_path TO $SCHEMA;
         SELECT COALESCE(MAX(version), -1)
-        FROM migrations
+        FROM public.migrations
         WHERE is_dirty = false;
     " | grep -E '^-?[0-9]+$' | head -n 1 | tr -d ' ')
     
@@ -156,9 +150,8 @@ is_migration_applied() {
     local hash=$3
     
     local count=$(psql "$DB_CONNECTION_STRING" -t -A -c "
-        SET search_path TO $SCHEMA;
         SELECT COUNT(*)
-        FROM migrations
+        FROM public.migrations
         WHERE version = $version AND name = '$full_name' AND hash = '$hash' AND is_dirty = false;
     " | tr -d ' ' | grep -E '^[0-9]+$' | head -n 1)
     
@@ -184,21 +177,19 @@ apply_migration() {
     # Insert migration record with is_dirty=true
     # Store full filename (without .sql) in name field
     psql "$DB_CONNECTION_STRING" -c "
-        SET search_path TO $SCHEMA;
-        INSERT INTO migrations (version, name, hash, is_dirty, created_at)
+        INSERT INTO public.migrations (version, name, hash, is_dirty, created_at)
         VALUES ($version, '$full_name', '$hash', true, NOW())
         ON CONFLICT (version) 
         DO UPDATE SET hash = EXCLUDED.hash, is_dirty = true, name = EXCLUDED.name;
     " > /dev/null 2>&1
     
-    # Run the migration with schema set
-    if psql "$DB_CONNECTION_STRING" -c "SET search_path TO $SCHEMA;" -f "$migration_file"; then
+    # Run the migration
+    if psql "$DB_CONNECTION_STRING" -f "$migration_file"; then
         echo "   ✅ Migration SQL executed successfully"
         
         # Update is_dirty to false
         psql "$DB_CONNECTION_STRING" -c "
-            SET search_path TO $SCHEMA;
-            UPDATE migrations
+            UPDATE public.migrations
             SET is_dirty = false
             WHERE version = $version AND name = '$full_name';
         " > /dev/null 2>&1
@@ -227,9 +218,8 @@ find_target_version() {
     # Otherwise, treat as name and find version
     # Search for migrations where name contains the target (could be full name or partial)
     local version_str=$(psql "$DB_CONNECTION_STRING" -t -A -c "
-        SET search_path TO $SCHEMA;
         SELECT version
-        FROM migrations
+        FROM public.migrations
         WHERE (name LIKE '%$target%' OR name = '$target') AND is_dirty = false
         ORDER BY version DESC
         LIMIT 1;
@@ -254,9 +244,8 @@ get_migrations_to_rollback() {
     local target_version=$1
     
     psql "$DB_CONNECTION_STRING" -t -A -c "
-        SET search_path TO $SCHEMA;
         SELECT version || '|' || name
-        FROM migrations
+        FROM public.migrations
         WHERE version > $target_version AND is_dirty = false
         ORDER BY version DESC;
     " | grep -E '^[0-9]+\|'  # Filter out any non-matching lines
@@ -287,20 +276,18 @@ rollback_migration() {
     
     # Update migration record with is_dirty=true
     psql "$DB_CONNECTION_STRING" -c "
-        SET search_path TO $SCHEMA;
-        UPDATE migrations
+        UPDATE public.migrations
         SET is_dirty = true, hash = '$hash'
         WHERE version = $version AND name = '$full_name';
     " > /dev/null 2>&1
     
-    # Run the down migration with schema set
-    if psql "$DB_CONNECTION_STRING" -c "SET search_path TO $SCHEMA;" -f "$down_file"; then
+    # Run the down migration
+    if psql "$DB_CONNECTION_STRING" -f "$down_file"; then
         echo "   ✅ Down migration SQL executed successfully"
         
         # Delete the migration record (since it's rolled back)
         psql "$DB_CONNECTION_STRING" -c "
-            SET search_path TO $SCHEMA;
-            DELETE FROM migrations
+            DELETE FROM public.migrations
             WHERE version = $version AND name = '$full_name';
         " > /dev/null 2>&1
         
@@ -321,7 +308,6 @@ run_up() {
     
     echo "🚀 Starting Chessball database migrations (UP)..."
     echo "Database URL: ${DB_CONNECTION_STRING}"
-    echo "Schema: ${SCHEMA}"
     echo "Migrations directory: ${MIGRATIONS_DIR}"
     echo ""
     
@@ -448,7 +434,6 @@ run_down() {
     
     echo "🔄 Starting Chessball database migrations (DOWN)..."
     echo "Database URL: ${DB_CONNECTION_STRING}"
-    echo "Schema: ${SCHEMA}"
     echo "Migrations directory: ${MIGRATIONS_DIR}"
     echo ""
     
@@ -471,9 +456,8 @@ run_down() {
             echo ""
             echo "Available migrations:"
             psql "$DB_CONNECTION_STRING" -c "
-                SET search_path TO $SCHEMA;
                 SELECT version, name, is_dirty
-                FROM migrations
+                FROM public.migrations
                 WHERE is_dirty = false
                 ORDER BY version;
             "

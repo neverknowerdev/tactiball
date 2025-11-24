@@ -78,17 +78,6 @@ function createPool(): Pool {
     connectionString = connectionString.replace(/[?&]sslmode=[^&]*/g, '');
 
     const sslConfig = buildSslConfig(connectionString);
-    const schemaName = process.env.DB_SCHEMA || 'tactiball';
-
-    // Validate schema name to prevent SQL injection (only alphanumeric and underscore)
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) {
-        throw new Error(`Invalid schema name: ${schemaName}. Schema names must start with a letter or underscore and contain only alphanumeric characters and underscores.`);
-    }
-
-    // Add search_path to connection string via options parameter
-    // This is more reliable than using the connect event
-    const separator = connectionString.includes('?') ? '&' : '?';
-    connectionString = `${connectionString}${separator}search_path=${schemaName}`;
 
     const poolConfig: PoolConfig = {
         connectionString,

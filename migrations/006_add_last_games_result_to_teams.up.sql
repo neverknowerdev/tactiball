@@ -6,7 +6,7 @@
 CREATE TYPE game_result AS ENUM ('VICTORY', 'DRAW', 'DEFEAT', 'DEFEAT_BY_TIMEOUT');
 
 -- Add the lastGamesResult column to teams table
-ALTER TABLE teams 
+ALTER TABLE public.teams 
 ADD COLUMN IF NOT EXISTS last_games_results game_result[] DEFAULT '{}';
 
 -- Create a trigger function to automatically update lastGamesResult when games are modified
@@ -43,24 +43,24 @@ BEGIN
         END;
 
         -- Update team1's results (FIXED: proper array slicing)
-        UPDATE teams
+        UPDATE public.teams
         SET last_games_results = 
             CASE
                 WHEN array_length(last_games_results, 1) >= 10 THEN
                     last_games_results[2:10] || ARRAY[team1_result]
                 ELSE
-                    last_games_results || ARRAY[team1_result]
+                    public.last_games_results || ARRAY[team1_result]
             END
         WHERE id = NEW.team1; 
 
         -- Update team2's results (FIXED: proper array slicing)
-        UPDATE teams
+        UPDATE public.teams
         SET last_games_results = 
             CASE
                 WHEN array_length(last_games_results, 1) >= 10 THEN
                     last_games_results[2:10] || ARRAY[team2_result]
                 ELSE
-                    last_games_results || ARRAY[team2_result]
+                    public.last_games_results || ARRAY[team2_result]
             END
         WHERE id = NEW.team2;
     END IF;
@@ -70,14 +70,13 @@ END;
 $$;
 
 -- Create trigger on games table (only AFTER INSERT OR UPDATE, not DELETE)
-DROP TRIGGER IF EXISTS trigger_update_team_last_games_result ON games;
 CREATE TRIGGER trigger_update_team_last_games_result
-    AFTER INSERT OR UPDATE ON games
+    AFTER INSERT OR UPDATE ON public.games
     FOR EACH ROW
     EXECUTE FUNCTION trigger_update_team_last_games_result();
 
 -- Create index on the new array column for better performance
-CREATE INDEX IF NOT EXISTS idx_teams_last_games_results ON teams USING GIN (last_games_results);
+CREATE INDEX IF NOT EXISTS idx_teams_last_games_results ON public.teams USING GIN (last_games_results);
 
 -- Create the missing function to update a specific team's last games result
 CREATE OR REPLACE FUNCTION update_team_last_games_result(team_id_param BIGINT, new_result game_result)
@@ -85,13 +84,13 @@ RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    UPDATE teams
+    UPDATE public.teams
     SET last_games_results = 
         CASE
             WHEN array_length(last_games_results, 1) >= 10 THEN
                 last_games_results[2:10] || ARRAY[new_result]
             ELSE
-                last_games_results || ARRAY[new_result]
+                public.last_games_results || ARRAY[new_result]
         END
     WHERE id = team_id_param;
 END;
@@ -107,9 +106,9 @@ DECLARE
     game_record RECORD;
 BEGIN
     -- For each team, get their last 10 finished games and update the array
-    FOR team_record IN SELECT id FROM teams LOOP
+    FOR team_record IN SELECT id FROM public.teams LOOP
         -- Clear existing results for this team
-        UPDATE teams SET last_games_results = '{}'::game_result[] WHERE id = team_record.id;
+        UPDATE public.teams SET last_games_results = '{}'::game_result[] WHERE id = team_record.id;
         
         -- Get last 10 finished games for this team (ordered by created_at ASC for chronological order)
         FOR game_record IN 
@@ -117,10 +116,10 @@ BEGIN
                 CASE 
                     WHEN winner = team_record.id THEN 'VICTORY'::game_result
                     WHEN winner IS NULL AND status = 'finished'::game_status THEN 'DRAW'::game_result
-                    WHEN status = 'finished_by_timeout'::game_status AND winner != team_record.id THEN 'DEFEAT_BY_TIMEOUT'::game_result
+                    WHEN public.status = 'finished_by_timeout'::game_status AND winner != team_record.id THEN 'DEFEAT_BY_TIMEOUT'::game_result
                     ELSE 'DEFEAT'::game_result
                 END as result
-            FROM games 
+            FROM public.games 
             WHERE (team1 = team_record.id OR team2 = team_record.id)
               AND status IN ('finished'::game_status, 'finished_by_timeout'::game_status)
             ORDER BY created_at ASC
@@ -133,7 +132,7 @@ END;
 $$;
 
 -- Add comments
-COMMENT ON COLUMN teams.last_games_results IS 'Array of last 10 game results (VICTORY, DRAW, DEFEAT, DEFEAT_BY_TIMEOUT)';
+COMMENT ON COLUMN public.teams.last_games_results IS 'Array of last 10 game results (VICTORY, DRAW, DEFEAT, DEFEAT_BY_TIMEOUT)';
 COMMENT ON FUNCTION update_team_last_games_result(BIGINT, game_result) IS 'Updates the lastGamesResult array for a specific team by appending a new result and trimming to 10 elements';
 COMMENT ON FUNCTION update_all_teams_last_games_result() IS 'Updates lastGamesResult arrays for all teams';
 COMMENT ON FUNCTION trigger_update_team_last_games_result() IS 'Trigger function to automatically update lastGamesResult when games change';

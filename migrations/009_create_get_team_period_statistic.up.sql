@@ -2,9 +2,6 @@
 -- Description: Create function to get team rankings based on statistics for specific periods
 -- Date: 2024-12-19
 
--- Drop function if exists to ensure clean recreation
-DROP FUNCTION IF EXISTS get_team_period_rankings(BIGINT, statistic_period, DATE);
-
 -- Create function to get team rankings based on statistics for a specific period
 CREATE OR REPLACE FUNCTION get_team_period_rankings(
     team_id_param BIGINT,
@@ -38,8 +35,8 @@ BEGIN
         CASE 
             WHEN ts.team_id IS NOT NULL THEN (
                 SELECT COUNT(*) + 1 
-                FROM teams t2 
-                JOIN teams_statistic ts2 ON t2.id = ts2.team_id
+                FROM public.teams t2 
+                JOIN public.teams_statistic ts2 ON t2.id = ts2.team_id
                 WHERE ts2.period = period_type 
                 AND (period_type = 'alltime' OR ts2.period_start = period_start_date)
                 AND t2.elo_rating > t.elo_rating
@@ -49,8 +46,8 @@ BEGIN
         CASE 
             WHEN ts.team_id IS NOT NULL THEN (
                 SELECT COUNT(*) + 1 
-                FROM teams t3 
-                JOIN teams_statistic ts3 ON t3.id = ts3.team_id
+                FROM public.teams t3 
+                JOIN public.teams_statistic ts3 ON t3.id = ts3.team_id
                 WHERE ts3.period = period_type 
                 AND (period_type = 'alltime' OR ts3.period_start = period_start_date)
                 AND t3.country = t.country 
@@ -69,8 +66,8 @@ BEGIN
             THEN (ts.wins::NUMERIC / (ts.wins + ts.draws + ts.losses)) * 100 
             ELSE 0 
         END as win_percentage
-    FROM teams t
-    LEFT JOIN teams_statistic ts ON t.id = ts.team_id 
+    FROM public.teams t
+    LEFT JOIN public.teams_statistic ts ON t.id = ts.team_id 
         AND ts.period = period_type 
         AND (period_type = 'alltime' OR ts.period_start = period_start_date)
     WHERE t.id = team_id_param;

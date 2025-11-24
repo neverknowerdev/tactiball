@@ -31,14 +31,14 @@ DECLARE
 BEGIN
     -- Try to get existing record
     SELECT id INTO record_id
-    FROM teams_statistic
+    FROM public.teams_statistic
     WHERE team_id = team_id_param 
       AND period = period_type 
       AND period_start = period_start_date;
     
     -- If not found, create new record with default values
     IF record_id IS NULL THEN
-        INSERT INTO teams_statistic (
+        INSERT INTO public.teams_statistic (
             team_id, period, period_start, wins, draws, losses,
             goal_scored, goal_conceded, biggest_win_diff, biggest_win_goal_scored,
             biggest_win_goals_conceded, biggest_loss_diff, biggest_loss_goals_scored,
@@ -77,7 +77,7 @@ BEGIN
     goal_diff := goals_scored - goals_conceded;
     
     -- Update the record based on game result
-    UPDATE teams_statistic 
+    UPDATE public.teams_statistic 
     SET 
         wins = wins + CASE WHEN is_win THEN 1 ELSE 0 END,
         draws = draws + CASE WHEN is_draw THEN 1 ELSE 0 END,
@@ -139,7 +139,7 @@ BEGIN
         created_at::DATE as game_date,
         team1_info, team2_info
     INTO game_record
-    FROM games
+    FROM public.games
     WHERE id = game_id_param AND status = 'finished'::game_status;
     
     IF NOT FOUND THEN
@@ -220,12 +220,12 @@ DECLARE
     game_record RECORD;
 BEGIN
     -- Clear existing statistics for this period
-    DELETE FROM teams_statistic 
+    DELETE FROM public.teams_statistic 
     WHERE period = period_type AND period_start = period_start_date;
     
     -- Rebuild from games in this period
     FOR game_record IN 
-        SELECT id FROM games 
+        SELECT id FROM public.games 
         WHERE status = 'finished'::game_status
           AND created_at::DATE >= period_start_date
           AND created_at::DATE < (

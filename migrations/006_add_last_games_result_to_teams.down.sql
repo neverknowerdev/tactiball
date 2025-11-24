@@ -3,7 +3,7 @@
 -- Date: 2024-12-19
 
 -- Drop trigger first
-DROP TRIGGER IF EXISTS trigger_update_team_last_games_result ON games;
+DROP TRIGGER IF EXISTS trigger_update_team_last_games_result ON public.games;
 
 -- Drop functions
 DROP FUNCTION IF EXISTS trigger_update_team_last_games_result();
@@ -11,10 +11,10 @@ DROP FUNCTION IF EXISTS update_team_last_games_result(BIGINT, game_result);
 DROP FUNCTION IF EXISTS update_all_teams_last_games_result();
 
 -- Drop index
-DROP INDEX IF EXISTS idx_teams_last_games_results;
+DROP INDEX IF EXISTS public.idx_teams_last_games_results;
 
 -- Remove the column from teams table
-ALTER TABLE teams DROP COLUMN IF EXISTS last_games_results;
+ALTER TABLE public.teams DROP COLUMN IF EXISTS last_games_results;
 
 -- Drop the enum type
 DROP TYPE IF EXISTS game_result;
