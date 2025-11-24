@@ -237,8 +237,8 @@ async function handleGameRequestCreated(decodedData: DecodedEvent, database: Dat
         .from(teams)
         .where(inArray(teams.id, [team1id, team2id]));
 
-    const team1Data = teamsData.find((team) => team.id === team1id);
-    const team2Data = teamsData.find((team) => team.id === team2id);
+    const team1Data = teamsData.find((team: typeof teamsData[0]) => team.id === team1id);
+    const team2Data = teamsData.find((team: typeof teamsData[0]) => team.id === team2id);
 
     // Broadcast to team channel
     await wsService.broadcastToGameTeams(Number(team1id), Number(team2id), {
@@ -304,8 +304,8 @@ async function handleGameStarted(decodedData: DecodedEvent, database: Database, 
         .from(teams)
         .where(inArray(teams.id, [team1id, team2id]));
 
-    const team1Data = teamsData.find((team) => team.id === team1id);
-    const team2Data = teamsData.find((team) => team.id === team2id);
+    const team1Data = teamsData.find((team: typeof teamsData[0]) => team.id === team1id);
+    const team2Data = teamsData.find((team: typeof teamsData[0]) => team.id === team2id);
 
     if (!team1Data || !team2Data) {
         console.error('Could not find team data');

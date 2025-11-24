@@ -255,7 +255,8 @@ jobs:
         
         # Deploy with explicit metadata using -m flags
         # Format: -m key=value (no quotes needed for values without spaces)
-        vercel deploy \
+        # Vercel outputs the deployment URL to stdout
+        PREVIEW_URL=$(vercel deploy \
           --token=${{ secrets.VERCEL_TOKEN }} \
           -m githubCommitRef=$BRANCH_NAME \
           -m githubCommitSha=$COMMIT_SHA \
@@ -264,7 +265,10 @@ jobs:
           -m githubCommitMessage="$COMMIT_MESSAGE" \
           -e DB_CONNECTION_STRING="${{ env.NEW_DB_CONNECTION_STRING }}" \
           -e CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
-          -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}"
+          -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}")
+        
+        echo "✅ Preview URL: $PREVIEW_URL"
+        echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -272,3 +276,49 @@ jobs:
         VERCEL_GIT_COMMIT_REF: ${{ github.head_ref || github.ref_name }}
         VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
 
+    - name: Comment PR with Vercel Preview
+      if: steps.vercel-deploy.outputs.preview_url != ''
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const previewUrl = '${{ steps.vercel-deploy.outputs.preview_url }}';
+          const prNumber = context.payload.pull_request.number;
+          const commentBody = `## 🚀 Vercel Preview Deployment
+          
+          Preview deployment is ready:
+          
+          **🔗 [View Preview](${previewUrl})**
+          
+          ${previewUrl}`;
+          
+          // Find existing comment with Vercel preview
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+          });
+          
+          const existingComment = comments.data.find(comment => 
+            comment.body.includes('## 🚀 Vercel Preview Deployment') &&
+            comment.user.type === 'Bot'
+          );
+          
+          if (existingComment) {
+            // Update existing comment
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: commentBody,
+            });
+            console.log('Updated existing Vercel preview comment');
+          } else {
+            // Create new comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody,
+            });
+            console.log('Created new Vercel preview comment');
+          }

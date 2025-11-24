@@ -8,5 +8,7 @@ const pool = new Pool({
 
 const db = drizzle({ client: pool, schema });
 
+export type Database = ReturnType<typeof drizzle<typeof schema>>;
+
 export { db, pool, schema };
 
