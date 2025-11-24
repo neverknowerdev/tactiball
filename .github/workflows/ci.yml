@@ -189,50 +189,21 @@ jobs:
         echo "Branch name: $BRANCH_NAME"
         echo "Database name: $DB_NAME"
         
-        # Parse existing DB_CONNECTION_STRING
-        # Format: postgres://user:password@host:port/database?params
         ORIGINAL_CONN_STRING="${{ secrets.DB_CONNECTION_STRING }}"
         
-        # Remove postgres:// prefix and query parameters
-        CONN_PART=$(echo "$ORIGINAL_CONN_STRING" | sed 's|^postgres://||' | sed 's|?.*$||')
+        # Create new connection string with the new database name
+        # Replace everything after the last / until ? or & or end of line with DB_NAME
+        NEW_CONN_STRING=$(echo "$ORIGINAL_CONN_STRING" | sed -E "s|(.*)/[^/?&]*|\1/${DB_NAME}|")
         
-        # Extract user:password (handle passwords with special chars)
-        USER_PASS=$(echo "$CONN_PART" | cut -d'@' -f1)
-        DB_USER=$(echo "$USER_PASS" | cut -d':' -f1)
-        # Get everything after first colon as password (in case password contains colons)
-        DB_PASSWORD=$(echo "$USER_PASS" | sed "s/^${DB_USER}://")
-        
-        # Extract host:port/database
-        HOST_PORT_DB=$(echo "$CONN_PART" | cut -d'@' -f2-)
-        DB_HOST=$(echo "$HOST_PORT_DB" | cut -d':' -f1)
-        PORT_DB=$(echo "$HOST_PORT_DB" | cut -d':' -f2-)
-        DB_PORT=$(echo "$PORT_DB" | cut -d'/' -f1)
-        
-        # Extract query parameters if they exist (for SSL mode, etc.)
-        if echo "$ORIGINAL_CONN_STRING" | grep -q '?'; then
-          QUERY_PARAMS=$(echo "$ORIGINAL_CONN_STRING" | sed 's/.*?/?/')
-        else
-          QUERY_PARAMS=""
-        fi
-        
-        echo "Database host: $DB_HOST"
-        echo "Database port: $DB_PORT"
-        echo "Database user: $DB_USER"
-        
-        # Set PGPASSWORD for psql
-        export PGPASSWORD="$DB_PASSWORD"
-        
-        # Create new database
         echo "📦 Creating database: $DB_NAME"
-        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "CREATE DATABASE \"$DB_NAME\";" || {
+        
+        # Connect to 'postgres' database to create the new database
+        psql "$NEW_CONN_STRING" -c "CREATE DATABASE \"$DB_NAME\";" || {
           # If database already exists, drop and recreate
           echo "Database exists, dropping and recreating..."
-          psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
-          psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "CREATE DATABASE \"$DB_NAME\";"
+          psql "$NEW_CONN_STRING" -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+          psql "$NEW_CONN_STRING" -c "CREATE DATABASE \"$DB_NAME\";"
         }
-        
-        # Construct new connection string (append query params if they exist)
-        NEW_CONN_STRING="postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME$QUERY_PARAMS"
         
         # Set as environment variable
         echo "NEW_DB_CONNECTION_STRING=$NEW_CONN_STRING" >> $GITHUB_ENV
