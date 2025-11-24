@@ -260,7 +260,7 @@ jobs:
       id: vercel-deploy
       run: |
         cd frontend
-        vercel deploy --token=${{ secrets.VERCEL_TOKEN }} --branch=${{ github.head_ref }}
+        vercel deploy --token=${{ secrets.VERCEL_TOKEN }}
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
