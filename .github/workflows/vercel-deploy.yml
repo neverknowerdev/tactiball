@@ -1,0 +1,176 @@
+name: Deploy to Vercel
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
+
+jobs:
+  deploy-vercel:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: preview
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install frontend dependencies
+      run: npm run frontend:install
+
+    - name: Compile contracts
+      run: npx hardhat compile
+
+    - name: Install Vercel CLI
+      run: npm install --global vercel@latest
+
+    - name: Deploy smart contract to testnet
+      id: deploy-contract
+      run: |
+        npx hardhat run scripts/deploy-testnet.ts --network baseSepolia
+        
+        # Extract contract address from deployment.json using jq (preferred method)
+        if [ -f deployment.json ]; then
+          # Try baseSepolia.proxyAddress first, then fallback to top-level proxyAddress
+          CONTRACT_ADDRESS=$(jq -r '.baseSepolia.proxyAddress' deployment.json 2>/dev/null || echo "")
+        fi
+        
+        if [ -z "$CONTRACT_ADDRESS" ] || [ "$CONTRACT_ADDRESS" = "null" ] || [ "$CONTRACT_ADDRESS" = "" ]; then
+          echo "⚠️ Error: Could not extract contract address from deployment"
+          echo "Deployment output:"
+          tail -50 deploy-output.log
+          exit 1
+        fi
+        
+        echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> $GITHUB_ENV
+        echo "✅ Contract deployed to: $CONTRACT_ADDRESS"
+      env:
+        BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+        RELAYER_PRIVATE_KEY: ${{ secrets.RELAYER_PRIVATE_KEY }}
+
+    - name: Display contract address
+      run: |
+        echo "📋 Contract address for this deployment: ${{ env.CONTRACT_ADDRESS }}"
+        if [ -z "${{ env.CONTRACT_ADDRESS }}" ]; then
+          echo "⚠️ Warning: CONTRACT_ADDRESS is not set"
+          exit 1
+        fi
+
+    - name: Setup PostgreSQL client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+
+    - name: Create branch database and run migrations
+      id: setup-database
+      run: |
+        # Get branch name and sanitize it for database name
+        BRANCH_NAME="${{ github.event.workflow_run.head_branch }}"
+        # Sanitize branch name: lowercase, replace special chars with underscores, remove leading/trailing underscores
+        DB_NAME=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g' | sed 's/^_*//;s/_*$//' | cut -c1-63)
+        
+        # If DB_NAME is empty after sanitization, use a default
+        if [ -z "$DB_NAME" ]; then
+          DB_NAME="preview_$(date +%s)"
+        fi
+        
+        echo "Branch name: $BRANCH_NAME"
+        echo "Database name: $DB_NAME"
+        
+        # Parse existing DB_CONNECTION_STRING
+        # Format: postgres://user:password@host:port/database?params
+        ORIGINAL_CONN_STRING="${{ secrets.DB_CONNECTION_STRING }}"
+        
+        # Remove postgres:// prefix and query parameters
+        CONN_PART=$(echo "$ORIGINAL_CONN_STRING" | sed 's|^postgres://||' | sed 's|?.*$||')
+        
+        # Extract user:password (handle passwords with special chars)
+        USER_PASS=$(echo "$CONN_PART" | cut -d'@' -f1)
+        DB_USER=$(echo "$USER_PASS" | cut -d':' -f1)
+        # Get everything after first colon as password (in case password contains colons)
+        DB_PASSWORD=$(echo "$USER_PASS" | sed "s/^${DB_USER}://")
+        
+        # Extract host:port/database
+        HOST_PORT_DB=$(echo "$CONN_PART" | cut -d'@' -f2-)
+        DB_HOST=$(echo "$HOST_PORT_DB" | cut -d':' -f1)
+        PORT_DB=$(echo "$HOST_PORT_DB" | cut -d':' -f2-)
+        DB_PORT=$(echo "$PORT_DB" | cut -d'/' -f1)
+        
+        # Extract query parameters if they exist (for SSL mode, etc.)
+        if echo "$ORIGINAL_CONN_STRING" | grep -q '?'; then
+          QUERY_PARAMS=$(echo "$ORIGINAL_CONN_STRING" | sed 's/.*?/?/')
+        else
+          QUERY_PARAMS=""
+        fi
+        
+        echo "Database host: $DB_HOST"
+        echo "Database port: $DB_PORT"
+        echo "Database user: $DB_USER"
+        
+        # Set PGPASSWORD for psql
+        export PGPASSWORD="$DB_PASSWORD"
+        
+        # Create new database
+        echo "📦 Creating database: $DB_NAME"
+        psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "CREATE DATABASE \"$DB_NAME\";" || {
+          # If database already exists, drop and recreate
+          echo "Database exists, dropping and recreating..."
+          psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+          psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "CREATE DATABASE \"$DB_NAME\";"
+        }
+        
+        # Construct new connection string (append query params if they exist)
+        NEW_CONN_STRING="postgres://$DB_USER:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME$QUERY_PARAMS"
+        
+        # Set as environment variable
+        echo "NEW_DB_CONNECTION_STRING=$NEW_CONN_STRING" >> $GITHUB_ENV
+        echo "✅ New database created: $DB_NAME"
+        echo "✅ New connection string set"
+        
+        # Run migrations on the new database
+        echo "🔄 Running migrations on database: $DB_NAME"
+        cd migrations
+        DB_CONNECTION_STRING="$NEW_CONN_STRING" ./run-migrations.sh up
+        
+        echo "✅ Migrations completed successfully"
+      env:
+        DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
+
+    - name: Pull Vercel Environment Information
+      run: |
+        cd frontend
+        vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      env:
+        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+
+    - name: Deploy to Vercel
+      id: vercel-deploy
+      run: |
+        cd frontend
+        vercel deploy --token=${{ secrets.VERCEL_TOKEN }} --branch=${{ github.event.workflow_run.head_branch }}
+      env:
+        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        NEXT_PUBLIC_ABLY_API_KEY: ${{ secrets.NEXT_PUBLIC_ABLY_API_KEY }}
+        ABLY_BROADCASTING_API_KEY: ${{ secrets.ABLY_BROADCASTING_API_KEY }}
+        UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+        UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+        COINBASE_PAYMASTER_RPC_URL: ${{ secrets.COINBASE_PAYMASTER_RPC_URL }}
+        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        SENTRY_ORG: gmgmgm
+        SENTRY_PROJECT: chessball
+        DB_CONNECTION_STRING: ${{ env.NEW_DB_CONNECTION_STRING }}
+        CONTRACT_ADDRESS: ${{ env.CONTRACT_ADDRESS }}
+
