@@ -269,7 +269,8 @@ jobs:
           -m githubCommitMessage="$COMMIT_MESSAGE" \
           -e DB_CONNECTION_STRING="${{ env.NEW_DB_CONNECTION_STRING }}" \
           -e CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
-          -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}")
+          -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}") \
+          -e NEXT_PUBLIC_ENV=preview
         
         echo "✅ Preview URL: $PREVIEW_URL"
         echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
@@ -295,34 +296,33 @@ jobs:
           
           ${previewUrl}`;
           
-          // Find existing comment with Vercel preview
+          // Find all existing comments with Vercel preview marker
           const comments = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: prNumber,
           });
           
-          const existingComment = comments.data.find(comment => 
+          const existingComments = comments.data.filter(comment => 
             comment.body.includes('## 🚀 Vercel Preview Deployment') &&
             comment.user.type === 'Bot'
           );
           
-          if (existingComment) {
-            // Update existing comment
-            await github.rest.issues.updateComment({
+          // Delete all old Vercel preview comments
+          for (const comment of existingComments) {
+            await github.rest.issues.deleteComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              comment_id: existingComment.id,
-              body: commentBody,
+              comment_id: comment.id,
             });
-            console.log('Updated existing Vercel preview comment');
-          } else {
-            // Create new comment
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              body: commentBody,
-            });
-            console.log('Created new Vercel preview comment');
+            console.log(`Deleted old Vercel preview comment: ${comment.id}`);
           }
+          
+          // Create new comment with latest preview URL
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+            body: commentBody,
+          });
+          console.log('Created new Vercel preview comment');
