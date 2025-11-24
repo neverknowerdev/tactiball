@@ -91,7 +91,6 @@ jobs:
     - name: Generate test coverage report
       env:
         DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
-        HARDHAT_NETWORK: hardhat
       run: npm run hardhat:coverage
 
     - name: DB Migrations down
