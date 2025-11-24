@@ -260,6 +260,8 @@ jobs:
       id: vercel-deploy
       run: |
         # Get commit author information from git (from the actual commit, not merge commit)
+        git log
+
         COMMIT_AUTHOR_NAME=$(git log -1 --format='%an')
         COMMIT_AUTHOR_EMAIL=$(git log -1 --format='%ae')
         COMMIT_SHA=$(git rev-parse HEAD)
