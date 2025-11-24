@@ -220,16 +220,16 @@ jobs:
         DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
 
     - name: Pull Vercel Environment Information
-      working-directory: frontend
       run: |
+        cd frontend
         vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
 
     - name: Update environment variables for deployment
-      working-directory: frontend
       run: |
+        cd frontend
         # Update or add DB_CONNECTION_STRING and CONTRACT_ADDRESS in the env file
         ENV_FILE=".vercel/.env.preview.local"
         
@@ -258,7 +258,6 @@ jobs:
 
     - name: Deploy to Vercel
       id: vercel-deploy
-      working-directory: frontend
       run: |
         vercel deploy --token=${{ secrets.VERCEL_TOKEN }}
       env:
