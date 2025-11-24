@@ -142,6 +142,7 @@ jobs:
         BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
         RELAYER_PRIVATE_KEY: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
         TESTNET_WALLET_PRIVATE_KEY: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
+        ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
       run: |
         npx hardhat run scripts/deploy-testnet.ts --network baseSepolia
         
