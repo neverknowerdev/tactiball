@@ -269,8 +269,8 @@ jobs:
           -m githubCommitMessage="$COMMIT_MESSAGE" \
           -e DB_CONNECTION_STRING="${{ env.NEW_DB_CONNECTION_STRING }}" \
           -e CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
-          -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}") \
-          -e NEXT_PUBLIC_ENV=preview
+          -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
+          -e NEXT_PUBLIC_ENV=preview)
         
         echo "✅ Preview URL: $PREVIEW_URL"
         echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
