@@ -113,6 +113,10 @@ jobs:
     needs: test
     if: success()
     environment: preview
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
 
     steps:
     - name: Checkout code

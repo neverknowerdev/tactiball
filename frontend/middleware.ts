@@ -93,10 +93,15 @@ export async function middleware(request: NextRequest) {
             return NextResponse.next();
         }
 
+        console.log('Body:', body);
         // Extract auth fields (handle different possible field names)
         const signature = body.signature;
         const message = body.message;
         const walletAddress = body.wallet_address || body.walletAddress;
+
+        console.log('Signature:', signature);
+        console.log('Message:', message);
+        console.log('Wallet address:', walletAddress);
 
         // Validate required fields
         if (!signature || !message || !walletAddress) {
