@@ -1,2 +1,2 @@
-export { pool } from '../../db/client';
+export { pool } from './client';
 

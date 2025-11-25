@@ -2,13 +2,17 @@ import { useEffect } from 'react';
 import { ReadonlyURLSearchParams } from 'next/navigation';
 
 export function useRoomInvite(
-  searchParams: ReadonlyURLSearchParams,
+  searchParams: ReadonlyURLSearchParams | null,
   isConnected: boolean,
   address: string | undefined,
   teamInfo: any,
   setSelectedRoomId: (roomId: number | null) => void
 ) {
   useEffect(() => {
+    if (!searchParams) {
+      return;
+    }
+
     const roomParam = searchParams.get('room');
 
     if (roomParam && isConnected && address && teamInfo) {

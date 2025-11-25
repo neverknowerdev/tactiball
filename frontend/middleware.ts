@@ -120,50 +120,32 @@ export async function middleware(request: NextRequest) {
         }
 
         // Validate signature and message
-        // Note: This might fail in edge runtime if viem doesn't support it
-        // In that case, we'll catch the error and let the route handler validate
-        try {
-            const { isValid, error } = await checkAuthSignatureAndMessage(
-                signature,
-                message,
-                walletAddress
-            );
+        // Note: viem's verifyMessage doesn't work reliably in Edge Runtime
+        // So we delegate signature verification to route handlers (Node.js runtime)
+        // The middleware just validates the presence and format of auth fields
+        
+        // Set Sentry user context for error tracking
+        Sentry.setUser({
+            username: walletAddress,
+        });
 
-            if (!isValid) {
-                return NextResponse.json(
-                    { success: false, error: error || 'Authentication failed' },
-                    { status: 401 }
-                );
-            }
+        // Enhance Sentry context with authenticated request details
+        Sentry.setContext('request', {
+            url: url,
+            pathname: pathname,
+            method: request.method,
+            search: search || undefined,
+            userAgent: request.headers.get('user-agent') || undefined,
+            referer: request.headers.get('referer') || undefined,
+            authenticated: true,
+            walletAddress: walletAddress,
+        });
 
-            // Authentication successful - continue to route handler
-            // Set Sentry user context for error tracking
-            Sentry.setUser({
-                username: walletAddress,
-            });
-
-            // Enhance Sentry context with authenticated request details
-            Sentry.setContext('request', {
-                url: url,
-                pathname: pathname,
-                method: request.method,
-                search: search || undefined,
-                userAgent: request.headers.get('user-agent') || undefined,
-                referer: request.headers.get('referer') || undefined,
-                authenticated: true,
-                walletAddress: walletAddress,
-            });
-
-            // Add authenticated wallet address to headers for route handlers to use
-            const response = NextResponse.next();
-            response.headers.set('x-authenticated-wallet', walletAddress);
-            return response;
-        } catch (authError) {
-            // If signature verification fails due to runtime issues (e.g., edge runtime),
-            // let the route handler validate (it runs in Node.js runtime)
-            console.warn('Auth verification failed in middleware, delegating to route handler:', authError);
-            return NextResponse.next();
-        }
+        // Add authenticated wallet address to headers for route handlers to use
+        // Route handlers will perform actual signature verification
+        const response = NextResponse.next();
+        response.headers.set('x-authenticated-wallet', walletAddress);
+        return response;
 
     } catch (error) {
         console.error('Error in authentication middleware:', error);
