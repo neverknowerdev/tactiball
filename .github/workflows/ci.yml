@@ -135,6 +135,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        fetch-depth: 0
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -185,16 +188,19 @@ jobs:
     - name: Deploy to Vercel
       id: vercel-deploy
       run: |
-        # Get commit author information from git (from the actual commit, not merge commit)
-        git log -10 >> git_log.txt
+        # Use the actual PR head commit SHA (not merge commit)
+        PR_COMMIT_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+        
+        # Get commit author information from the actual PR commit
+        git log -10 --oneline >> git_log.txt
 
         echo "Git log:"
         cat git_log.txt
 
-        COMMIT_AUTHOR_NAME=$(git log -1 --format='%an')
-        COMMIT_AUTHOR_EMAIL=$(git log -1 --format='%ae')
-        COMMIT_SHA=$(git rev-parse HEAD)
-        COMMIT_MESSAGE=$(git log -1 --format='%s')
+        COMMIT_AUTHOR_NAME=$(git log -1 $PR_COMMIT_SHA --format='%an')
+        COMMIT_AUTHOR_EMAIL=$(git log -1 $PR_COMMIT_SHA --format='%ae')
+        COMMIT_SHA=$PR_COMMIT_SHA
+        COMMIT_MESSAGE=$(git log -1 $PR_COMMIT_SHA --format='%s')
         BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
         
         echo "📦 Deploying to Vercel with:"
