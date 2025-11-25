@@ -25,6 +25,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "drizzle-orm": [
+        "../node_modules/drizzle-orm"
+      ],
+      "drizzle-orm/*": [
+        "../node_modules/drizzle-orm/*"
       ]
     },
     "target": "ES2017"

@@ -1,14 +1,2 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
-import * as schema from './schema';
-
-const pool = new Pool({
-    connectionString: process.env.DB_CONNECTION_STRING || process.env.DATABASE_URL,
-});
-
-const db = drizzle({ client: pool, schema });
-
-export type Database = ReturnType<typeof drizzle<typeof schema>>;
-
-export { db, pool, schema };
+export * from '../../db/client';
 

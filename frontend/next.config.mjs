@@ -2,6 +2,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 import { fileURLToPath } from "url";
 
 const asyncStorageShimPath = fileURLToPath(new URL("./lib/asyncStorageShim.ts", import.meta.url));
+const drizzleOrmPath = fileURLToPath(new URL("../node_modules/drizzle-orm/", import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -21,6 +22,7 @@ const nextConfig = {
     config.resolve = config.resolve || {};
     config.resolve.alias = config.resolve.alias || {};
     config.resolve.alias["@react-native-async-storage/async-storage"] = asyncStorageShimPath;
+    config.resolve.alias["drizzle-orm"] = drizzleOrmPath;
 
     // Ensure source maps are generated for TypeScript files
     if (config.mode === 'production') {

@@ -1,9 +1,10 @@
 // app/api/cron/cleanup-rooms/route.ts
 
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/database';
-import { waitingRooms } from '@/db/schema';
+import { db, schema } from '@/lib/database';
 import { and, eq, lt } from 'drizzle-orm';
+
+const { waitingRooms } = schema;
 
 export async function POST(request: Request) {
     // Verify cron secret
