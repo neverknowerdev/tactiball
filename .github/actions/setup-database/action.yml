@@ -13,7 +13,7 @@ outputs:
     value: ${{ steps.db-name.outputs.db_name }}
   db_connection_string:
     description: 'New database connection string'
-    value: ${{ steps.setup-db.outputs.db_connection_string }}
+    value: ${{ steps.final-output.outputs.db_connection_string }}
 
 runs:
   using: 'composite'
@@ -166,4 +166,18 @@ runs:
       with:
         path: migrations-hash-cache.json
         key: migrations-hash-${{ steps.db-name.outputs.db_name }}-${{ steps.migrations-hash.outputs.hash }}
+
+    - name: Set final database connection string output
+      id: final-output
+      shell: bash
+      run: |
+        # Get connection string from whichever step ran
+        if [ -n "${{ steps.setup-db.outputs.db_connection_string }}" ]; then
+          echo "db_connection_string=${{ steps.setup-db.outputs.db_connection_string }}" >> $GITHUB_OUTPUT
+        elif [ -n "${{ steps.set-existing-db.outputs.db_connection_string }}" ]; then
+          echo "db_connection_string=${{ steps.set-existing-db.outputs.db_connection_string }}" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Error: No database connection string was set"
+          exit 1
+        fi
 
