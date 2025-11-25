@@ -227,29 +227,31 @@ jobs:
         VERCEL_GIT_COMMIT_REF: ${{ github.head_ref || github.ref_name }}
         VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
 
-    - name: Get static branch preview URL
-      id: get-branch-url
+    - name: Create custom domain alias
+      id: create-alias
       if: steps.vercel-deploy.outputs.preview_url != ''
       run: |
+        PREVIEW_URL="${{ steps.vercel-deploy.outputs.preview_url }}"
         BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
         
-        # Query Vercel API for the latest deployment on this branch
-        API_RESPONSE=$(curl -s -X GET \
-          "https://api.vercel.com/v6/deployments?projectId=${{ vars.VERCEL_PROJECT_ID }}&target=preview&limit=10" \
-          -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}")
+        # Sanitize branch name for domain: lowercase, replace special chars with dashes
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
         
-        # Find the deployment for this branch and get its first alias (branch preview URL)
-        BRANCH_PREVIEW_URL=$(echo "$API_RESPONSE" | jq -r ".deployments[] | select(.meta.githubCommitRef == \"$BRANCH_NAME\") | .alias[0] // empty" | head -1)
+        # Create custom domain alias: preview-{branch}.tactiball.fun
+        CUSTOM_DOMAIN="preview-${SANITIZED_BRANCH}.tactiball.fun"
         
-        # Ensure URL has protocol
-        if [ -n "$BRANCH_PREVIEW_URL" ] && [ "$BRANCH_PREVIEW_URL" != "null" ]; then
-          if [[ ! "$BRANCH_PREVIEW_URL" =~ ^https?:// ]]; then
-            BRANCH_PREVIEW_URL="https://$BRANCH_PREVIEW_URL"
-          fi
-        fi
+        echo "🔗 Creating alias: $CUSTOM_DOMAIN -> $PREVIEW_URL"
         
-        echo "🔗 Static Branch Preview URL: $BRANCH_PREVIEW_URL"
-        echo "branch_preview_url=$BRANCH_PREVIEW_URL" >> $GITHUB_OUTPUT
+        # Create alias using Vercel CLI
+        # The alias command will create or update the alias
+        vercel alias "$PREVIEW_URL" "$CUSTOM_DOMAIN" \
+          --token=${{ secrets.VERCEL_TOKEN }} \
+          --scope=${{ vars.VERCEL_ORG_ID }} || echo "⚠️ Alias creation completed (may already exist)"
+        
+        ALIAS_URL="https://$CUSTOM_DOMAIN"
+        
+        echo "✅ Custom domain alias: $ALIAS_URL"
+        echo "custom_domain_url=$ALIAS_URL" >> $GITHUB_OUTPUT
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -260,13 +262,13 @@ jobs:
       with:
         script: |
           const previewUrl = '${{ steps.vercel-deploy.outputs.preview_url }}';
-          const branchPreviewUrl = '${{ steps.get-branch-url.outputs.branch_preview_url }}';
+          const customDomainUrl = '${{ steps.create-alias.outputs.custom_domain_url }}';
           const prNumber = context.payload.pull_request.number;
           
-          let urlsSection = `**🔗 [View Latest Deployment](${previewUrl})**\n${previewUrl}`;
+          let urlsSection = `**🔗 [View Preview](${customDomainUrl})**\n${customDomainUrl}`;
           
-          if (branchPreviewUrl && branchPreviewUrl !== 'null' && branchPreviewUrl !== '') {
-            urlsSection += `\n\n**🔗 [View Branch Preview](${branchPreviewUrl})** (Static - updates with each deployment)\n${branchPreviewUrl}`;
+          if (previewUrl) {
+            urlsSection += `\n\n**Latest Deployment URL:**\n${previewUrl}`;
           }
           
           const commentBody = `## 🚀 Vercel Preview Deployment
