@@ -50,9 +50,25 @@ jobs:
       with:
         node-version: '22'
         cache: 'npm'
-            
+    
+    - name: Cache root dependencies
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
+    
     - name: Install dependencies
       run: npm ci
+      
+    - name: Cache frontend dependencies
+      uses: actions/cache@v4
+      with:
+        path: frontend/node_modules
+        key: ${{ runner.os }}-node-frontend-${{ hashFiles('frontend/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-frontend-
       
     - name: Install frontend dependencies
       run: npm run frontend:install
@@ -110,8 +126,6 @@ jobs:
   deploy-vercel:
     name: Deploy to Vercel
     runs-on: ubuntu-latest
-    needs: test
-    if: success()
     environment: preview
     permissions:
       contents: read
@@ -128,113 +142,45 @@ jobs:
         node-version: '22'
         cache: 'npm'
 
+    - name: Cache root dependencies
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
+
     - name: Install dependencies
       run: npm ci
 
-    - name: Install frontend dependencies
-      run: npm run frontend:install
+    - name: Deploy smart contract to testnet
+      id: deploy-contract
+      uses: ./.github/actions/deploy-contract
+      with:
+        branch_name: ${{ github.head_ref || github.ref_name }}
+        base_sepolia_rpc_url: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+        relayer_private_key: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
+        testnet_wallet_private_key: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
+        etherscan_api_key: ${{ secrets.ETHERSCAN_API_KEY }}
 
-    - name: Compile contracts
-      run: npx hardhat compile
+    - name: Set contract address
+      run: |
+        echo "CONTRACT_ADDRESS=${{ steps.deploy-contract.outputs.contract_address }}" >> $GITHUB_ENV
 
     - name: Install Vercel CLI
       run: npm install --global vercel@latest
 
-    - name: Deploy smart contract to testnet
-      id: deploy-contract
-      env:
-        BASE_SEPOLIA_RPC_URL: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
-        RELAYER_PRIVATE_KEY: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
-        TESTNET_WALLET_PRIVATE_KEY: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
-        ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-      run: |
-        npx hardhat run scripts/deploy-testnet.ts --network baseSepolia
-        
-        # Extract contract address from deployment.json using jq (preferred method)
-        if [ -f deployment.json ]; then
-          # Try baseSepolia.proxyAddress first, then fallback to top-level proxyAddress
-          CONTRACT_ADDRESS=$(jq -r '.baseSepolia.proxyAddress' deployment.json 2>/dev/null || echo "")
-        fi
-        
-        if [ -z "$CONTRACT_ADDRESS" ] || [ "$CONTRACT_ADDRESS" = "null" ] || [ "$CONTRACT_ADDRESS" = "" ]; then
-          echo "⚠️ Error: Could not extract contract address from deployment"
-          exit 1
-        fi
-        
-        echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> $GITHUB_ENV
-        echo "✅ Contract deployed to: $CONTRACT_ADDRESS"
 
-    - name: Display contract address
-      run: |
-        echo "📋 Contract address for this deployment: ${{ env.CONTRACT_ADDRESS }}"
-        if [ -z "${{ env.CONTRACT_ADDRESS }}" ]; then
-          echo "⚠️ Warning: CONTRACT_ADDRESS is not set"
-          exit 1
-        fi
-
-    - name: Setup PostgreSQL client
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y postgresql-client
-
-    - name: Create branch database and run migrations
+    - name: Setup database and run migrations
       id: setup-database
+      uses: ./.github/actions/setup-database
+      with:
+        branch_name: ${{ github.head_ref }}
+        db_connection_string: ${{ secrets.DB_CONNECTION_STRING }}
+
+    - name: Set database connection string
       run: |
-        # Get branch name and sanitize it for database name
-        BRANCH_NAME="${{ github.head_ref }}"
-        # Sanitize branch name: lowercase, replace special chars with underscores, remove leading/trailing underscores
-        DB_NAME=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g' | sed 's/^_*//;s/_*$//' | cut -c1-63)
-        
-        # If DB_NAME is empty after sanitization, use a default
-        if [ -z "$DB_NAME" ]; then
-          DB_NAME="preview_$(date +%s)"
-        fi
-        
-        echo "Branch name: $BRANCH_NAME"
-        echo "Database name: $DB_NAME"
-        
-        ORIGINAL_CONN_STRING="${{ secrets.DB_CONNECTION_STRING }}"
-        
-        # Create new connection string with the new database name
-        # Replace everything after the last / until ? or & or end of line with DB_NAME
-        NEW_CONN_STRING=$(echo "$ORIGINAL_CONN_STRING" | sed -E "s|(.*)/[^/?&]*|\1/${DB_NAME}|")
-        
-        echo "📦 Creating database: $DB_NAME"
-        
-        # Check if database exists first
-        DB_EXISTS=$(psql "$ORIGINAL_CONN_STRING" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" 2>/dev/null || echo "")
-        
-        if [ "$DB_EXISTS" = "1" ]; then
-          echo "Database exists, terminating connections and dropping..."
-          # Terminate all active connections to the database (connect to 'postgres' database)
-          psql "$ORIGINAL_CONN_STRING" -c "
-            SELECT pg_terminate_backend(pg_stat_activity.pid)
-            FROM pg_stat_activity
-            WHERE pg_stat_activity.datname = '$DB_NAME'
-              AND pid <> pg_backend_pid();
-          " 2>/dev/null || echo "No active connections to terminate"
-          # Wait a moment for connections to close
-          sleep 2
-          # Drop the database
-          psql "$ORIGINAL_CONN_STRING" -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
-        fi
-        
-        # Create the database (will only run if it doesn't exist or was successfully dropped)
-        psql "$ORIGINAL_CONN_STRING" -c "CREATE DATABASE \"$DB_NAME\";"
-        
-        # Set as environment variable
-        echo "NEW_DB_CONNECTION_STRING=$NEW_CONN_STRING" >> $GITHUB_ENV
-        echo "✅ New database created: $DB_NAME"
-        echo "✅ New connection string set"
-        
-        # Run migrations on the new database
-        echo "🔄 Running migrations on database: $DB_NAME"
-        cd migrations
-        DB_CONNECTION_STRING="$NEW_CONN_STRING" ./run-migrations.sh up
-        
-        echo "✅ Migrations completed successfully"
-      env:
-        DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}
+        echo "NEW_DB_CONNECTION_STRING=${{ steps.setup-database.outputs.db_connection_string }}" >> $GITHUB_ENV
 
     - name: Deploy to Vercel
       id: vercel-deploy

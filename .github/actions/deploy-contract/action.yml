@@ -1,0 +1,129 @@
+name: 'Deploy Smart Contract with Cache'
+description: 'Deploy smart contract to testnet with caching support'
+inputs:
+  branch_name:
+    description: 'Branch name for cache key'
+    required: true
+  base_sepolia_rpc_url:
+    description: 'Base Sepolia RPC URL'
+    required: true
+  relayer_private_key:
+    description: 'Relayer private key'
+    required: true
+  testnet_wallet_private_key:
+    description: 'Testnet wallet private key'
+    required: true
+  etherscan_api_key:
+    description: 'Etherscan API key'
+    required: true
+outputs:
+  contract_address:
+    description: 'Deployed contract address'
+    value: ${{ steps.set-output.outputs.contract_address || steps.deploy.outputs.contract_address || steps.load-cache.outputs.contract_address }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Calculate contracts hash
+      id: contracts-hash
+      shell: bash
+      run: |
+        CONTRACTS_HASH=$(find contracts -type f -exec sha256sum {} \; | sort -k 2 | sha256sum | cut -d' ' -f1)
+        echo "hash=$CONTRACTS_HASH" >> $GITHUB_OUTPUT
+        echo "📋 Contracts hash: $CONTRACTS_HASH"
+
+    - name: Restore contract cache
+      id: cache-contract
+      uses: actions/cache@v4
+      with:
+        path: contract-cache.json
+        key: contract-cache-${{ inputs.branch_name }}-${{ steps.contracts-hash.outputs.hash }}
+
+    - name: Load cached contract address
+      id: load-cache
+      if: steps.cache-contract.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        if [ -f contract-cache.json ]; then
+          CACHED_HASH=$(jq -r '.hash' contract-cache.json 2>/dev/null || echo "")
+          CACHED_ADDRESS=$(jq -r '.contract_address' contract-cache.json 2>/dev/null || echo "")
+          CURRENT_HASH="${{ steps.contracts-hash.outputs.hash }}"
+          
+          if [ "$CACHED_HASH" = "$CURRENT_HASH" ] && [ -n "$CACHED_ADDRESS" ] && [ "$CACHED_ADDRESS" != "null" ]; then
+            echo "contract_address=$CACHED_ADDRESS" >> $GITHUB_OUTPUT
+            echo "CONTRACT_ADDRESS=$CACHED_ADDRESS" >> $GITHUB_ENV
+            echo "cached_address=$CACHED_ADDRESS" >> $GITHUB_OUTPUT
+            echo "✅ Using cached contract address: $CACHED_ADDRESS"
+            echo "✅ Hash matches, skipping deployment"
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Hash mismatch or invalid cache, will deploy"
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "should_deploy=true" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set deploy flag for cache miss
+      id: cache-miss
+      if: steps.cache-contract.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        echo "⚠️ Cache miss, will deploy"
+        echo "should_deploy=true" >> $GITHUB_OUTPUT
+
+    - name: Deploy smart contract to testnet
+      id: deploy
+      if: steps.load-cache.outputs.should_deploy == 'true' || steps.cache-miss.outputs.should_deploy == 'true'
+      shell: bash
+      env:
+        BASE_SEPOLIA_RPC_URL: ${{ inputs.base_sepolia_rpc_url }}
+        RELAYER_PRIVATE_KEY: ${{ inputs.relayer_private_key }}
+        TESTNET_WALLET_PRIVATE_KEY: ${{ inputs.testnet_wallet_private_key }}
+        ETHERSCAN_API_KEY: ${{ inputs.etherscan_api_key }}
+      run: |
+        npx hardhat run scripts/deploy-testnet.ts --network baseSepolia
+        
+        # Extract contract address from deployment.json using jq (preferred method)
+        if [ -f deployment.json ]; then
+          # Try baseSepolia.proxyAddress first, then fallback to top-level proxyAddress
+          CONTRACT_ADDRESS=$(jq -r '.baseSepolia.proxyAddress' deployment.json 2>/dev/null || echo "")
+        fi
+        
+        if [ -z "$CONTRACT_ADDRESS" ] || [ "$CONTRACT_ADDRESS" = "null" ] || [ "$CONTRACT_ADDRESS" = "" ]; then
+          echo "⚠️ Error: Could not extract contract address from deployment"
+          exit 1
+        fi
+        
+        echo "contract_address=$CONTRACT_ADDRESS" >> $GITHUB_OUTPUT
+        echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> $GITHUB_ENV
+        echo "✅ Contract deployed to: $CONTRACT_ADDRESS"
+        
+        # Save contract address and hash to cache file
+        CONTRACTS_HASH="${{ steps.contracts-hash.outputs.hash }}"
+        jq -n \
+          --arg hash "$CONTRACTS_HASH" \
+          --arg address "$CONTRACT_ADDRESS" \
+          '{hash: $hash, contract_address: $address}' > contract-cache.json
+
+    - name: Save contract cache
+      if: steps.deploy.outcome == 'success'
+      uses: actions/cache@v4
+      with:
+        path: contract-cache.json
+        key: contract-cache-${{ inputs.branch_name }}-${{ steps.contracts-hash.outputs.hash }}
+
+    - name: Set contract address output
+      id: set-output
+      shell: bash
+      run: |
+        # Get contract address from environment (set by either deploy or load-cache step)
+        if [ -n "$CONTRACT_ADDRESS" ]; then
+          echo "contract_address=$CONTRACT_ADDRESS" >> $GITHUB_OUTPUT
+        else
+          # Fallback: try to get from deploy step output
+          if [ -n "${{ steps.deploy.outputs.contract_address }}" ]; then
+            echo "contract_address=${{ steps.deploy.outputs.contract_address }}" >> $GITHUB_OUTPUT
+          fi
+        fi
+
