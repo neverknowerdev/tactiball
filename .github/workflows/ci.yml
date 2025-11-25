@@ -220,12 +220,24 @@ jobs:
         
         echo "✅ Preview URL: $PREVIEW_URL"
         echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+        
+        # Save deployment URL to cache for preview deployment
+        echo "$PREVIEW_URL" > latest-deployment-url.txt
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         # Also set as environment variables as fallback
         VERCEL_GIT_COMMIT_REF: ${{ github.head_ref || github.ref_name }}
         VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+
+    - name: Cache latest deployment URL
+      uses: actions/cache@v4
+      if: steps.vercel-deploy.outputs.preview_url != ''
+      with:
+        path: latest-deployment-url.txt
+        key: latest-deployment-url-${{ github.head_ref || github.ref_name }}
+        restore-keys: |
+          latest-deployment-url-${{ github.head_ref || github.ref_name }}-
 
     - name: Create custom domain alias
       id: create-alias
@@ -256,6 +268,54 @@ jobs:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
 
+    - name: Get branch preview URL from aliases
+      id: get-branch-preview
+      if: steps.vercel-deploy.outputs.preview_url != ''
+      run: |
+        PREVIEW_URL="${{ steps.vercel-deploy.outputs.preview_url }}"
+        
+        # Remove protocol from preview URL for matching
+        PREVIEW_DOMAIN=$(echo "$PREVIEW_URL" | sed 's|https\?://||')
+        
+        echo "🔍 Looking up branch preview URL for: $PREVIEW_DOMAIN"
+        
+        # Get aliases list using vercel alias ls
+        ALIASES_OUTPUT=$(vercel alias ls \
+          --token=${{ secrets.VERCEL_TOKEN }} \
+          --scope=${{ vars.VERCEL_ORG_ID }} 2>&1)
+        
+        echo "Aliases output:"
+        echo "$ALIASES_OUTPUT"
+        
+        # Parse the output to find the row where source matches our preview URL
+        # The output is a table with columns: source | url | age
+        # Use awk to find the line where first field matches and extract second field
+        BRANCH_PREVIEW_URL=$(echo "$ALIASES_OUTPUT" | awk -v source="$PREVIEW_DOMAIN" '
+          BEGIN { FS = "[ \t]+" }
+          $1 == source { print $2; exit }
+        ')
+        
+        # If not found, try with partial match (source might have trailing spaces or variations)
+        if [ -z "$BRANCH_PREVIEW_URL" ]; then
+          BRANCH_PREVIEW_URL=$(echo "$ALIASES_OUTPUT" | awk -v source="$PREVIEW_DOMAIN" '
+            BEGIN { FS = "[ \t]+" }
+            $1 ~ source { print $2; exit }
+          ')
+        fi
+        
+        # Ensure URL has protocol
+        if [ -n "$BRANCH_PREVIEW_URL" ] && [ "$BRANCH_PREVIEW_URL" != "null" ]; then
+          if [[ ! "$BRANCH_PREVIEW_URL" =~ ^https?:// ]]; then
+            BRANCH_PREVIEW_URL="https://$BRANCH_PREVIEW_URL"
+          fi
+        fi
+        
+        echo "🔗 Branch Preview URL: $BRANCH_PREVIEW_URL"
+        echo "branch_preview_url=$BRANCH_PREVIEW_URL" >> $GITHUB_OUTPUT
+      env:
+        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+
     - name: Comment PR with Vercel Preview
       if: steps.vercel-deploy.outputs.preview_url != ''
       uses: actions/github-script@v7
@@ -263,9 +323,14 @@ jobs:
         script: |
           const previewUrl = '${{ steps.vercel-deploy.outputs.preview_url }}';
           const customDomainUrl = '${{ steps.create-alias.outputs.custom_domain_url }}';
+          const branchPreviewUrl = '${{ steps.get-branch-preview.outputs.branch_preview_url }}';
           const prNumber = context.payload.pull_request.number;
           
           let urlsSection = `**🔗 [View Preview](${customDomainUrl})**\n${customDomainUrl}`;
+          
+          if (branchPreviewUrl && branchPreviewUrl !== 'null' && branchPreviewUrl !== '') {
+            urlsSection += `\n\n**🔗 [Branch Preview](${branchPreviewUrl})**\n${branchPreviewUrl}`;
+          }
           
           if (previewUrl) {
             urlsSection += `\n\n**Latest Deployment URL:**\n${previewUrl}`;
