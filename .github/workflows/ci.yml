@@ -190,12 +190,6 @@ jobs:
       run: |
         # Use the actual PR head commit SHA (not merge commit)
         PR_COMMIT_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
-        
-        # Get commit author information from the actual PR commit
-        git log -10 --oneline >> git_log.txt
-
-        echo "Git log:"
-        cat git_log.txt
 
         COMMIT_AUTHOR_NAME=$(git log -1 $PR_COMMIT_SHA --format='%an')
         COMMIT_AUTHOR_EMAIL=$(git log -1 $PR_COMMIT_SHA --format='%ae')
@@ -233,20 +227,48 @@ jobs:
         VERCEL_GIT_COMMIT_REF: ${{ github.head_ref || github.ref_name }}
         VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
 
+    - name: Get static branch preview URL
+      id: get-branch-url
+      if: steps.vercel-deploy.outputs.preview_url != ''
+      run: |
+        PREVIEW_URL="${{ steps.vercel-deploy.outputs.preview_url }}"
+        
+        # Use vercel inspect to get deployment aliases - branch preview URL is in the aliases array
+        BRANCH_PREVIEW_URL=$(vercel inspect "$PREVIEW_URL" --token=${{ secrets.VERCEL_TOKEN }} --json | jq -r '.alias[0] // empty')
+        
+        # Ensure URL has protocol
+        if [ -n "$BRANCH_PREVIEW_URL" ] && [ "$BRANCH_PREVIEW_URL" != "null" ]; then
+          if [[ ! "$BRANCH_PREVIEW_URL" =~ ^https?:// ]]; then
+            BRANCH_PREVIEW_URL="https://$BRANCH_PREVIEW_URL"
+          fi
+        fi
+        
+        echo "🔗 Static Branch Preview URL: $BRANCH_PREVIEW_URL"
+        echo "branch_preview_url=$BRANCH_PREVIEW_URL" >> $GITHUB_OUTPUT
+      env:
+        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+
     - name: Comment PR with Vercel Preview
       if: steps.vercel-deploy.outputs.preview_url != ''
       uses: actions/github-script@v7
       with:
         script: |
           const previewUrl = '${{ steps.vercel-deploy.outputs.preview_url }}';
+          const branchPreviewUrl = '${{ steps.get-branch-url.outputs.branch_preview_url }}';
           const prNumber = context.payload.pull_request.number;
+          
+          let urlsSection = `**🔗 [View Latest Deployment](${previewUrl})**\n${previewUrl}`;
+          
+          if (branchPreviewUrl && branchPreviewUrl !== 'null' && branchPreviewUrl !== '') {
+            urlsSection += `\n\n**🔗 [View Branch Preview](${branchPreviewUrl})** (Static - updates with each deployment)\n${branchPreviewUrl}`;
+          }
+          
           const commentBody = `## 🚀 Vercel Preview Deployment
           
           Preview deployment is ready:
           
-          **🔗 [View Preview](${previewUrl})**
-          
-          ${previewUrl}`;
+          ${urlsSection}`;
           
           // Find all existing comments with Vercel preview marker
           const comments = await github.rest.issues.listComments({
