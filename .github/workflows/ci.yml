@@ -231,10 +231,15 @@ jobs:
       id: get-branch-url
       if: steps.vercel-deploy.outputs.preview_url != ''
       run: |
-        PREVIEW_URL="${{ steps.vercel-deploy.outputs.preview_url }}"
+        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
         
-        # Use vercel inspect to get deployment aliases - branch preview URL is in the aliases array
-        BRANCH_PREVIEW_URL=$(vercel inspect "$PREVIEW_URL" --token=${{ secrets.VERCEL_TOKEN }} --json | jq -r '.alias[0] // empty')
+        # Query Vercel API for the latest deployment on this branch
+        API_RESPONSE=$(curl -s -X GET \
+          "https://api.vercel.com/v6/deployments?projectId=${{ vars.VERCEL_PROJECT_ID }}&target=preview&limit=10" \
+          -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}")
+        
+        # Find the deployment for this branch and get its first alias (branch preview URL)
+        BRANCH_PREVIEW_URL=$(echo "$API_RESPONSE" | jq -r ".deployments[] | select(.meta.githubCommitRef == \"$BRANCH_NAME\") | .alias[0] // empty" | head -1)
         
         # Ensure URL has protocol
         if [ -n "$BRANCH_PREVIEW_URL" ] && [ "$BRANCH_PREVIEW_URL" != "null" ]; then
