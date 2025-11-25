@@ -281,18 +281,20 @@ jobs:
       with:
         script: |
           const previewUrl = '${{ steps.vercel-deploy.outputs.preview_url }}';
-          const customDomainUrl = '${{ steps.create-alias.outputs.custom_domain_url }}';
           const branchPreviewUrl = '${{ steps.get-branch-preview.outputs.branch_preview_url }}';
           const prNumber = context.payload.pull_request.number;
           
-          let urlsSection = `**🔗 [View Preview](${customDomainUrl})**\n${customDomainUrl}`;
+          let urlsSection = '';
           
           if (branchPreviewUrl && branchPreviewUrl !== 'null' && branchPreviewUrl !== '') {
-            urlsSection += `\n\n**🔗 [Branch Preview](${branchPreviewUrl})**\n${branchPreviewUrl}`;
+            urlsSection += `**🔗 [Branch Preview](${branchPreviewUrl})**\n${branchPreviewUrl}`;
           }
           
           if (previewUrl) {
-            urlsSection += `\n\n**Latest Deployment URL:**\n${previewUrl}`;
+            if (urlsSection) {
+              urlsSection += '\n\n';
+            }
+            urlsSection += `**Latest Deployment URL:**\n${previewUrl}`;
           }
           
           const commentBody = `## 🚀 Vercel Preview Deployment
