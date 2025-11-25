@@ -239,35 +239,6 @@ jobs:
         restore-keys: |
           latest-deployment-url-${{ github.head_ref || github.ref_name }}-
 
-    - name: Create custom domain alias
-      id: create-alias
-      if: steps.vercel-deploy.outputs.preview_url != ''
-      run: |
-        PREVIEW_URL="${{ steps.vercel-deploy.outputs.preview_url }}"
-        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
-        
-        # Sanitize branch name for domain: lowercase, replace special chars with dashes
-        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
-        
-        # Create custom domain alias: preview-{branch}.tactiball.fun
-        CUSTOM_DOMAIN="preview-${SANITIZED_BRANCH}.tactiball.fun"
-        
-        echo "🔗 Creating alias: $CUSTOM_DOMAIN -> $PREVIEW_URL"
-        
-        # Create alias using Vercel CLI
-        # The alias command will create or update the alias
-        vercel alias "$PREVIEW_URL" "$CUSTOM_DOMAIN" \
-          --token=${{ secrets.VERCEL_TOKEN }} \
-          --scope=${{ vars.VERCEL_ORG_ID }} || echo "⚠️ Alias creation completed (may already exist)"
-        
-        ALIAS_URL="https://$CUSTOM_DOMAIN"
-        
-        echo "✅ Custom domain alias: $ALIAS_URL"
-        echo "custom_domain_url=$ALIAS_URL" >> $GITHUB_OUTPUT
-      env:
-        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-
     - name: Get branch preview URL from aliases
       id: get-branch-preview
       if: steps.vercel-deploy.outputs.preview_url != ''
@@ -287,21 +258,9 @@ jobs:
         echo "Aliases output:"
         echo "$ALIASES_OUTPUT"
         
-        # Parse the output to find the row where source matches our preview URL
+        # Find line containing preview URL, then get second column value
         # The output is a table with columns: source | url | age
-        # Use awk to find the line where first field matches and extract second field
-        BRANCH_PREVIEW_URL=$(echo "$ALIASES_OUTPUT" | awk -v source="$PREVIEW_DOMAIN" '
-          BEGIN { FS = "[ \t]+" }
-          $1 == source { print $2; exit }
-        ')
-        
-        # If not found, try with partial match (source might have trailing spaces or variations)
-        if [ -z "$BRANCH_PREVIEW_URL" ]; then
-          BRANCH_PREVIEW_URL=$(echo "$ALIASES_OUTPUT" | awk -v source="$PREVIEW_DOMAIN" '
-            BEGIN { FS = "[ \t]+" }
-            $1 ~ source { print $2; exit }
-          ')
-        fi
+        BRANCH_PREVIEW_URL=$(echo "$ALIASES_OUTPUT" | grep "$PREVIEW_DOMAIN" | awk '{print $2}')
         
         # Ensure URL has protocol
         if [ -n "$BRANCH_PREVIEW_URL" ] && [ "$BRANCH_PREVIEW_URL" != "null" ]; then
