@@ -4,16 +4,18 @@ import path from "path";
 import { existsSync } from "fs";
 
 const asyncStorageShimPath = fileURLToPath(new URL("./lib/asyncStorageShim.ts", import.meta.url));
+const frontendRoot = fileURLToPath(new URL(".", import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   // Enable source maps for better error tracking
   productionBrowserSourceMaps: true,
   // Enable server-side source maps for TypeScript stack traces
   experimental: {
     serverSourceMaps: true,
+    externalDir: true,
+  },
+  turbopack: {
+    root: frontendRoot,
   },
   // Silence warnings
   // https://github.com/WalletConnect/walletconnect-monorepo/issues/1908
