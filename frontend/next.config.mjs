@@ -1,8 +1,9 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import { fileURLToPath } from "url";
+import path from "path";
+import { existsSync } from "fs";
 
 const asyncStorageShimPath = fileURLToPath(new URL("./lib/asyncStorageShim.ts", import.meta.url));
-const drizzleOrmPath = fileURLToPath(new URL("../node_modules/drizzle-orm/", import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -16,13 +17,24 @@ const nextConfig = {
   },
   // Silence warnings
   // https://github.com/WalletConnect/walletconnect-monorepo/issues/1908
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
 
     config.resolve = config.resolve || {};
     config.resolve.alias = config.resolve.alias || {};
     config.resolve.alias["@react-native-async-storage/async-storage"] = asyncStorageShimPath;
-    config.resolve.alias["drizzle-orm"] = drizzleOrmPath;
+    
+    // Ensure drizzle-orm resolves correctly in both local and CI environments
+    // process.cwd() will be the frontend directory when running npm commands from frontend/
+    const frontendDir = process.cwd();
+    const localDrizzlePath = path.resolve(frontendDir, 'node_modules/drizzle-orm');
+    const parentDrizzlePath = path.resolve(frontendDir, '../node_modules/drizzle-orm');
+    
+    // Use local node_modules if it exists, otherwise try parent (for monorepo setups)
+    const drizzlePath = existsSync(localDrizzlePath) ? localDrizzlePath : parentDrizzlePath;
+    
+    config.resolve.alias['drizzle-orm'] = drizzlePath;
+    config.resolve.alias['drizzle-orm/node-postgres'] = path.resolve(drizzlePath, 'node-postgres');
 
     // Ensure source maps are generated for TypeScript files
     if (config.mode === 'production') {
