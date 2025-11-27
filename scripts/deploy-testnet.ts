@@ -49,19 +49,19 @@ async function main() {
         return;
     }
 
-    const owner = privateKeyToAccount(process.env.RELAYER_PRIVATE_KEY as Hex);
+    const relayerWallet = privateKeyToAccount(process.env.RELAYER_PRIVATE_KEY as Hex);
 
     const publicClient = createPublicClient({
         chain: baseSepolia,
         transport: http(process.env.BASE_SEPOLIA_RPC_URL)
     });
 
-    const relayerAddress = owner.address;
+    const relayerAddress = relayerWallet.address;
 
     // Create Coinbase smart wallet using the EOA signer
     const smartAccount = await toCoinbaseSmartAccount({
         client: publicClient,
-        owners: [owner],
+        owners: [relayerWallet],
         version: '1.1' // Specify version as required
     });
 

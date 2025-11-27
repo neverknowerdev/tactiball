@@ -6,6 +6,7 @@ import { useAccount, useSignMessage } from "wagmi";
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import '../game.css';
+import * as Sentry from "@sentry/nextjs";
 
 // Game utilities
 import { Game, TeamPlayer } from '@/lib/game';
@@ -36,8 +37,8 @@ import GameResultModal from './components/GameResultModal';
 import CancelGameModal from './components/CancelGameModal';
 
 export default function GamePage() {
-    const params = useParams();
-    const gameId = params.gameId as string;
+    const params = useParams<{ gameId?: string }>();
+    const gameId = params?.gameId ?? '';
 
     // Wallet connection
     const { address, isConnected } = useAccount();
@@ -140,6 +141,17 @@ export default function GamePage() {
         isNewStateRecalculatedRef
     });
 
+    useEffect(() => {
+        if (isConnected && address) {
+            Sentry.setUser({
+                id: address as `0x${string}`,
+                username: address,
+            });
+        } else {
+            Sentry.setUser(null);
+        }
+    }, [isConnected, address]);
+
     // Debug mode detection effect
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -162,6 +174,26 @@ export default function GamePage() {
 
         return () => clearInterval(interval);
     }, [gameSubmissionState, lastMoveAt, setSecondsAfterLastMove]);
+
+    // Early-exit UI when no gameId is provided
+    const missingGameView = (
+        <div className="min-h-screen flex items-center justify-center bg-green-100 p-4">
+            <div className="max-w-md text-center bg-white shadow-sm rounded-lg p-6 border border-gray-100">
+                <h1 className="text-xl font-semibold text-gray-800 mb-2">Game not found</h1>
+                <p className="text-gray-600 mb-4">Please return to the lobby and select a valid game.</p>
+                <a
+                    href="/"
+                    className="inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                >
+                    Back to Home
+                </a>
+            </div>
+        </div>
+    );
+
+    if (!gameId) {
+        return missingGameView;
+    }
 
     // Send cancel game request
     const handleCancelGameRequest = async () => {

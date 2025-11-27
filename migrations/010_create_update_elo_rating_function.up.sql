@@ -2,11 +2,8 @@
 -- Description: Create function to update ELO rating and track changes in game record
 -- Date: 2024-12-19
 
--- Drop function if exists to ensure clean recreation
-DROP FUNCTION IF EXISTS public.update_elo_rating(BIGINT, BIGINT, NUMERIC);
-
 -- Create function to update ELO rating and track changes
-CREATE OR REPLACE FUNCTION public.update_elo_rating(
+CREATE OR REPLACE FUNCTION update_elo_rating(
     team_id_param BIGINT,
     game_id_param BIGINT,
     new_elo_rating NUMERIC
@@ -26,7 +23,7 @@ DECLARE
 BEGIN
     -- Get current ELO rating for the team
     SELECT elo_rating INTO current_elo_rating
-    FROM teams
+    FROM public.teams
     WHERE id = team_id_param;
     
     -- Check if team exists
@@ -42,7 +39,7 @@ BEGIN
             WHEN team2 = team_id_param THEN 2
             ELSE NULL
         END INTO team_position
-    FROM games
+    FROM public.games
     WHERE id = game_id_param;
     
     -- Check if team is part of the game
@@ -56,7 +53,7 @@ BEGIN
     
     -- Update game record with ELO rating changes
     IF team_position = 1 THEN
-        UPDATE games 
+        UPDATE public.games 
         SET 
             team1_info = COALESCE(team1_info, '{}'::jsonb) || jsonb_build_object(
                 'elo_rating_old', current_elo_rating,
@@ -65,7 +62,7 @@ BEGIN
             )
         WHERE id = game_id_param;
     ELSE
-        UPDATE games 
+        UPDATE public.games 
         SET 
             team2_info = COALESCE(team2_info, '{}'::jsonb) || jsonb_build_object(
                 'elo_rating_old', current_elo_rating,
@@ -76,7 +73,7 @@ BEGIN
     END IF;
     
     -- Update team's ELO rating
-    UPDATE teams 
+    UPDATE public.teams 
     SET elo_rating = new_elo_rating
     WHERE id = team_id_param;
     
@@ -92,7 +89,7 @@ END;
 $$;
 
 -- Grant execute permissions
-GRANT EXECUTE ON FUNCTION public.update_elo_rating(BIGINT, BIGINT, NUMERIC) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION update_elo_rating(BIGINT, BIGINT, NUMERIC) TO PUBLIC;
 
 -- Add comment
-COMMENT ON FUNCTION public.update_elo_rating(BIGINT, BIGINT, NUMERIC) IS 'Updates team ELO rating and tracks changes in game record with old/new/diff values';
+COMMENT ON FUNCTION update_elo_rating(BIGINT, BIGINT, NUMERIC) IS 'Updates team ELO rating and tracks changes in game record with old/new/diff values';

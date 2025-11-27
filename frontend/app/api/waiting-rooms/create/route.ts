@@ -2,29 +2,28 @@
 // Create a new waiting room with public/private support
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { db } from '@/lib/database';
+import { teams, waitingRooms } from '@/db/schema';
+import { and, eq, gt, lte } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
     try {
-        const { 
-            team_id, 
+        const body = await request.json();
+        const {
+            team_id,
             room_type,
-            minimum_elo_rating, 
-            wallet_address, 
-            signature, 
-            message 
-        } = await request.json();
+            minimum_elo_rating,
+            wallet_address
+        } = body;
+
+        // Authentication is handled by Next.js middleware
+        // wallet_address is already validated by middleware
+        // Sentry user context is set in middleware
 
         // Validate required fields
-        if (!team_id || !wallet_address || !signature || !message) {
+        if (!team_id) {
             return NextResponse.json(
-                { success: false, error: 'Missing required fields' },
+                { success: false, error: 'Missing required field: team_id' },
                 { status: 400 }
             );
         }
@@ -37,29 +36,23 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate signature
-        const { isValid, error: authError } = await checkAuthSignatureAndMessage(
-            signature, 
-            message, 
-            wallet_address
-        );
-        
-        if (!isValid) {
-            return NextResponse.json(
-                { success: false, error: authError },
-                { status: 401 }
-            );
-        }
-
         // Check if team exists and has no active game
-        const { data: team, error: teamError } = await supabase
-            .from('teams')
-            .select('id, active_game_id, game_request_id')
-            .eq('id', team_id)
-            .eq('primary_wallet', wallet_address)
-            .single();
+        const [team] = await db
+            .select({
+                id: teams.id,
+                active_game_id: teams.activeGameId,
+                game_request_id: teams.gameRequestId,
+            })
+            .from(teams)
+            .where(
+                and(
+                    eq(teams.id, team_id),
+                    eq(teams.primaryWallet, wallet_address)
+                )
+            )
+            .limit(1);
 
-        if (teamError || !team) {
+        if (!team) {
             return NextResponse.json(
                 { success: false, error: 'Team not found' },
                 { status: 404 }
@@ -74,14 +67,21 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if team already has an open waiting room (non-expired)
-        const now = new Date().toISOString();
-        const { data: existingRoom } = await supabase
-            .from('waiting_rooms')
-            .select('id, expires_at')
-            .eq('host_team_id', team_id)
-            .eq('status', 'open')
-            .gt('expires_at', now) // Only check for non-expired rooms
-            .single();
+        const now = new Date();
+        const [existingRoom] = await db
+            .select({
+                id: waitingRooms.id,
+                expires_at: waitingRooms.expiresAt,
+            })
+            .from(waitingRooms)
+            .where(
+                and(
+                    eq(waitingRooms.hostTeamId, team_id),
+                    eq(waitingRooms.status, 'open'),
+                    gt(waitingRooms.expiresAt, now)
+                )
+            )
+            .limit(1);
 
         if (existingRoom) {
             return NextResponse.json(
@@ -91,37 +91,32 @@ export async function POST(request: NextRequest) {
         }
 
         // Auto-expire any old open rooms for this team
-        await supabase
-            .from('waiting_rooms')
-            .update({ status: 'expired' })
-            .eq('host_team_id', team_id)
-            .eq('status', 'open')
-            .lte('expires_at', now);
+        await db
+            .update(waitingRooms)
+            .set({ status: 'expired' })
+            .where(
+                and(
+                    eq(waitingRooms.hostTeamId, team_id),
+                    eq(waitingRooms.status, 'open'),
+                    lte(waitingRooms.expiresAt, now)
+                )
+            );
 
         // Set expiration to 24 hours from now
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 24);
 
         // Create waiting room
-        const { data: room, error: createError } = await supabase
-            .from('waiting_rooms')
-            .insert({
-                host_team_id: team_id,
-                room_type: room_type || 'public',
-                minimum_elo_rating: minimum_elo_rating || 0,
+        const [room] = await db
+            .insert(waitingRooms)
+            .values({
+                hostTeamId: team_id,
+                roomType: room_type || 'public',
+                minimumEloRating: minimum_elo_rating || 0,
                 status: 'open',
-                expires_at: expiresAt.toISOString()
+                expiresAt,
             })
-            .select()
-            .single();
-
-        if (createError) {
-            console.error('Error creating waiting room:', createError);
-            return NextResponse.json(
-                { success: false, error: 'Failed to create waiting room' },
-                { status: 500 }
-            );
-        }
+            .returning();
 
         return NextResponse.json({
             success: true,

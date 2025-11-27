@@ -10,19 +10,19 @@ CREATE TABLE IF NOT EXISTS public.waiting_rooms (
     host_team_id BIGINT NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
     
     -- Room settings
-    minimum_elo_rating NUMERIC DEFAULT 0,
+    minimum_elo_rating NUMERIC DEFAULT 0 NOT NULL,
     
     -- Room status
-    status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'full', 'starting', 'cancelled', 'expired')),
+    status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'full', 'starting', 'cancelled', 'expired')) NOT NULL,
     
     -- Guest team (when someone joins)
     guest_team_id BIGINT REFERENCES public.teams(id) ON DELETE SET NULL,
     
     -- Game request created when both teams are ready
-    game_request_id BIGINT,
+    game_request_id BIGINT NOT NULL,
     
     -- Expiration (rooms expire after 24 hours)
-    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '24 hours')
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '24 hours') NOT NULL
 );
 
 -- Create indexes
@@ -50,8 +50,8 @@ CREATE TRIGGER trigger_update_waiting_rooms_updated_at
     EXECUTE FUNCTION update_waiting_rooms_updated_at();
 
 -- Grant permissions
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.waiting_rooms TO PUBLIC;
-GRANT USAGE, SELECT ON SEQUENCE public.waiting_rooms_id_seq TO PUBLIC;
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON waiting_rooms TO PUBLIC;
+-- GRANT USAGE, SELECT ON SEQUENCE waiting_rooms_id_seq TO PUBLIC;
 
 -- Add comments
 COMMENT ON TABLE public.waiting_rooms IS 'Waiting rooms for matchmaking lobby system';

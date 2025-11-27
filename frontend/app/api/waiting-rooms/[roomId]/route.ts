@@ -2,12 +2,10 @@
 // Get details of a specific waiting room
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { db } from '@/lib/database';
+import { waitingRooms, teams } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 export async function GET(
     request: NextRequest,
@@ -17,30 +15,41 @@ export async function GET(
         // Await params in Next.js 15
         const { roomId } = await params;
 
-        // Fetch room with team details
-        const { data: room, error } = await supabase
-            .from('waiting_rooms')
-            .select(`
-                *,
-                host_team:teams!host_team_id (
-                    id,
-                    name,
-                    elo_rating,
-                    country,
-                    primary_wallet
-                ),
-                guest_team:teams!guest_team_id (
-                    id,
-                    name,
-                    elo_rating,
-                    country,
-                    primary_wallet
-                )
-            `)
-            .eq('id', roomId)
-            .single();
+        const hostTeam = alias(teams, 'host_team');
+        const guestTeam = alias(teams, 'guest_team');
 
-        if (error || !room) {
+        const [room] = await db
+            .select({
+                id: waitingRooms.id,
+                host_team_id: waitingRooms.hostTeamId,
+                guest_team_id: waitingRooms.guestTeamId,
+                created_at: waitingRooms.createdAt,
+                status: waitingRooms.status,
+                room_type: waitingRooms.roomType,
+                expires_at: waitingRooms.expiresAt,
+                minimum_elo_rating: waitingRooms.minimumEloRating,
+                host_team: {
+                    id: hostTeam.id,
+                    name: hostTeam.name,
+                    elo_rating: hostTeam.eloRating,
+                    country: hostTeam.country,
+                    primary_wallet: hostTeam.primaryWallet
+                },
+                guest_team: {
+                    id: guestTeam.id,
+                    name: guestTeam.name,
+                    elo_rating: guestTeam.eloRating,
+                    country: guestTeam.country,
+                    primary_wallet: guestTeam.primaryWallet
+                }
+            })
+            .from(waitingRooms)
+            .leftJoin(hostTeam, eq(waitingRooms.hostTeamId, hostTeam.id))
+            .leftJoin(guestTeam, eq(waitingRooms.guestTeamId, guestTeam.id))
+            .where(eq(waitingRooms.id, Number(roomId)))
+            .limit(1);
+
+        if (!room) {
             return NextResponse.json(
                 { success: false, error: 'Room not found' },
                 { status: 404 }

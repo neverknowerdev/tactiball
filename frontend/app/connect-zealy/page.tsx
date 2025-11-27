@@ -33,16 +33,17 @@ function ConnectZealyContent() {
   const [continueInWeb, setContinueInWeb] = useState(false);
   const [hasAttemptedLink, setHasAttemptedLink] = useState(false);
 
-  const zealyUserId = searchParams.get("zealyUserId");
-  const callbackUrl = searchParams.get("callbackUrl") || searchParams.get("callback");
-  const zealySignature = searchParams.get("signature");
+  const zealyUserId = searchParams?.get("zealyUserId");
+  const callbackUrl =
+    searchParams?.get("callbackUrl") || searchParams?.get("callback") || null;
+  const zealySignature = searchParams?.get("signature");
 
   useEffect(() => {
     console.log("🔍 URL Parameters:", {
       zealyUserId,
       callbackUrl,
       zealySignature: zealySignature ? "present" : "missing",
-      allParams: Object.fromEntries(searchParams.entries()),
+      allParams: searchParams ? Object.fromEntries(searchParams.entries()) : {},
     });
   }, [zealyUserId, callbackUrl, zealySignature, searchParams]);
 

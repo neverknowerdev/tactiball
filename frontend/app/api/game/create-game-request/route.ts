@@ -5,11 +5,10 @@ import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { createWriteClient } from '@/lib/supabase';
-
-const supabase = createWriteClient();
+import { db } from '@/lib/database';
+import { waitingRooms } from '@/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 interface CreateGameRequestRequest {
     wallet_address: string;
@@ -25,20 +24,17 @@ interface CreateGameRequestRequest {
 
 export async function POST(request: NextRequest) {
     try {
-        const { team1_id, team2_id, signature, message, wallet_address } = await request.json();
+        const body = await request.json();
+        const { team1_id, team2_id, wallet_address } = body;
+
+        // Authentication is handled by Next.js middleware
+        // wallet_address is already validated by middleware
+        // Sentry user context is set in middleware
 
         // Validate required fields
-        if (!team1_id || !team2_id || !signature || !message || !wallet_address) {
+        if (!team1_id || !team2_id) {
             return NextResponse.json(
-                { success: false, error: 'Missing required fields' },
-                { status: 400 }
-            );
-        }
-
-        // Validate wallet address format
-        if (!/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
-            return NextResponse.json(
-                { success: false, error: 'Invalid wallet address format' },
+                { success: false, error: 'Missing required fields: team1_id and team2_id' },
                 { status: 400 }
             );
         }
@@ -55,15 +51,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 { success: false, error: 'Teams cannot be the same' },
                 { status: 400 }
-            );
-        }
-
-        // Validate signature and message
-        const { isValid, error } = await checkAuthSignatureAndMessage(signature, message, wallet_address);
-        if (!isValid) {
-            return NextResponse.json(
-                { success: false, error: error },
-                { status: 401 }
             );
         }
 
@@ -86,39 +73,54 @@ export async function POST(request: NextRequest) {
 
         await sendWebhookMessage(logs);
 
-        const gameRequestId = paymasterReceipt.receipt.transactionHash;
+        // Extract gameRequestId from GameRequestCreated event
+        const gameRequestCreatedEvent = logs.find(
+            (log: any) => log.eventName === 'GameRequestCreated'
+        ) as { eventName: string; args: { gameRequestId: bigint } } | undefined;
+
+        if (!gameRequestCreatedEvent) {
+            return NextResponse.json(
+                { success: false, error: 'GameRequestCreated event not found in transaction logs' },
+                { status: 500 }
+            );
+        }
+
+        const gameRequestId = Number(gameRequestCreatedEvent.args.gameRequestId);
 
         console.log('Creating game request with relayer:', {
             wallet_address,
             team1_id,
             team2_id,
-            transactionHash: gameRequestId
+            gameRequestId,
+            transactionHash: paymasterReceipt.receipt.transactionHash
         });
 
         // Check if this game request came from a waiting room
         try {
-            const { data: room } = await supabase
-                .from('waiting_rooms')
-                .select('id')
-                .eq('host_team_id', team1_id)
-                .eq('guest_team_id', team2_id)
-                .eq('status', 'full')
-                .single();
+            const [room] = await db
+                .select({ id: waitingRooms.id })
+                .from(waitingRooms)
+                .where(
+                    and(
+                        eq(waitingRooms.hostTeamId, team1_id),
+                        eq(waitingRooms.guestTeamId, team2_id),
+                        eq(waitingRooms.status, 'full')
+                    )
+                )
+                .limit(1);
 
             if (room) {
-                // Update room with game request ID
-                await supabase
-                    .from('waiting_rooms')
-                    .update({
-                        game_request_id: gameRequestId,
+                await db
+                    .update(waitingRooms)
+                    .set({
+                        gameRequestId: gameRequestId,
                         status: 'starting'
                     })
-                    .eq('id', room.id);
+                    .where(eq(waitingRooms.id, room.id));
 
                 console.log('Updated waiting room:', room.id);
             }
         } catch (waitingRoomError) {
-            // Log error but don't fail the request
             console.error('Error updating waiting room:', waitingRoomError);
         }
 
@@ -130,7 +132,7 @@ export async function POST(request: NextRequest) {
                 team1_id,
                 team2_id,
                 status: 'pending',
-                transactionHash: gameRequestId
+                transactionHash: paymasterReceipt.receipt.transactionHash
             }
         });
 

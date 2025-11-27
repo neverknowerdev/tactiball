@@ -4,8 +4,8 @@
 BEGIN;
 
 -- Drop indexes
-DROP INDEX IF EXISTS idx_waiting_rooms_type_status;
-DROP INDEX IF EXISTS idx_waiting_rooms_room_type;
+DROP INDEX IF EXISTS public.idx_waiting_rooms_type_status;
+DROP INDEX IF EXISTS public.idx_waiting_rooms_room_type;
 
 -- Drop column
 ALTER TABLE public.waiting_rooms DROP COLUMN IF EXISTS room_type;

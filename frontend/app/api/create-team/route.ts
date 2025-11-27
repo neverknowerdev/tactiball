@@ -3,9 +3,7 @@ import { type Address, parseEventLogs, Log } from 'viem';
 import { publicClient } from '@/lib/providers';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
-import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { BaseError, ContractFunctionRevertedError } from 'viem';
 import { sendWebhookMessage } from '@/lib/webhook';
 
@@ -25,30 +23,20 @@ interface CreateTeamRequest {
 export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
         const body: CreateTeamRequest = await req.json();
-        const { walletAddress, signature, message, teamName, countryId } = body;
+        const { teamName, countryId, walletAddress } = body;
 
         // Log the received data to console
         console.log('=== API RECEIVED AUTHENTICATION DATA ===');
         console.log('Wallet Address:', walletAddress);
-        console.log('Signature:', signature);
-        console.log('Message:', message);
         console.log('Team Name:', teamName);
         console.log('Country ID:', countryId);
         console.log('Timestamp:', new Date().toISOString());
         console.log('=====================================');
 
         // Validate input data
-        if (!walletAddress || !teamName || countryId === undefined) {
+        if (!teamName || countryId === undefined) {
             return NextResponse.json(
-                { success: false, error: 'Missing required fields' },
-                { status: 400 }
-            );
-        }
-
-        // Validate wallet address format (basic check)
-        if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-            return NextResponse.json(
-                { success: false, error: 'Invalid wallet address format' },
+                { success: false, error: 'Missing required fields: teamName and countryId' },
                 { status: 400 }
             );
         }
@@ -66,22 +54,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             return NextResponse.json(
                 { success: false, error: 'Team name must be between 1 and 100 characters' },
                 { status: 400 }
-            );
-        }
-
-        // Validate signature and message
-        if (!signature || !message) {
-            return NextResponse.json(
-                { success: false, error: 'Signature and message are required' },
-                { status: 400 }
-            );
-        }
-
-        const { isValid, error, timestamp, expiresAt } = await checkAuthSignatureAndMessage(signature, message, walletAddress);
-        if (!isValid) {
-            return NextResponse.json(
-                { success: false, error: error },
-                { status: 401 }
             );
         }
 

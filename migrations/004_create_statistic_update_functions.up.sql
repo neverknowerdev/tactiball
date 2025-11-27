@@ -3,7 +3,7 @@
 -- Date: 2024-12-19
 
 -- Function to get period start date
-CREATE OR REPLACE FUNCTION public.get_period_start(game_date DATE, period_type public.statistic_period)
+CREATE OR REPLACE FUNCTION get_period_start(game_date DATE, period_type statistic_period)
 RETURNS DATE
 LANGUAGE plpgsql
 AS $$
@@ -18,9 +18,9 @@ END;
 $$;
 
 -- Function to get or create team statistic record for a period
-CREATE OR REPLACE FUNCTION public.get_or_create_team_statistic(
+CREATE OR REPLACE FUNCTION get_or_create_team_statistic(
     team_id_param BIGINT,
-    period_type public.statistic_period,
+    period_type statistic_period,
     period_start_date DATE
 )
 RETURNS BIGINT
@@ -54,9 +54,9 @@ END;
 $$;
 
 -- Function to update team statistic based on game result
-CREATE OR REPLACE FUNCTION public.update_team_statistic_for_game_result(
+CREATE OR REPLACE FUNCTION update_team_statistic_for_game_result(
     team_id_param BIGINT,
-    period_type public.statistic_period,
+    period_type statistic_period,
     period_start_date DATE,
     is_win BOOLEAN,
     is_draw BOOLEAN,
@@ -72,7 +72,7 @@ DECLARE
     goal_diff INTEGER;
 BEGIN
     -- Get or create the statistic record
-    stat_id := public.get_or_create_team_statistic(team_id_param, period_type, period_start_date);
+    stat_id := get_or_create_team_statistic(team_id_param, period_type, period_start_date);
     
     goal_diff := goals_scored - goals_conceded;
     
@@ -117,7 +117,7 @@ END;
 $$;
 
 -- Function to update statistics for week, month, and alltime when a game is finished
-CREATE OR REPLACE FUNCTION public.update_team_statistics_for_game(game_id_param BIGINT)
+CREATE OR REPLACE FUNCTION update_team_statistics_for_game(game_id_param BIGINT)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
@@ -140,16 +140,16 @@ BEGIN
         team1_info, team2_info
     INTO game_record
     FROM public.games
-    WHERE id = game_id_param AND status = 'finished'::public.game_status;
+    WHERE id = game_id_param AND status = 'finished'::game_status;
     
     IF NOT FOUND THEN
         RETURN;
     END IF;
     
     -- Calculate period start dates
-    week_start := public.get_period_start(game_record.game_date, 'week');
-    month_start := public.get_period_start(game_record.game_date, 'month');
-    alltime_start := public.get_period_start(game_record.game_date, 'alltime');
+    week_start := get_period_start(game_record.game_date, 'week');
+    month_start := get_period_start(game_record.game_date, 'month');
+    alltime_start := get_period_start(game_record.game_date, 'alltime');
     
     -- Determine game results
     team1_is_win := (game_record.winner = game_record.team1);
@@ -162,14 +162,14 @@ BEGIN
     team2_elo_diff := COALESCE((game_record.team2_info->>'elo_rating_diff')::NUMERIC, 0);
     
     -- Update weekly statistics for both teams
-    PERFORM public.update_team_statistic_for_game_result(
+    PERFORM update_team_statistic_for_game_result(
         game_record.team1, 'week', week_start,
         team1_is_win, team1_is_draw,
         game_record.team1_score, game_record.team2_score,
         team1_elo_diff
     );
     
-    PERFORM public.update_team_statistic_for_game_result(
+    PERFORM update_team_statistic_for_game_result(
         game_record.team2, 'week', week_start,
         team2_is_win, team2_is_draw,
         game_record.team2_score, game_record.team1_score,
@@ -177,14 +177,14 @@ BEGIN
     );
     
     -- Update monthly statistics for both teams
-    PERFORM public.update_team_statistic_for_game_result(
+    PERFORM update_team_statistic_for_game_result(
         game_record.team1, 'month', month_start,
         team1_is_win, team1_is_draw,
         game_record.team1_score, game_record.team2_score,
         team1_elo_diff
     );
     
-    PERFORM public.update_team_statistic_for_game_result(
+    PERFORM update_team_statistic_for_game_result(
         game_record.team2, 'month', month_start,
         team2_is_win, team2_is_draw,
         game_record.team2_score, game_record.team1_score,
@@ -192,14 +192,14 @@ BEGIN
     );
     
     -- Update alltime statistics for both teams
-    PERFORM public.update_team_statistic_for_game_result(
+    PERFORM update_team_statistic_for_game_result(
         game_record.team1, 'alltime', alltime_start,
         team1_is_win, team1_is_draw,
         game_record.team1_score, game_record.team2_score,
         team1_elo_diff
     );
     
-    PERFORM public.update_team_statistic_for_game_result(
+    PERFORM update_team_statistic_for_game_result(
         game_record.team2, 'alltime', alltime_start,
         team2_is_win, team2_is_draw,
         game_record.team2_score, game_record.team1_score,
@@ -209,8 +209,8 @@ END;
 $$;
 
 -- Function to rebuild statistics for all teams in a specific period (for maintenance)
-CREATE OR REPLACE FUNCTION public.rebuild_all_teams_statistics_period(
-    period_type public.statistic_period,
+CREATE OR REPLACE FUNCTION rebuild_all_teams_statistics_period(
+    period_type statistic_period,
     period_start_date DATE
 )
 RETURNS void
@@ -226,7 +226,7 @@ BEGIN
     -- Rebuild from games in this period
     FOR game_record IN 
         SELECT id FROM public.games 
-        WHERE status = 'finished'::public.game_status
+        WHERE status = 'finished'::game_status
           AND created_at::DATE >= period_start_date
           AND created_at::DATE < (
               CASE 
@@ -236,21 +236,21 @@ BEGIN
               END
           )::DATE
     LOOP
-        PERFORM public.update_team_statistics_for_game(game_record.id);
+        PERFORM update_team_statistics_for_game(game_record.id);
     END LOOP;
 END;
 $$;
 
 -- Add comments
-COMMENT ON FUNCTION public.get_period_start(DATE, public.statistic_period) IS 'Get the start date for a week, month, or alltime period';
-COMMENT ON FUNCTION public.get_or_create_team_statistic(BIGINT, public.statistic_period, DATE) IS 'Get existing or create new team statistic record with default values';
-COMMENT ON FUNCTION public.update_team_statistic_for_game_result(BIGINT, public.statistic_period, DATE, BOOLEAN, BOOLEAN, INTEGER, INTEGER, NUMERIC) IS 'Update team statistic by incrementing fields based on game result';
-COMMENT ON FUNCTION public.update_team_statistics_for_game(BIGINT) IS 'Update weekly, monthly, and alltime statistics for both teams when a game is finished';
-COMMENT ON FUNCTION public.rebuild_all_teams_statistics_period(public.statistic_period, DATE) IS 'Rebuild statistics for all teams in a specific period (maintenance function)';
+COMMENT ON FUNCTION get_period_start(DATE, statistic_period) IS 'Get the start date for a week, month, or alltime period';
+COMMENT ON FUNCTION get_or_create_team_statistic(BIGINT, statistic_period, DATE) IS 'Get existing or create new team statistic record with default values';
+COMMENT ON FUNCTION update_team_statistic_for_game_result(BIGINT, statistic_period, DATE, BOOLEAN, BOOLEAN, INTEGER, INTEGER, NUMERIC) IS 'Update team statistic by incrementing fields based on game result';
+COMMENT ON FUNCTION update_team_statistics_for_game(BIGINT) IS 'Update weekly, monthly, and alltime statistics for both teams when a game is finished';
+COMMENT ON FUNCTION rebuild_all_teams_statistics_period(statistic_period, DATE) IS 'Rebuild statistics for all teams in a specific period (maintenance function)';
 
 -- Grant execute permissions
-GRANT EXECUTE ON FUNCTION public.get_period_start(DATE, public.statistic_period) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_or_create_team_statistic(BIGINT, public.statistic_period, DATE) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.update_team_statistic_for_game_result(BIGINT, public.statistic_period, DATE, BOOLEAN, BOOLEAN, INTEGER, INTEGER, NUMERIC) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.update_team_statistics_for_game(BIGINT) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.rebuild_all_teams_statistics_period(public.statistic_period, DATE) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION get_period_start(DATE, statistic_period) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION get_or_create_team_statistic(BIGINT, statistic_period, DATE) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION update_team_statistic_for_game_result(BIGINT, statistic_period, DATE, BOOLEAN, BOOLEAN, INTEGER, INTEGER, NUMERIC) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION update_team_statistics_for_game(BIGINT) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION rebuild_all_teams_statistics_period(statistic_period, DATE) TO PUBLIC;

@@ -1,0 +1,313 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    environment: test
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      NEXT_PUBLIC_ABLY_API_KEY: ${{ secrets.NEXT_PUBLIC_ABLY_API_KEY }}
+      ABLY_BROADCASTING_API_KEY: ${{ secrets.ABLY_BROADCASTING_API_KEY }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      COINBASE_PAYMASTER_RPC_URL: ${{ secrets.COINBASE_PAYMASTER_RPC_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{secrets.SUPABASE_SERVICE_ROLE_KEY}}
+      # Sentry configuration
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: gmgmgm
+      SENTRY_PROJECT: chessball
+      DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: package-lock.json
+    
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install frontend dependencies
+      run: npm run frontend:install
+      
+    - name: Compile contracts
+      run: npx hardhat compile
+      
+    - name: Setup PostgreSQL client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+      
+    - name: Run database migrations
+      env:  
+        DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
+      run: |
+        cd migrations
+        ./run-migrations.sh up
+
+      
+    - name: Build frontend
+      run: npm run build
+      
+  #  - name: Run linting
+  #    run: npm run lint
+      
+    # - name: Run all Hardhat tests
+    #   run: npx hardhat test
+    #   env:
+    #     DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
+    #     # Use hardhat network for testing - no external RPC needed
+    #     HARDHAT_NETWORK: hardhat
+
+    
+      
+    - name: Generate test coverage report
+      env:
+        DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
+      run: npm run hardhat:coverage
+
+    - name: DB Migrations down
+      env:
+        DB_CONNECTION_STRING: postgres://postgres:postgres@localhost:5432/postgres
+      run: ./migrations/run-migrations.sh down 000 --force
+      
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  deploy-vercel:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    environment: preview
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Deploy smart contract to testnet
+      id: deploy-contract
+      uses: ./.github/actions/deploy-contract
+      with:
+        branch_name: ${{ github.head_ref || github.ref_name }}
+        base_sepolia_rpc_url: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
+        relayer_private_key: ${{ secrets.RELAYER_PRIVATE_KEY }}
+        testnet_wallet_private_key: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
+        etherscan_api_key: ${{ secrets.ETHERSCAN_API_KEY }}
+
+    - name: Set contract address
+      run: |
+        echo "CONTRACT_ADDRESS=${{ steps.deploy-contract.outputs.contract_address }}" >> $GITHUB_ENV
+
+    - name: Install Vercel CLI
+      run: npm install --global vercel@latest
+
+
+    - name: Setup database and run migrations
+      id: setup-database
+      uses: ./.github/actions/setup-database
+      with:
+        branch_name: ${{ github.head_ref }}
+        db_connection_string: ${{ secrets.DB_CONNECTION_STRING }}
+
+    - name: Set database connection string
+      run: |
+        echo "NEW_DB_CONNECTION_STRING=${{ steps.setup-database.outputs.db_connection_string }}" >> $GITHUB_ENV
+
+    - name: Deploy to Vercel
+      id: vercel-deploy
+      run: |
+        # Use the actual PR head commit SHA (not merge commit)
+        PR_COMMIT_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+
+        COMMIT_AUTHOR_NAME=$(git log -1 $PR_COMMIT_SHA --format='%an')
+        COMMIT_AUTHOR_EMAIL=$(git log -1 $PR_COMMIT_SHA --format='%ae')
+        COMMIT_SHA=$PR_COMMIT_SHA
+        COMMIT_MESSAGE=$(git log -1 $PR_COMMIT_SHA --format='%s')
+        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+        
+        echo "📦 Deploying to Vercel with:"
+        echo "  Branch: $BRANCH_NAME"
+        echo "  Commit: $COMMIT_SHA"
+        echo "  Commit Message: $COMMIT_MESSAGE"
+        echo "  Author: $COMMIT_AUTHOR_NAME <$COMMIT_AUTHOR_EMAIL>"
+        
+        # Deploy with explicit metadata using -m flags
+        # Format: -m key=value (no quotes needed for values without spaces)
+        # Vercel outputs the deployment URL to stdout
+        PREVIEW_URL=$(vercel deploy \
+          --token=${{ secrets.VERCEL_TOKEN }} \
+          -m githubCommitRef=$BRANCH_NAME \
+          -m githubCommitSha=$COMMIT_SHA \
+          -m githubCommitAuthorName="$COMMIT_AUTHOR_NAME" \
+          -m githubCommitAuthorEmail="$COMMIT_AUTHOR_EMAIL" \
+          -m githubCommitMessage="$COMMIT_MESSAGE" \
+          -e DB_CONNECTION_STRING="${{ env.NEW_DB_CONNECTION_STRING }}" \
+          -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
+          -e DISABLE_PAYMASTER=true \
+          -e NEXT_PUBLIC_ENV=preview)
+        
+        echo "✅ Preview URL: $PREVIEW_URL"
+        echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+        
+        # Save deployment URL to cache for preview deployment
+        echo "$PREVIEW_URL" > latest-deployment-url.txt
+      env:
+        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        # Also set as environment variables as fallback
+        VERCEL_GIT_COMMIT_REF: ${{ github.head_ref || github.ref_name }}
+        VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+
+    - name: Cache latest deployment URL
+      uses: actions/cache@v4
+      if: steps.vercel-deploy.outputs.preview_url != ''
+      with:
+        path: latest-deployment-url.txt
+        key: latest-deployment-url-${{ github.head_ref || github.ref_name }}
+        restore-keys: |
+          latest-deployment-url-${{ github.head_ref || github.ref_name }}-
+
+    - name: Get branch preview URL from aliases
+      id: get-branch-preview
+      if: steps.vercel-deploy.outputs.preview_url != ''
+      run: |
+        PREVIEW_URL="${{ steps.vercel-deploy.outputs.preview_url }}"
+        
+        # Remove protocol from preview URL for matching
+        PREVIEW_DOMAIN=$(echo "$PREVIEW_URL" | sed 's|https\?://||')
+        
+        echo "🔍 Looking up branch preview URL for: $PREVIEW_DOMAIN"
+        
+        # Get aliases list using vercel alias ls
+        ALIASES_OUTPUT=$(vercel alias ls \
+          --token=${{ secrets.VERCEL_TOKEN }} \
+          --scope=${{ vars.VERCEL_ORG_ID }} 2>&1)
+        
+        echo "Aliases output:"
+        echo "$ALIASES_OUTPUT"
+        
+        # Find line containing preview URL, then get second column value
+        # The output is a table with columns: source | url | age
+        BRANCH_PREVIEW_URL=$(echo "$ALIASES_OUTPUT" | grep "$PREVIEW_DOMAIN" | awk '{print $2}')
+        
+        # Ensure URL has protocol
+        if [ -n "$BRANCH_PREVIEW_URL" ] && [ "$BRANCH_PREVIEW_URL" != "null" ]; then
+          if [[ ! "$BRANCH_PREVIEW_URL" =~ ^https?:// ]]; then
+            BRANCH_PREVIEW_URL="https://$BRANCH_PREVIEW_URL"
+          fi
+        fi
+        
+        echo "🔗 Branch Preview URL: $BRANCH_PREVIEW_URL"
+        echo "branch_preview_url=$BRANCH_PREVIEW_URL" >> $GITHUB_OUTPUT
+      env:
+        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+
+    - name: Comment PR with Vercel Preview
+      if: steps.vercel-deploy.outputs.preview_url != ''
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const previewUrl = '${{ steps.vercel-deploy.outputs.preview_url }}';
+          const branchPreviewUrl = '${{ steps.get-branch-preview.outputs.branch_preview_url }}';
+          const prNumber = context.payload.pull_request.number;
+          
+          let urlsSection = '';
+          
+          if (branchPreviewUrl && branchPreviewUrl !== 'null' && branchPreviewUrl !== '') {
+            urlsSection += `**🔗 [Branch Preview](${branchPreviewUrl})**\n${branchPreviewUrl}`;
+          }
+          
+          if (previewUrl) {
+            if (urlsSection) {
+              urlsSection += '\n\n';
+            }
+            urlsSection += `**Latest Deployment URL:**\n${previewUrl}`;
+          }
+          
+          const commentBody = `## 🚀 Vercel Preview Deployment
+          
+          Preview deployment is ready:
+          
+          ${urlsSection}`;
+          
+          // Find all existing comments with Vercel preview marker
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+          });
+          
+          const existingComments = comments.data.filter(comment => 
+            comment.body.includes('## 🚀 Vercel Preview Deployment') &&
+            comment.user.type === 'Bot'
+          );
+          
+          // Delete all old Vercel preview comments
+          for (const comment of existingComments) {
+            await github.rest.issues.deleteComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: comment.id,
+            });
+            console.log(`Deleted old Vercel preview comment: ${comment.id}`);
+          }
+          
+          // Create new comment with latest preview URL
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+            body: commentBody,
+          });
+          console.log('Created new Vercel preview comment');

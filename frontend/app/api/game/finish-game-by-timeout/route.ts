@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient } from '@/lib/providers';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS } from '@/lib/contract';
-import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
 import { parseEventLogs } from 'viem';
 import { sendWebhookMessage } from '@/lib/webhook';
@@ -32,10 +30,15 @@ export async function POST(request: NextRequest) {
     try {
         const body: FinishGameByTimeoutRequest = await request.json();
 
+        // Authentication is handled by Next.js middleware
+        // wallet_address is already validated by middleware
+        // Sentry user context is set in middleware
+        const wallet_address = body.wallet_address;
+
         // Validate required fields
-        if (!body.game_id || !body.wallet_address || !body.signature || !body.message) {
+        if (!body.game_id) {
             return NextResponse.json(
-                { error: 'Missing required fields', errorName: 'MISSING_FIELDS' },
+                { error: 'Missing required field: game_id', errorName: 'MISSING_FIELDS' },
                 { status: 400 }
             );
         }
@@ -48,22 +51,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Authenticate user
-        const isAuthenticated = await checkAuthSignatureAndMessage(
-            body.wallet_address,
-            body.signature,
-            body.message
-        );
-
-        if (!isAuthenticated) {
-            return NextResponse.json(
-                { error: 'Authentication failed', errorName: 'AUTH_FAILED' },
-                { status: 401 }
-            );
-        }
-
         console.log('Processing finish game by timeout for game:', body.game_id);
-        console.log('User wallet:', body.wallet_address);
+        console.log('User wallet:', wallet_address);
 
         // Simulate the transaction first to ensure it will succeed
         console.log('Simulating finishGameByTimeoutRelayer transaction...');
@@ -71,7 +60,7 @@ export async function POST(request: NextRequest) {
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'finishGameByTimeoutRelayer',
-            args: [body.wallet_address, BigInt(body.game_id)],
+            args: [wallet_address, BigInt(body.game_id)],
             chain: chain,
             account: RELAYER_ADDRESS
         });

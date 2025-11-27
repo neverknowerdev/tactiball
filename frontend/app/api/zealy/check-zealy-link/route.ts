@@ -3,7 +3,9 @@
 // ============================================================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { createAnonClient } from "@/lib/supabase";
+import { db } from "@/lib/database";
+import { teams } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -66,39 +68,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = createAnonClient();
-
-    // Add timeout to prevent hanging
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Database query timeout')), 5000);
-    });
-
-    const queryPromise = supabase
-      .from("teams")
-      .select("zealy_user_id")
-      .eq("primary_wallet", walletAddress.toLowerCase())
-      .maybeSingle();
-
-    const result = await Promise.race([
-      queryPromise,
-      timeoutPromise
-    ]).catch((err) => {
-      console.error("Query error or timeout:", err);
-      return { data: null, error: err };
-    });
-
-    const { data: team, error } = result as { data: any; error: any };
-
-    if (error) {
-      console.error("Error checking Zealy link:", error);
-      return NextResponse.json(
-        {
-          isLinked: false,
-          error: "Database error",
-        },
-        { status: 500 },
-      );
-    }
+    const [team] = await db
+      .select({ zealy_user_id: teams.zealyUserId })
+      .from(teams)
+      .where(eq(teams.primaryWallet, walletAddress.toLowerCase()))
+      .limit(1);
 
     const isLinked = !!(team && team.zealy_user_id);
 

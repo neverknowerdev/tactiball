@@ -16,6 +16,8 @@ const env = (process.env.NEXT_PUBLIC_ENV ||
   process.env.NODE_ENV ||
   'development') as keyof typeof chainMap;
 
+console.log('Environment:', env);
+
 // Export the global chain
 export const chain: AppChain = chainMap[env] || baseSepolia;
 

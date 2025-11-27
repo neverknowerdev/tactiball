@@ -6,4 +6,4 @@
 DROP TRIGGER IF EXISTS trigger_update_team_statistics ON public.games;
 
 -- Drop function
-DROP FUNCTION IF EXISTS public.trigger_update_team_statistics();
+DROP FUNCTION IF EXISTS trigger_update_team_statistics();

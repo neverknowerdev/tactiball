@@ -5,7 +5,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMessage } from "viem";
-import { createAnonClient } from "@/lib/supabase";
+import { db } from "@/lib/database";
+import { teams } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -50,25 +52,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = createAnonClient();
-
-    // Check if team exists
-    const { data: team, error } = await supabase
-      .from("teams")
-      .select("id, name, primary_wallet, zealy_user_id")
-      .eq("primary_wallet", walletAddress)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Database error:", error);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Database error",
-        },
-        { status: 500 },
-      );
-    }
+    const [team] = await db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        primary_wallet: teams.primaryWallet,
+        zealy_user_id: teams.zealyUserId,
+      })
+      .from(teams)
+      .where(eq(teams.primaryWallet, walletAddress))
+      .limit(1);
 
     if (!team) {
       return NextResponse.json(

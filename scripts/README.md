@@ -14,7 +14,7 @@ The enhanced script now:
 
 ## Prerequisites
 
-1. **Supabase Edge Function Running**: Your `event-router` function must be deployed and running
+1. **Edge Router Running**: Your `event-router` endpoint must be deployed and running
 2. **Smart Contract Deployed**: Contract must be accessible on Base network
 3. **Node.js**: Version 18+ (for fetch API and ES modules support)
 4. **Viem**: For smart contract interaction
@@ -59,10 +59,10 @@ node scripts/simulate-teams.js 1 2 3 4 5
 
 ```bash
 # Simulate teams with custom event-router URL
-node scripts/simulate-teams.js 1 2 3 "https://your-project.supabase.co/functions/v1/event-router"
+node scripts/simulate-teams.js 1 2 3 "https://api.example.com/functions/v1/event-router"
 
-# For production Supabase
-node scripts/simulate-teams.js 1 2 3 "https://your-project.supabase.co/functions/v1/event-router"
+# For production deployments
+node scripts/simulate-teams.js 1 2 3 "https://api.example.com/functions/v1/event-router"
 ```
 
 ### Examples
@@ -72,7 +72,7 @@ node scripts/simulate-teams.js 1 2 3 "https://your-project.supabase.co/functions
 node scripts/simulate-teams.js 1 2 3
 
 # Production with specific teams
-node scripts/simulate-teams.js 1 5 10 "https://your-project.supabase.co/functions/v1/event-router"
+node scripts/simulate-teams.js 1 5 10 "https://api.example.com/functions/v1/event-router"
 
 # Single team test
 node scripts/simulate-teams.js 7
@@ -100,7 +100,7 @@ Examples:
   node scripts/simulate-teams.js 1 2 3
 
   # Simulate team 5 with custom event-router URL
-  node scripts/simulate-teams.js 5 "https://your-project.supabase.co/functions/v1/event-router"
+node scripts/simulate-teams.js 5 "https://api.example.com/functions/v1/event-router"
 
 🚀 Simulating TeamCreated events for 3 teams
 📡 Sending to: http://localhost:54321/functions/v1/event-router
@@ -144,7 +144,7 @@ Examples:
 1. **Contract Not Found**: Verify contract address and RPC URL
 2. **Teams Don't Exist**: Check if teams with those IDs exist on contract
 3. **RPC Connection**: Ensure RPC endpoint is accessible
-4. **Event Router**: Verify your Supabase function is running
+4. **Event Router**: Verify your edge function is running
 
 ### Debug Mode
 
@@ -166,7 +166,7 @@ The script provides detailed logging for each step:
 
 After successfully running the script:
 
-1. **Verify Database**: Check your Supabase `teams` table for new entries
+1. **Verify Database**: Check your Postgres `teams` table for new entries
 2. **Test Frontend**: Your frontend should now show real team counts
 3. **Monitor Logs**: Watch your event-router function logs
 4. **Scale Up**: Use for other event types (games, etc.)
@@ -195,7 +195,7 @@ node scripts/simulate-teams.js 1 2 3 10 11 12 15 20
 
 ```bash
 # In your deployment pipeline
-node scripts/simulate-teams.js 1 2 3 "https://prod-project.supabase.co/functions/v1/event-router"
+  node scripts/simulate-teams.js 1 2 3 "https://api.example.com/functions/v1/event-router"
 ```
 
 ### Monitoring and Logging

@@ -2,26 +2,28 @@
 // Update an existing waiting room's settings including room_type
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createWriteClient } from '@/lib/supabase';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
-
-const supabase = createWriteClient();
+import { db } from '@/lib/database';
+import { waitingRooms, teams } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
     try {
+        const body = await request.json();
         const {
             room_id,
             room_type,
             minimum_elo_rating,
-            wallet_address,
-            signature,
-            message
-        } = await request.json();
+            wallet_address
+        } = body;
+
+        // Authentication is handled by Next.js middleware
+        // wallet_address is already validated by middleware
+        // Sentry user context is set in middleware
 
         // Validate required fields
-        if (!room_id || !wallet_address || !signature || !message) {
+        if (!room_id) {
             return NextResponse.json(
-                { success: false, error: 'Missing required fields' },
+                { success: false, error: 'Missing required field: room_id' },
                 { status: 400 }
             );
         }
@@ -34,28 +36,20 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate signature
-        const { isValid, error: authError } = await checkAuthSignatureAndMessage(
-            signature,
-            message,
-            wallet_address
-        );
-
-        if (!isValid) {
-            return NextResponse.json(
-                { success: false, error: authError },
-                { status: 401 }
-            );
-        }
-
         // Get the waiting room
-        const { data: room, error: roomError } = await supabase
-            .from('waiting_rooms')
-            .select('id, host_team_id, status, guest_team_id, expires_at')
-            .eq('id', room_id)
-            .single();
+        const [room] = await db
+            .select({
+                id: waitingRooms.id,
+                host_team_id: waitingRooms.hostTeamId,
+                status: waitingRooms.status,
+                guest_team_id: waitingRooms.guestTeamId,
+                expires_at: waitingRooms.expiresAt
+            })
+            .from(waitingRooms)
+            .where(eq(waitingRooms.id, room_id))
+            .limit(1);
 
-        if (roomError || !room) {
+        if (!room) {
             return NextResponse.json(
                 { success: false, error: 'Waiting room not found' },
                 { status: 404 }
@@ -63,13 +57,16 @@ export async function POST(request: NextRequest) {
         }
 
         // Verify the wallet owns the host team
-        const { data: team, error: teamError } = await supabase
-            .from('teams')
-            .select('id, primary_wallet')
-            .eq('id', room.host_team_id)
-            .single();
+        const [team] = await db
+            .select({
+                id: teams.id,
+                primary_wallet: teams.primaryWallet
+            })
+            .from(teams)
+            .where(eq(teams.id, room.host_team_id))
+            .limit(1);
 
-        if (teamError || !team) {
+        if (!team) {
             return NextResponse.json(
                 { success: false, error: 'Team not found' },
                 { status: 404 }
@@ -91,7 +88,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const now = new Date().toISOString();
+        const now = new Date();
         if (room.expires_at <= now) {
             return NextResponse.json(
                 { success: false, error: 'Waiting room has expired' },
@@ -121,15 +118,14 @@ export async function POST(request: NextRequest) {
         }
 
         // Update the waiting room
-        const { data: updatedRoom, error: updateError } = await supabase
-            .from('waiting_rooms')
-            .update(updateData)
-            .eq('id', room_id)
-            .select()
-            .single();
+        const [updatedRoom] = await db
+            .update(waitingRooms)
+            .set(updateData)
+            .where(eq(waitingRooms.id, room_id))
+            .returning();
 
-        if (updateError) {
-            console.error('Error updating waiting room:', updateError);
+        if (!updatedRoom) {
+            console.error('Error updating waiting room: not found after update');
             return NextResponse.json(
                 { success: false, error: 'Failed to update waiting room' },
                 { status: 500 }
