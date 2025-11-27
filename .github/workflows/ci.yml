@@ -50,25 +50,10 @@ jobs:
       with:
         node-version: '22'
         cache: 'npm'
-    
-    - name: Cache root dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
+        cache-dependency-path: package-lock.json
     
     - name: Install dependencies
       run: npm ci
-      
-    - name: Cache frontend dependencies
-      uses: actions/cache@v4
-      with:
-        path: frontend/node_modules
-        key: ${{ runner.os }}-node-frontend-${{ hashFiles('frontend/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-frontend-
       
     - name: Install frontend dependencies
       run: npm run frontend:install
@@ -144,14 +129,7 @@ jobs:
       with:
         node-version: '22'
         cache: 'npm'
-
-    - name: Cache root dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
+        cache-dependency-path: package-lock.json
 
     - name: Install dependencies
       run: npm ci
