@@ -369,25 +369,27 @@ export default function LobbyScreen({
               </div>
             </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Minimum ELO Rating (Optional)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={minimumElo}
-                onChange={(e) => setMinimumElo(parseFloat(e.target.value) || 0)}
-                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                placeholder="0.00"
-              />
-              <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                {minimumElo > 0
-                  ? `Only teams with ELO ≥ ${minimumElo.toFixed(2)} can join`
-                  : 'No ELO restriction - anyone can join'}
-              </p>
-            </div>
+            {roomType === 'public' && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Minimum ELO Rating (Optional)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={minimumElo}
+                  onChange={(e) => setMinimumElo(parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                  placeholder="0.00"
+                />
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  {minimumElo > 0
+                    ? `Only teams with ELO ≥ ${minimumElo.toFixed(2)} can join`
+                    : 'No ELO restriction - anyone can join'}
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button
@@ -456,25 +458,27 @@ export default function LobbyScreen({
               </div>
             </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Minimum ELO Rating
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={minimumElo}
-                onChange={(e) => setMinimumElo(parseFloat(e.target.value) || 0)}
-                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                placeholder="0.00"
-              />
-              <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                {minimumElo > 0
-                  ? `Only teams with ELO ≥ ${minimumElo.toFixed(2)} can join`
-                  : 'No ELO restriction - anyone can join'}
-              </p>
-            </div>
+            {roomType === 'public' && (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Minimum ELO Rating
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={minimumElo}
+                  onChange={(e) => setMinimumElo(parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                  placeholder="0.00"
+                />
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  {minimumElo > 0
+                    ? `Only teams with ELO ≥ ${minimumElo.toFixed(2)} can join`
+                    : 'No ELO restriction - anyone can join'}
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button
