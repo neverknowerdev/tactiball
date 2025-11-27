@@ -50,25 +50,10 @@ jobs:
       with:
         node-version: '22'
         cache: 'npm'
-    
-    - name: Cache root dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
+        cache-dependency-path: package-lock.json
     
     - name: Install dependencies
       run: npm ci
-      
-    - name: Cache frontend dependencies
-      uses: actions/cache@v4
-      with:
-        path: frontend/node_modules
-        key: ${{ runner.os }}-node-frontend-${{ hashFiles('frontend/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-frontend-
       
     - name: Install frontend dependencies
       run: npm run frontend:install
@@ -144,14 +129,7 @@ jobs:
       with:
         node-version: '22'
         cache: 'npm'
-
-    - name: Cache root dependencies
-      uses: actions/cache@v4
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
+        cache-dependency-path: package-lock.json
 
     - name: Install dependencies
       run: npm ci
@@ -162,7 +140,7 @@ jobs:
       with:
         branch_name: ${{ github.head_ref || github.ref_name }}
         base_sepolia_rpc_url: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
-        relayer_private_key: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
+        relayer_private_key: ${{ secrets.RELAYER_PRIVATE_KEY }}
         testnet_wallet_private_key: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
         etherscan_api_key: ${{ secrets.ETHERSCAN_API_KEY }}
 
@@ -214,8 +192,8 @@ jobs:
           -m githubCommitAuthorEmail="$COMMIT_AUTHOR_EMAIL" \
           -m githubCommitMessage="$COMMIT_MESSAGE" \
           -e DB_CONNECTION_STRING="${{ env.NEW_DB_CONNECTION_STRING }}" \
-          -e CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
           -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
+          -e DISABLE_PAYMASTER=true \
           -e NEXT_PUBLIC_ENV=preview)
         
         echo "✅ Preview URL: $PREVIEW_URL"

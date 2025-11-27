@@ -1,6 +1,6 @@
 "use server";
 import { createPaymasterClient } from 'viem/account-abstraction'
-import { createWalletClient, createPublicClient, http, type Hex } from 'viem';
+import { createWalletClient, createPublicClient, http, type Hex, type TransactionReceipt, type Log } from 'viem';
 import { basePreconf } from 'viem/chains';
 import { chain } from '@/config/chains';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -13,6 +13,14 @@ import { CONTRACT_ABI } from './contract';
 const COINBASE_PAYMASTER_RPC_URL = process.env.COINBASE_PAYMASTER_RPC_URL || process.env.TESTNET_COINBASE_PAYMASTER_RPC_URL;
 const FLASHBLOCKS_RPC_URL = process.env.FLASHBLOCKS_RPC_URL || process.env.TESTNET_FLASHBLOCKS_RPC_URL;
 const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY || process.env.TESTNET_RELAYER_PRIVATE_KEY;
+const DISABLE_PAYMASTER = (process.env.DISABLE_PAYMASTER || process.env.TESTNET_DISABLE_PAYMASTER) === 'true';
+
+type DirectTransactionResult = {
+    logs: Log[];
+    receipt: TransactionReceipt;
+};
+
+export type SponsoredTransactionResult = UserOperationReceipt | DirectTransactionResult;
 
 function getCoinbasePaymasterRpcUrl() {
     // Coinbase Paymaster Configuration
@@ -164,8 +172,47 @@ export async function getCurrentRelayerNonce(account: Hex): Promise<bigint> {
     }
 }
 
+async function sendTransactionWithoutPaymaster(request: any): Promise<DirectTransactionResult> {
+    const privateKey = RELAYER_PRIVATE_KEY;
+    if (!privateKey) {
+        throw new Error('RELAYER_PRIVATE_KEY environment variable is required');
+    }
+
+    console.log('Coinbase Paymaster disabled. Using relayer key to send transaction directly.');
+
+    const relayerAccount = privateKeyToAccount(privateKey as Hex);
+
+    const walletClient = createWalletClient({
+        account: relayerAccount,
+        chain,
+        transport: http(FLASHBLOCKS_RPC_URL),
+    });
+
+    const transactionHash = await walletClient.writeContract({
+        ...request,
+        account: relayerAccount,
+    });
+
+    console.log('Transaction sent successfully without Paymaster. Hash:', transactionHash);
+
+    const receipt = await flashblocksClient.waitForTransactionReceipt({
+        hash: transactionHash,
+        confirmations: 0,
+        pollingInterval: 100,
+    });
+
+    return {
+        logs: receipt.logs,
+        receipt,
+    };
+}
+
 // Generic function to send transactions with retry logic using UserOperations
-export async function sendTransactionWithRetry(request: any, maxRetries: number = 3): Promise<UserOperationReceipt> {
+export async function sendTransactionWithRetry(request: any, maxRetries: number = 3): Promise<SponsoredTransactionResult> {
+    if (DISABLE_PAYMASTER) {
+        return sendTransactionWithoutPaymaster(request);
+    }
+
     const bundlerClient = await createRelayerBundlerClient();
     const smartAccount = await createSmartAccount();
     const accountAddress = smartAccount.address;
@@ -243,16 +290,18 @@ export async function sendTransactionWithRetry(request: any, maxRetries: number 
     throw new Error('Failed to commit UserOperation after maximum retries');
 }
 
-export async function waitForPaymasterTransactionReceipt(hash: string | UserOperationReceipt) {
+export async function waitForPaymasterTransactionReceipt(hash: string | SponsoredTransactionResult) {
+    if (typeof hash !== 'string') {
+        console.log('Received transaction receipt directly, skipping wait.');
+        return hash.receipt;
+    }
+
     console.log('UserOperation sent successfully. UserOp hash:', hash);
     console.log('Transaction sponsored by Coinbase Paymaster: YES');
 
-    // If it's a UserOperationReceipt, extract the transaction hash
-    const txHash = typeof hash === 'string' ? hash : hash.receipt.transactionHash;
-
     // Use flashblocks client for faster confirmation
     return await flashblocksClient.waitForTransactionReceipt({
-        hash: txHash as `0x${string}`,
+        hash: hash as `0x${string}`,
         confirmations: 0,
         pollingInterval: 100 // Optimized for flashblocks
     });

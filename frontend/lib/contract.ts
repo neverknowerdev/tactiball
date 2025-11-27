@@ -1,5 +1,5 @@
 import { type Address, decodeEventLog } from 'viem';
-import gameArtifact from '../../artifacts/contracts/Game.sol/ChessBallGame.json';
+import gameArtifact from './abis/ChessBallGame.json';
 import { publicClient } from './providers';
 import { Position } from './game';
 

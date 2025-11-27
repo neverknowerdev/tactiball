@@ -40,23 +40,6 @@ export default function GamePage() {
     const params = useParams<{ gameId?: string }>();
     const gameId = params?.gameId ?? '';
 
-    if (!gameId) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-green-100 p-4">
-                <div className="max-w-md text-center bg-white shadow-sm rounded-lg p-6 border border-gray-100">
-                    <h1 className="text-xl font-semibold text-gray-800 mb-2">Game not found</h1>
-                    <p className="text-gray-600 mb-4">Please return to the lobby and select a valid game.</p>
-                    <a
-                        href="/"
-                        className="inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                    >
-                        Back to Home
-                    </a>
-                </div>
-            </div>
-        );
-    }
-
     // Wallet connection
     const { address, isConnected } = useAccount();
     const { signMessageAsync } = useSignMessage();
@@ -191,6 +174,26 @@ export default function GamePage() {
 
         return () => clearInterval(interval);
     }, [gameSubmissionState, lastMoveAt, setSecondsAfterLastMove]);
+
+    // Early-exit UI when no gameId is provided
+    const missingGameView = (
+        <div className="min-h-screen flex items-center justify-center bg-green-100 p-4">
+            <div className="max-w-md text-center bg-white shadow-sm rounded-lg p-6 border border-gray-100">
+                <h1 className="text-xl font-semibold text-gray-800 mb-2">Game not found</h1>
+                <p className="text-gray-600 mb-4">Please return to the lobby and select a valid game.</p>
+                <a
+                    href="/"
+                    className="inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                >
+                    Back to Home
+                </a>
+            </div>
+        </div>
+    );
+
+    if (!gameId) {
+        return missingGameView;
+    }
 
     // Send cancel game request
     const handleCancelGameRequest = async () => {
