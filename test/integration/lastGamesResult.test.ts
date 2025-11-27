@@ -1,7 +1,7 @@
 // lastGamesResults.test.ts
 import { expect } from 'chai';
 import { randomUUID } from 'crypto';
-import { pool } from '../../frontend/db/pool';
+import { pool } from '../../frontend/db/client';
 
 // Types
 type GameStatus = 'active' | 'finished' | 'finished_by_timeout';

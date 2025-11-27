@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { expect } from 'chai';
-import { pool } from '../../frontend/db/pool';
+import { pool } from '../../frontend/db/client';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
