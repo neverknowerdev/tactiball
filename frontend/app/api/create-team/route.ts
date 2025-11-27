@@ -25,21 +25,7 @@ interface CreateTeamRequest {
 export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
         const body: CreateTeamRequest = await req.json();
-        const { teamName, countryId, walletAddress, signature, message } = body;
-
-        // Verify signature (middleware validates format, we verify here in Node.js runtime)
-        const { isValid, error: authError } = await checkAuthSignatureAndMessage(
-            signature,
-            message,
-            walletAddress
-        );
-
-        if (!isValid) {
-            return NextResponse.json(
-                { success: false, error: authError || 'Signature verification failed' },
-                { status: 401 }
-            );
-        }
+        const { teamName, countryId, walletAddress } = body;
 
         // Log the received data to console
         console.log('=== API RECEIVED AUTHENTICATION DATA ===');
