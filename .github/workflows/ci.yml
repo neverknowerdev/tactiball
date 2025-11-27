@@ -215,6 +215,7 @@ jobs:
           -m githubCommitMessage="$COMMIT_MESSAGE" \
           -e DB_CONNECTION_STRING="${{ env.NEW_DB_CONNECTION_STRING }}" \
           -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
+          -e DISABLE_PAYMASTER=true \
           -e NEXT_PUBLIC_ENV=preview)
         
         echo "✅ Preview URL: $PREVIEW_URL"
