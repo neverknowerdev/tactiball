@@ -3,11 +3,9 @@ import { type Address, parseEventLogs, Log } from 'viem';
 import { publicClient } from '@/lib/providers';
 import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
-import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
 import { BaseError, ContractFunctionRevertedError } from 'viem';
 import { sendWebhookMessage } from '@/lib/webhook';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
 
 
 interface CreateTeamRequest {
