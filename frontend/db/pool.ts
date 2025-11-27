@@ -1,2 +1,0 @@
-export { pool } from './client';
-
