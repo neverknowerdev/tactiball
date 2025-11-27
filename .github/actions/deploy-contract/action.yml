@@ -32,12 +32,12 @@ runs:
         echo "hash=$CONTRACTS_HASH" >> $GITHUB_OUTPUT
         echo "📋 Contracts hash: $CONTRACTS_HASH"
 
-    - name: Restore contract cache
-      id: cache-contract
-      uses: actions/cache@v4
-      with:
-        path: contract-cache.json
-        key: contract-cache-${{ inputs.branch_name }}-${{ steps.contracts-hash.outputs.hash }}
+    # - name: Restore contract cache
+    #   id: cache-contract
+    #   uses: actions/cache@v4
+    #   with:
+    #     path: contract-cache.json
+    #     key: contract-cache-${{ inputs.branch_name }}-${{ steps.contracts-hash.outputs.hash }}
 
     - name: Load cached contract address
       id: load-cache

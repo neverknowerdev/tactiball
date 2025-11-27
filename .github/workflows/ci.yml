@@ -162,7 +162,7 @@ jobs:
       with:
         branch_name: ${{ github.head_ref || github.ref_name }}
         base_sepolia_rpc_url: ${{ secrets.BASE_SEPOLIA_RPC_URL }}
-        relayer_private_key: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
+        relayer_private_key: ${{ secrets.RELAYER_PRIVATE_KEY }}
         testnet_wallet_private_key: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
         etherscan_api_key: ${{ secrets.ETHERSCAN_API_KEY }}
 
