@@ -40,33 +40,12 @@ jobs:
         # Parse existing DB_CONNECTION_STRING
         ORIGINAL_CONN_STRING="${{ secrets.DB_CONNECTION_STRING }}"
         
-        # Remove postgres:// prefix and query parameters
-        CONN_PART=$(echo "$ORIGINAL_CONN_STRING" | sed 's|^postgres://||' | sed 's|?.*$||')
-        
-        # Extract user:password
-        USER_PASS=$(echo "$CONN_PART" | cut -d'@' -f1)
-        DB_USER=$(echo "$USER_PASS" | cut -d':' -f1)
-        DB_PASSWORD=$(echo "$USER_PASS" | sed "s/^${DB_USER}://")
-        
-        # Extract host:port/database
-        HOST_PORT_DB=$(echo "$CONN_PART" | cut -d'@' -f2-)
-        DB_HOST=$(echo "$HOST_PORT_DB" | cut -d':' -f1)
-        PORT_DB=$(echo "$HOST_PORT_DB" | cut -d':' -f2-)
-        DB_PORT=$(echo "$PORT_DB" | cut -d'/' -f1)
-        
-        echo "Database host: $DB_HOST"
-        echo "Database port: $DB_PORT"
-        echo "Database user: $DB_USER"
-        
-        # Set PGPASSWORD for psql
-        export PGPASSWORD="$DB_PASSWORD"
-        
         # Check if database exists before trying to delete
-        DB_EXISTS=$(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" 2>/dev/null || echo "")
+        DB_EXISTS=$(psql "$ORIGINAL_CONN_STRING" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" 2>/dev/null || echo "")
         
         if [ "$DB_EXISTS" = "1" ]; then
           echo "🗑️  Dropping database: $DB_NAME"
-          psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+          psql "$ORIGINAL_CONN_STRING" -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
           echo "✅ Database $DB_NAME deleted successfully"
         else
           echo "ℹ️  Database $DB_NAME does not exist, skipping deletion"
