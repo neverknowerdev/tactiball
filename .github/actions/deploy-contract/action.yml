@@ -16,6 +16,10 @@ inputs:
   etherscan_api_key:
     description: 'Etherscan API key'
     required: true
+  force_deploy:
+    description: 'Force deployment even if cache exists'
+    required: false
+    default: 'false'
 outputs:
   contract_address:
     description: 'Deployed contract address'
@@ -44,6 +48,14 @@ runs:
       if: steps.cache-contract.outputs.cache-hit == 'true'
       shell: bash
       run: |
+        FORCE_DEPLOY="${{ inputs.force_deploy }}"
+        
+        if [ "$FORCE_DEPLOY" = "true" ]; then
+          echo "🔨 Force deploy is enabled, will deploy"
+          echo "should_deploy=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
         if [ -f contract-cache.json ]; then
           CACHED_HASH=$(jq -r '.hash' contract-cache.json 2>/dev/null || echo "")
           CACHED_ADDRESS=$(jq -r '.contract_address' contract-cache.json 2>/dev/null || echo "")
@@ -69,7 +81,13 @@ runs:
       if: steps.cache-contract.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        echo "⚠️ Cache miss, will deploy"
+        FORCE_DEPLOY="${{ inputs.force_deploy }}"
+        
+        if [ "$FORCE_DEPLOY" = "true" ]; then
+          echo "🔨 Force deploy is enabled, will deploy"
+        else
+          echo "⚠️ Cache miss, will deploy"
+        fi
         echo "should_deploy=true" >> $GITHUB_OUTPUT
 
     - name: Deploy smart contract to testnet

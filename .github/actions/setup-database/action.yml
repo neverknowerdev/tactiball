@@ -7,6 +7,10 @@ inputs:
   db_connection_string:
     description: 'Original database connection string'
     required: true
+  force_deploy:
+    description: 'Force database setup and migrations even if cache exists'
+    required: false
+    default: 'false'
 outputs:
   db_name:
     description: 'Generated database name'
@@ -65,6 +69,7 @@ runs:
       run: |
         DB_NAME="${{ steps.db-name.outputs.db_name }}"
         ORIGINAL_CONN_STRING="${{ inputs.db_connection_string }}"
+        FORCE_DEPLOY="${{ inputs.force_deploy }}"
         
         # Check if database exists
         DB_EXISTS=$(psql "$ORIGINAL_CONN_STRING" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" 2>/dev/null || echo "")
@@ -73,8 +78,12 @@ runs:
           echo "db_exists=true" >> $GITHUB_OUTPUT
           echo "✅ Database exists: $DB_NAME"
           
+          # Force deploy check
+          if [ "$FORCE_DEPLOY" = "true" ]; then
+            echo "🔨 Force deploy is enabled, will run migrations"
+            echo "should_run_migrations=true" >> $GITHUB_OUTPUT
           # Check migrations hash if cache exists
-          if [ -f migrations-hash-cache.json ]; then
+          elif [ -f migrations-hash-cache.json ]; then
             CACHED_HASH=$(jq -r '.hash' migrations-hash-cache.json 2>/dev/null || echo "")
             CURRENT_HASH="${{ steps.migrations-hash.outputs.hash }}"
             
