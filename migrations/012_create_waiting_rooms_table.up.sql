@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS public.waiting_rooms (
     -- Guest team (when someone joins)
     guest_team_id BIGINT REFERENCES public.teams(id) ON DELETE SET NULL,
     
-    -- Game request created when both teams are ready
-    game_request_id BIGINT NOT NULL,
+    -- Game request created when both teams are ready (nullable until game request is created)
+    game_request_id BIGINT,
     
     -- Expiration (rooms expire after 24 hours)
     expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '24 hours') NOT NULL
