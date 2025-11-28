@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS public.games (
     team1_score SMALLINT DEFAULT '0'::SMALLINT NOT NULL,
     team2_score SMALLINT DEFAULT '0'::SMALLINT NOT NULL,
     history_ipfs_cid VARCHAR,
-    is_verified BOOLEAN DEFAULT FALSE NOT NULL
+    is_verified BOOLEAN DEFAULT FALSE NOT NULL,
+    team1_moves JSONB,
+    team2_moves JSONB
 );
 
 -- Create foreign key constraints

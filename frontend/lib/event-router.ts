@@ -42,14 +42,30 @@ export async function processEventRouter(webhookEvent: WebhookEvent): Promise<{ 
 
                 console.log('decodedData', decodedData);
 
+                // Extract required fields with fallbacks
+                const blockNumber = Number(webhookEvent.event.data.block.number);
+                const transactionHash = log.transaction?.hash || '';
+                const logIndex = Number(log.index);
+
+                // Skip if required fields are missing
+                if (!blockNumber || !transactionHash || !logIndex || isNaN(logIndex)) {
+                    console.warn('Skipping log due to missing required fields:', {
+                        blockNumber,
+                        transactionHash,
+                        logIndex,
+                        log
+                    });
+                    continue;
+                }
+
                 // Save event to messages table - only process if this is the first time
                 const messageRecord = await saveEventToMessages(
                     database,
                     decodedData,
                     webhookEvent.event.data.block.timestamp,
-                    Number(webhookEvent.event.data.block.number),
-                    log.transaction.hash,
-                    Number(log.index)
+                    blockNumber,
+                    transactionHash,
+                    logIndex
                 );
 
                 // Only process the event if the message was successfully inserted (first time processing)
@@ -126,9 +142,18 @@ async function processLog(database: Database, wsService: WebSocketBroadcastingSe
 }
 
 async function saveEventToMessages(database: Database, eventLog: DecodedEvent, timestamp: number, blockNumber: number, transactionHash: string, logIndex: number) {
-    if (!blockNumber || !transactionHash || !logIndex) {
-        console.error('Missing required arguments to save event to messages');
-        throw new Error('Missing required arguments to save event to messages');
+    // Validate required arguments - allow 0 but not undefined/null/NaN
+    if (blockNumber === undefined || blockNumber === null || isNaN(blockNumber) ||
+        !transactionHash || transactionHash === '' ||
+        logIndex === undefined || logIndex === null || isNaN(logIndex)) {
+        console.error('Missing required arguments to save event to messages', {
+            blockNumber,
+            transactionHash,
+            logIndex,
+            eventName: eventLog.eventName
+        });
+        // Return null instead of throwing to allow processing to continue
+        return null;
     }
 
     try {
