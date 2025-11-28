@@ -75,7 +75,7 @@ export type GameFetchResult = {
 export async function getGameFromContract(gameId: string): Promise<GameFetchResult> {
     try {
         console.log('Fetching game data from contract for game ID:', gameId);
-        
+
         // Validate contract address is set
         if (!CONTRACT_ADDRESS) {
             console.error('CONTRACT_ADDRESS is not set. Check NEXT_PUBLIC_CONTRACT_ADDRESS or NEXT_PUBLIC_TESTNET_CONTRACT_ADDRESS environment variables');
@@ -90,6 +90,7 @@ export async function getGameFromContract(gameId: string): Promise<GameFetchResu
         console.log('RPC URL:', process.env.RPC_URL || 'https://sepolia.base.org');
         console.log('Chain ID:', chain.id);
         console.log('Chain name:', chain.name);
+        console.log('Contract address:', CONTRACT_ADDRESS);
 
         // Verify contract has code at this address
         const code = await publicClient.getBytecode({ address: CONTRACT_ADDRESS });
