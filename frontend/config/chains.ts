@@ -23,8 +23,11 @@ console.log('Environment detection:', {
   NEXT_PUBLIC_ENV: process.env.NEXT_PUBLIC_ENV,
   VERCEL_ENV: process.env.VERCEL_ENV,
   NODE_ENV: process.env.NODE_ENV,
+  CONTRACT_ADDRESS: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS,
   resolved: env
 });
+
+console.log('all envs: ', process.env)
 
 // Export the global chain
 export const chain: AppChain = chainMap[env] || baseSepolia;
