@@ -18,6 +18,9 @@ outputs:
   db_connection_string:
     description: 'New database connection string'
     value: ${{ steps.final-output.outputs.db_connection_string }}
+  isDeployed:
+    description: 'Whether a new database was created/migrated (not from cache)'
+    value: ${{ steps.final-output.outputs.isDeployed || 'false' }}
 
 runs:
   using: 'composite'
@@ -155,6 +158,7 @@ runs:
           '{hash: $hash}' > migrations-hash-cache.json
         
         echo "db_connection_string=$NEW_CONN_STRING" >> $GITHUB_OUTPUT
+        echo "isDeployed=true" >> $GITHUB_OUTPUT
 
     - name: Set database connection string for existing DB
       id: set-existing-db
@@ -183,8 +187,12 @@ runs:
         # Get connection string from whichever step ran
         if [ -n "${{ steps.setup-db.outputs.db_connection_string }}" ]; then
           echo "db_connection_string=${{ steps.setup-db.outputs.db_connection_string }}" >> $GITHUB_OUTPUT
+          # If setup-db ran, deployment happened
+          echo "isDeployed=true" >> $GITHUB_OUTPUT
         elif [ -n "${{ steps.set-existing-db.outputs.db_connection_string }}" ]; then
           echo "db_connection_string=${{ steps.set-existing-db.outputs.db_connection_string }}" >> $GITHUB_OUTPUT
+          # If using existing DB, no deployment happened
+          echo "isDeployed=false" >> $GITHUB_OUTPUT
         else
           echo "❌ Error: No database connection string was set"
           exit 1

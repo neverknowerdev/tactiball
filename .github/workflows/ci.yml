@@ -165,6 +165,54 @@ jobs:
       run: |
         echo "NEW_DB_CONNECTION_STRING=${{ steps.setup-database.outputs.db_connection_string }}" >> $GITHUB_ENV
 
+    - name: Comment PR with deployment info
+      if: steps.deploy-contract.outputs.isDeployed == 'true' || steps.setup-database.outputs.isDeployed == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const contractDeployed = '${{ steps.deploy-contract.outputs.isDeployed }}' === 'true';
+          const dbDeployed = '${{ steps.setup-database.outputs.isDeployed }}' === 'true';
+          const contractAddress = '${{ steps.deploy-contract.outputs.contract_address }}';
+          const dbName = '${{ steps.setup-database.outputs.db_name }}';
+          const prNumber = context.payload.pull_request.number;
+          
+          let deploymentSections = [];
+          
+          if (contractDeployed) {
+            deploymentSections.push(`**📦 Smart Contract Deployed**
+            - Contract Address: \`${contractAddress}\``);
+          }
+          
+          if (dbDeployed) {
+            deploymentSections.push(`**🗄️ Database Created/Migrated**
+            - Database Name: \`${dbName}\``);
+          }
+          
+          const commentBody = `## 🚀 Deployment Complete
+          
+          ${deploymentSections.join('\n\n')}`;
+          
+          // Find all existing comments with deployment marker
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+          });
+          
+          const existingComments = comments.data.filter(comment => 
+            comment.body.includes('## 🚀 Deployment Complete') &&
+            comment.user.type === 'Bot'
+          );
+              
+          // Create new comment with deployment info
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+            body: commentBody,
+          });
+          console.log('Created new deployment comment');
+
     - name: Deploy to Vercel
       id: vercel-deploy
       run: |

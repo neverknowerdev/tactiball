@@ -24,6 +24,9 @@ outputs:
   contract_address:
     description: 'Deployed contract address'
     value: ${{ steps.set-output.outputs.contract_address || steps.deploy.outputs.contract_address || steps.load-cache.outputs.contract_address }}
+  isDeployed:
+    description: 'Whether a new contract was deployed (not from cache)'
+    value: ${{ steps.set-output.outputs.isDeployed || steps.deploy.outputs.isDeployed || 'false' }}
 
 runs:
   using: 'composite'
@@ -65,6 +68,7 @@ runs:
             echo "contract_address=$CACHED_ADDRESS" >> $GITHUB_OUTPUT
             echo "CONTRACT_ADDRESS=$CACHED_ADDRESS" >> $GITHUB_ENV
             echo "cached_address=$CACHED_ADDRESS" >> $GITHUB_OUTPUT
+            echo "isDeployed=false" >> $GITHUB_OUTPUT
             echo "✅ Using cached contract address: $CACHED_ADDRESS"
             echo "✅ Hash matches, skipping deployment"
             echo "should_deploy=false" >> $GITHUB_OUTPUT
@@ -115,6 +119,7 @@ runs:
         
         echo "contract_address=$CONTRACT_ADDRESS" >> $GITHUB_OUTPUT
         echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS" >> $GITHUB_ENV
+        echo "isDeployed=true" >> $GITHUB_OUTPUT
         echo "✅ Contract deployed to: $CONTRACT_ADDRESS"
         
         # Save contract address and hash to cache file
@@ -143,5 +148,12 @@ runs:
           if [ -n "${{ steps.deploy.outputs.contract_address }}" ]; then
             echo "contract_address=${{ steps.deploy.outputs.contract_address }}" >> $GITHUB_OUTPUT
           fi
+        fi
+        
+        # Set isDeployed flag - true only if deploy step ran successfully
+        if [ "${{ steps.deploy.outcome }}" = "success" ]; then
+          echo "isDeployed=true" >> $GITHUB_OUTPUT
+        else
+          echo "isDeployed=false" >> $GITHUB_OUTPUT
         fi
 
