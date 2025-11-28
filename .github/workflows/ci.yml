@@ -143,7 +143,7 @@ jobs:
         relayer_private_key: ${{ secrets.RELAYER_PRIVATE_KEY }}
         testnet_wallet_private_key: ${{ secrets.TESTNET_WALLET_PRIVATE_KEY }}
         etherscan_api_key: ${{ secrets.ETHERSCAN_API_KEY }}
-        force_deploy: ${{ github.event.action == 'opened' }}
+        force_deploy: ${{ github.event.action == 'opened' || github.event.action == 'reopened' }}
 
     - name: Set contract address
       run: |
@@ -159,7 +159,7 @@ jobs:
       with:
         branch_name: ${{ github.head_ref }}
         db_connection_string: ${{ secrets.DB_CONNECTION_STRING }}
-        force_deploy: ${{ github.event.action == 'opened' }}
+        force_deploy: ${{ github.event.action == 'opened' || github.event.action == 'reopened' }}
 
     - name: Set database connection string
       run: |
