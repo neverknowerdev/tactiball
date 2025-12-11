@@ -217,12 +217,8 @@ jobs:
       run: |
         cd frontend
         
-        # Add/update environment variables in Vercel
-        # vercel env add will update if the variable already exists
-        vercel env rm NEXT_PUBLIC_CONTRACT_ADDRESS preview --token=${{ secrets.VERCEL_TOKEN }} --yes
-        printf '%s' "${{ env.CONTRACT_ADDRESS }}" | vercel env add NEXT_PUBLIC_CONTRACT_ADDRESS preview --token=${{ secrets.VERCEL_TOKEN }}
-        vercel env rm DB_CONNECTION_STRING preview --token=${{ secrets.VERCEL_TOKEN }} --yes
-        printf '%s' "${{ env.NEW_DB_CONNECTION_STRING }}" | vercel env add DB_CONNECTION_STRING preview --token=${{ secrets.VERCEL_TOKEN }}
+        printf '%s' "${{ env.CONTRACT_ADDRESS }}" | vercel env add NEXT_PUBLIC_CONTRACT_ADDRESS preview --token=${{ secrets.VERCEL_TOKEN }} --force
+        printf '%s' "${{ env.NEW_DB_CONNECTION_STRING }}" | vercel env add DB_CONNECTION_STRING preview --token=${{ secrets.VERCEL_TOKEN }} --force
         
         echo "✅ Updated NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }} in Vercel"
         echo "✅ Updated DB_CONNECTION_STRING in Vercel"
