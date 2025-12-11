@@ -213,6 +213,34 @@ jobs:
           });
           console.log('Created new deployment comment');
 
+    - name: Update Vercel environment variables
+      run: |
+        cd frontend
+        # Pull existing environment variables
+        vercel env pull .env.local \
+          --token=${{ secrets.VERCEL_TOKEN }} \
+          --yes \
+          --environment=preview
+        
+        # Add environment variables to environment file
+        echo "NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }}" >> .env.local
+        echo "DB_CONNECTION_STRING=${{ env.NEW_DB_CONNECTION_STRING }}" >> .env.local
+        echo "DISABLE_PAYMASTER=true" >> .env.local
+        echo "NEXT_PUBLIC_ENV=preview" >> .env.local
+        echo "✅ Added NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }} to .env.local"
+        echo "✅ Added DB_CONNECTION_STRING to .env.local"
+        echo "✅ Added DISABLE_PAYMASTER=true to .env.local"
+        echo "✅ Added NEXT_PUBLIC_ENV=preview to .env.local"
+        
+        # Push updated environment variables back to Vercel
+        vercel env push .env.local \
+          --token=${{ secrets.VERCEL_TOKEN }} \
+          --yes \
+          --environment=preview
+      env:
+        VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+
     - name: Deploy to Vercel
       id: vercel-deploy
       run: |
@@ -234,17 +262,14 @@ jobs:
         # Deploy with explicit metadata using -m flags
         # Format: -m key=value (no quotes needed for values without spaces)
         # Vercel outputs the deployment URL to stdout
+        # Environment variables are now managed via vercel env push
         PREVIEW_URL=$(vercel deploy \
           --token=${{ secrets.VERCEL_TOKEN }} \
           -m githubCommitRef=$BRANCH_NAME \
           -m githubCommitSha=$COMMIT_SHA \
           -m githubCommitAuthorName="$COMMIT_AUTHOR_NAME" \
           -m githubCommitAuthorEmail="$COMMIT_AUTHOR_EMAIL" \
-          -m githubCommitMessage="$COMMIT_MESSAGE" \
-          -e DB_CONNECTION_STRING="${{ env.NEW_DB_CONNECTION_STRING }}" \
-          -e NEXT_PUBLIC_CONTRACT_ADDRESS="${{ env.CONTRACT_ADDRESS }}" \
-          -e DISABLE_PAYMASTER=true \
-          -e NEXT_PUBLIC_ENV=preview)
+          -m githubCommitMessage="$COMMIT_MESSAGE")
         
         echo "✅ Preview URL: $PREVIEW_URL"
         echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
