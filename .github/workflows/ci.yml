@@ -217,10 +217,7 @@ jobs:
       run: |
         cd frontend
         # Pull existing environment variables
-        vercel env pull .env.local \
-          --token=${{ secrets.VERCEL_TOKEN }} \
-          --yes \
-          --environment=preview
+        vercel env pull .env.local --token=${{ secrets.VERCEL_TOKEN }} --yes --environment=preview
         
         # Add environment variables to environment file
         echo "NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }}" >> .env.local
@@ -233,10 +230,7 @@ jobs:
         echo "✅ Added NEXT_PUBLIC_ENV=preview to .env.local"
         
         # Push updated environment variables back to Vercel
-        vercel env push .env.local \
-          --token=${{ secrets.VERCEL_TOKEN }} \
-          --yes \
-          --environment=preview
+        vercel env push .env.local --token=${{ secrets.VERCEL_TOKEN }} --yes --environment=preview
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
