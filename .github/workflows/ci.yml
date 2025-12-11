@@ -216,21 +216,18 @@ jobs:
     - name: Update Vercel environment variables
       run: |
         cd frontend
-        # Pull existing environment variables
-        vercel env pull .env.local --token=${{ secrets.VERCEL_TOKEN }} --yes --environment=preview
         
-        # Add environment variables to environment file
-        echo "NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }}" >> .env.local
-        echo "DB_CONNECTION_STRING=${{ env.NEW_DB_CONNECTION_STRING }}" >> .env.local
-        echo "DISABLE_PAYMASTER=true" >> .env.local
-        echo "NEXT_PUBLIC_ENV=preview" >> .env.local
-        echo "✅ Added NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }} to .env.local"
-        echo "✅ Added DB_CONNECTION_STRING to .env.local"
-        echo "✅ Added DISABLE_PAYMASTER=true to .env.local"
-        echo "✅ Added NEXT_PUBLIC_ENV=preview to .env.local"
+        # Add/update environment variables in Vercel
+        # vercel env add will update if the variable already exists
+        echo "NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }}" | vercel env add NEXT_PUBLIC_CONTRACT_ADDRESS preview --token=${{ secrets.VERCEL_TOKEN }} --yes
+        echo "${{ env.NEW_DB_CONNECTION_STRING }}" | vercel env add DB_CONNECTION_STRING preview --token=${{ secrets.VERCEL_TOKEN }} --yes
+        echo "true" | vercel env add DISABLE_PAYMASTER preview --token=${{ secrets.VERCEL_TOKEN }} --yes
+        echo "preview" | vercel env add NEXT_PUBLIC_ENV preview --token=${{ secrets.VERCEL_TOKEN }} --yes
         
-        # Push updated environment variables back to Vercel
-        vercel env push .env.local --token=${{ secrets.VERCEL_TOKEN }} --yes --environment=preview
+        echo "✅ Updated NEXT_PUBLIC_CONTRACT_ADDRESS=${{ env.CONTRACT_ADDRESS }} in Vercel"
+        echo "✅ Updated DB_CONNECTION_STRING in Vercel"
+        echo "✅ Updated DISABLE_PAYMASTER=true in Vercel"
+        echo "✅ Updated NEXT_PUBLIC_ENV=preview in Vercel"
       env:
         VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
