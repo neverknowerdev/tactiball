@@ -5,7 +5,8 @@ export function useGameEvents(
     teamInfo: any,
     setShowLobby: (open: boolean) => void,
     setIsGameRequestModalOpen: (open: boolean) => void,
-    setGameRequestData: (data: any) => void
+    setGameRequestData: (data: any) => void,
+    selectedRoomId: number | null = null
 ) {
     useEffect(() => {
         const handleGameEvent = (event: CustomEvent) => {
@@ -14,6 +15,12 @@ export function useGameEvents(
 
             if (gameEvent.type === 'GAME_REQUEST_CREATED') {
                 console.log('GAME_REQUEST_CREATED event received:', gameEvent);
+                // Don't show the modal if we're currently in a room (room handles it internally)
+                if (selectedRoomId !== null) {
+                    console.log('Skipping modal - game request created from room');
+                    setShowLobby(false);
+                    return;
+                }
                 setShowLobby(false);
                 setIsGameRequestModalOpen(true);
                 setGameRequestData({
@@ -50,5 +57,5 @@ export function useGameEvents(
         return () => {
             window.removeEventListener('game-event', handleGameEvent as EventListener);
         };
-    }, [teamInfo, setShowLobby, setIsGameRequestModalOpen, setGameRequestData]);
+    }, [teamInfo, setShowLobby, setIsGameRequestModalOpen, setGameRequestData, selectedRoomId]);
 }

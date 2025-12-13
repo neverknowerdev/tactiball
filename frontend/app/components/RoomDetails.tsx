@@ -47,6 +47,8 @@ export default function RoomDetails({
     const [minimumElo, setMinimumElo] = useState(0);
     const [roomType, setRoomType] = useState<'public' | 'private'>('public');
     const [updating, setUpdating] = useState(false);
+    const [gameRequestId, setGameRequestId] = useState<number | null>(null);
+    const [gameRequestInitiatedBy, setGameRequestInitiatedBy] = useState<number | null>(null);
     const { address } = useAccount();
     const { signMessageAsync } = useSignMessage();
     const { composeCast } = useComposeCast();
@@ -63,9 +65,14 @@ export default function RoomDetails({
             if (data.success) {
                 setRoom(data.room);
 
-                // Check if game request was created
+                // Track game request state
                 if (data.room.game_request_id) {
-                    onGameStarting(data.room.game_request_id);
+                    setGameRequestId(data.room.game_request_id);
+                    // Note: We need to determine who initiated based on the game request data
+                    // For now, we'll check if it matches our current state or fetch from API
+                } else {
+                    setGameRequestId(null);
+                    setGameRequestInitiatedBy(null);
                 }
             } else {
                 toast.error('Room not found');
@@ -89,8 +96,42 @@ export default function RoomDetails({
 
         // Poll for updates every 3 seconds
         const interval = setInterval(fetchRoom, 3000);
-        return () => clearInterval(interval);
-    }, [roomId]);
+        
+        // Listen to game events for real-time updates
+        const handleGameEvent = (event: CustomEvent) => {
+            const gameEvent = event.detail;
+            
+            if (gameEvent.type === 'GAME_REQUEST_CREATED') {
+                if (gameEvent.game_request_id === gameRequestId || 
+                    (room && (gameEvent.team1_info?.id === room.host_team.id || gameEvent.team2_info?.id === room.host_team.id ||
+                             gameEvent.team1_info?.id === room.guest_team?.id || gameEvent.team2_info?.id === room.guest_team?.id))) {
+                    fetchRoom(); // Refresh room to get updated game_request_id
+                    // In contract, team1 is always the initiator
+                    if (gameEvent.team1_info && !gameRequestInitiatedBy) {
+                        setGameRequestInitiatedBy(gameEvent.team1_info.id);
+                    }
+                }
+            } else if (gameEvent.type === 'GAME_REQUEST_CANCELLED') {
+                if (gameEvent.game_request_id === gameRequestId) {
+                    setGameRequestId(null);
+                    setGameRequestInitiatedBy(null);
+                    fetchRoom();
+                }
+            } else if (gameEvent.type === 'GAME_STARTED') {
+                // Game started, redirect will happen via useGameEvents hook
+                if (gameEvent.team1_id === userTeamId || gameEvent.team2_id === userTeamId) {
+                    onGameStarting(gameEvent.game_id);
+                }
+            }
+        };
+
+        window.addEventListener('game-event', handleGameEvent as EventListener);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('game-event', handleGameEvent as EventListener);
+        };
+    }, [roomId, gameRequestId, room, userTeamId, onGameStarting]);
 
     // Share via Base/Farcaster using useComposeCast
     const shareToBase = async () => {
@@ -252,20 +293,25 @@ export default function RoomDetails({
         }
     };
 
-    // Create game request (when both teams are ready)
+    // Create game request (only host can initiate)
     const handleStartGame = async () => {
-        if (!address || !room?.guest_team_id) return;
+        if (!address || !room?.guest_team_id || !isHost) return;
 
         setProcessing(true);
         try {
             const { signature, message } = await authUserWithSignature(address, signMessageAsync);
 
+            // Only host can create game request
+            // team1 must be owned by the wallet calling the function (host)
+            const team1_id = room.host_team.id;
+            const team2_id = room.guest_team_id;
+
             const response = await fetch('/api/game/create-game-request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    team1_id: room.host_team.id,
-                    team2_id: room.guest_team_id,
+                    team1_id: team1_id,
+                    team2_id: team2_id,
                     wallet_address: address,
                     signature,
                     message
@@ -284,14 +330,96 @@ export default function RoomDetails({
                     })
                 });
 
-                toast.success('Starting game...');
-                onGameStarting(data.data.gameRequestId);
+                setGameRequestId(data.data.gameRequestId);
+                setGameRequestInitiatedBy(userTeamId); // Track that current user initiated
+                fetchRoom();
             } else {
-                toast.error(data.error || 'Failed to start game');
+                toast.error(data.error || 'Failed to create game request');
+            }
+        } catch (error) {
+            console.error('Error creating game request:', error);
+            toast.error('Failed to create game request');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    // Confirm and start game (User #1 confirms)
+    const handleConfirmStartGame = async () => {
+        if (!address || !gameRequestId) return;
+
+        setProcessing(true);
+        try {
+            const { signature, message } = await authUserWithSignature(address, signMessageAsync);
+
+            const response = await fetch('/api/game/start-game', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    game_request_id: gameRequestId,
+                    wallet_address: address,
+                    signature,
+                    message
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Game started!');
+                onGameStarting(gameRequestId);
+            } else {
+                // Game request might have been cancelled
+                toast.error(data.error || 'Failed to start game. The game request may have been cancelled.');
+                // Reset game request state and refresh room
+                setGameRequestId(null);
+                setGameRequestInitiatedBy(null);
+                fetchRoom();
             }
         } catch (error) {
             console.error('Error starting game:', error);
-            toast.error('Failed to start game');
+            toast.error('Failed to start game. The game request may have been cancelled.');
+            // Reset game request state and refresh room
+            setGameRequestId(null);
+            setGameRequestInitiatedBy(null);
+            fetchRoom();
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    // Cancel game request
+    const handleCancelGameRequest = async () => {
+        if (!address || !gameRequestId) return;
+
+        setProcessing(true);
+        try {
+            const { signature, message } = await authUserWithSignature(address, signMessageAsync);
+
+            const response = await fetch('/api/game/cancel-game-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    game_request_id: gameRequestId,
+                    wallet_address: address,
+                    signature,
+                    message
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Game request cancelled');
+                setGameRequestId(null);
+                setGameRequestInitiatedBy(null);
+                fetchRoom();
+            } else {
+                toast.error(data.error || 'Failed to cancel game request');
+            }
+        } catch (error) {
+            console.error('Error cancelling game request:', error);
+            toast.error('Failed to cancel game request');
         } finally {
             setProcessing(false);
         }
@@ -560,11 +688,42 @@ export default function RoomDetails({
                     </div>
 
                     {/* Status Message */}
-                    {isFull && (
+                    {isFull && !gameRequestId && (
                         <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-4 mb-6">
                             <p className="text-green-200 text-center font-semibold">
                                 🎮 Room is full! Ready to start the game.
                             </p>
+                        </div>
+                    )}
+
+                    {/* Game Request Status Messages */}
+                    {gameRequestId && (
+                        <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4 mb-6">
+                            {gameRequestInitiatedBy === userTeamId ? (
+                                // Current user initiated: Waiting for confirmation
+                                <div className="text-center">
+                                    <div className="flex items-center justify-center gap-2 mb-2">
+                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-200"></div>
+                                        <p className="text-blue-200 font-semibold">
+                                            Waiting for {gameRequestInitiatedBy === room?.host_team.id ? room?.guest_team?.name : room?.host_team?.name} to confirm...
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : gameRequestInitiatedBy !== null ? (
+                                // Other user initiated: Confirmation request
+                                <div className="text-center">
+                                    <p className="text-blue-200 font-semibold mb-1">
+                                        {gameRequestInitiatedBy === room?.host_team.id ? room?.host_team?.name : room?.guest_team?.name} wants to start a game
+                                    </p>
+                                </div>
+                            ) : (
+                                // Don't know who initiated yet - show generic message
+                                <div className="text-center">
+                                    <p className="text-blue-200 font-semibold mb-1">
+                                        Game request pending...
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -588,6 +747,45 @@ export default function RoomDetails({
                                     {processing ? 'Joining...' : 'Join Room'}
                                 </button>
                             </>
+                        ) : gameRequestId ? (
+                            // Game request active - show different buttons based on who initiated
+                            gameRequestInitiatedBy === userTeamId ? (
+                                // Current user initiated: Waiting for confirmation - show Cancel button
+                                <button
+                                    onClick={handleCancelGameRequest}
+                                    disabled={processing}
+                                    className="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {processing ? 'Cancelling...' : 'Cancel'}
+                                </button>
+                            ) : gameRequestInitiatedBy !== null ? (
+                                // Other user initiated: Confirmation request - show Start Game and Cancel buttons
+                                <>
+                                    <button
+                                        onClick={handleCancelGameRequest}
+                                        disabled={processing}
+                                        className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {processing ? 'Cancelling...' : 'Cancel'}
+                                    </button>
+                                    <button
+                                        onClick={handleConfirmStartGame}
+                                        disabled={processing}
+                                        className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {processing ? 'Starting...' : 'Start the game'}
+                                    </button>
+                                </>
+                            ) : (
+                                // Don't know who initiated - show cancel button only
+                                <button
+                                    onClick={handleCancelGameRequest}
+                                    disabled={processing}
+                                    className="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {processing ? 'Cancelling...' : 'Cancel'}
+                                </button>
+                            )
                         ) : isFull && isHost ? (
                             <>
                                 <button
@@ -605,6 +803,15 @@ export default function RoomDetails({
                                     {processing ? 'Starting...' : 'Start Game'}
                                 </button>
                             </>
+                        ) : isFull && !isHost ? (
+                            // Guest waiting for host to create game request - only show Leave button
+                            <button
+                                onClick={handleLeave}
+                                disabled={processing}
+                                className="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {processing ? 'Leaving...' : 'Leave Room'}
+                            </button>
                         ) : (
                             <button
                                 onClick={handleLeave}

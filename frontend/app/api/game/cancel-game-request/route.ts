@@ -108,11 +108,6 @@ export async function POST(request: NextRequest) {
                             { success: false, error: 'Only the game request owner can cancel it', errorName: errorName },
                             { status: 400 }
                         );
-                    case 'GameRequestNotExpired':
-                        return NextResponse.json(
-                            { success: false, error: 'Game request cannot be cancelled yet (wait 1 minute)', errorName: errorName },
-                            { status: 400 }
-                        );
                     default:
                         return NextResponse.json(
                             { success: false, error: 'Failed to cancel game request', errorName: errorName },

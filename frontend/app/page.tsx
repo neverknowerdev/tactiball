@@ -69,7 +69,8 @@ function AppContent() {
     teamInfo,
     setShowLobby,
     setIsGameRequestModalOpen,
-    setGameRequestData
+    setGameRequestData,
+    selectedRoomId
   );
   useFrameManager(setFrameReady, isFrameReady);
 
@@ -196,10 +197,12 @@ function AppContent() {
         <RoomDetails
           roomId={selectedRoomId}
           userTeamId={teamInfo.id}
-          onBack={() => setSelectedRoomId(null)}
-          onGameStarting={(gameRequestId) => {
+          onBack={() => {
             setSelectedRoomId(null);
-            setShowLobby(false);
+          }}
+          onGameStarting={(gameRequestId) => {
+            // Keep the room open so the game request flow can be handled within RoomDetails
+            // Don't close the room modal - it will handle the game request UI internally
           }}
         />
       )}
