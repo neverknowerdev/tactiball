@@ -68,8 +68,13 @@ export default function RoomDetails({
                 // Track game request state
                 if (data.room.game_request_id) {
                     setGameRequestId(data.room.game_request_id);
-                    // Note: We need to determine who initiated based on the game request data
-                    // For now, we'll check if it matches our current state or fetch from API
+                    // In the contract, team1 is always the initiator
+                    // When creating from a room, team1 is always the host team
+                    // So if we have a game request, the host is the initiator
+                    // Always set it when we have a game request to ensure UI shows correctly
+                    if (data.room.host_team?.id) {
+                        setGameRequestInitiatedBy(data.room.host_team.id);
+                    }
                 } else {
                     setGameRequestId(null);
                     setGameRequestInitiatedBy(null);
@@ -102,17 +107,40 @@ export default function RoomDetails({
             const gameEvent = event.detail;
             
             if (gameEvent.type === 'GAME_REQUEST_CREATED') {
-                if (gameEvent.game_request_id === gameRequestId || 
-                    (room && (gameEvent.team1_info?.id === room.host_team.id || gameEvent.team2_info?.id === room.host_team.id ||
-                             gameEvent.team1_info?.id === room.guest_team?.id || gameEvent.team2_info?.id === room.guest_team?.id))) {
-                    fetchRoom(); // Refresh room to get updated game_request_id
-                    // In contract, team1 is always the initiator
-                    if (gameEvent.team1_info && !gameRequestInitiatedBy) {
-                        setGameRequestInitiatedBy(gameEvent.team1_info.id);
+                // Check if this event is for the current room
+                const isForCurrentRoom = room && (
+                    (gameEvent.team1_info?.id === room.host_team.id && gameEvent.team2_info?.id === room.guest_team?.id) ||
+                    (gameEvent.team1_info?.id === room.guest_team?.id && gameEvent.team2_info?.id === room.host_team.id) ||
+                    (gameEvent.team1_id === room.host_team.id && gameEvent.team2_id === room.guest_team?.id) ||
+                    (gameEvent.team1_id === room.guest_team?.id && gameEvent.team2_id === room.host_team.id)
+                );
+                
+                if (gameEvent.game_request_id === gameRequestId || isForCurrentRoom) {
+                    // Update game request ID from event
+                    const newGameRequestId = gameEvent.game_request_id;
+                    if (newGameRequestId) {
+                        setGameRequestId(newGameRequestId);
                     }
+                    // In contract, team1 is always the initiator
+                    // Update initiator if we have the info
+                    const initiatorId = gameEvent.team1_info?.id || gameEvent.team1_id;
+                    if (initiatorId) {
+                        setGameRequestInitiatedBy(initiatorId);
+                    } else if (room && !gameRequestInitiatedBy) {
+                        // Fallback: if we don't have initiator info but have a room,
+                        // and team1_id matches host, set host as initiator
+                        if (gameEvent.team1_id === room.host_team.id) {
+                            setGameRequestInitiatedBy(room.host_team.id);
+                        }
+                    }
+                    fetchRoom(); // Refresh room to get updated game_request_id
                 }
             } else if (gameEvent.type === 'GAME_REQUEST_CANCELLED') {
-                if (gameEvent.game_request_id === gameRequestId) {
+                // Handle both request_id and game_request_id field names
+                const cancelledRequestId = gameEvent.request_id || gameEvent.game_request_id;
+                if (cancelledRequestId === gameRequestId || 
+                    (room && (gameEvent.team1_id === room.host_team.id || gameEvent.team2_id === room.host_team.id ||
+                             gameEvent.team1_id === room.guest_team?.id || gameEvent.team2_id === room.guest_team?.id))) {
                     setGameRequestId(null);
                     setGameRequestInitiatedBy(null);
                     fetchRoom();
@@ -314,22 +342,17 @@ export default function RoomDetails({
                     team2_id: team2_id,
                     wallet_address: address,
                     signature,
-                    message
+                    message,
+                    room_id: roomId // Pass room ID to ensure correct room is updated
                 })
             });
 
             const data = await response.json();
 
             if (data.success) {
-                // Update room with game request ID
-                await fetch(`/api/waiting-rooms/${roomId}/start`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        game_request_id: data.data.gameRequestId
-                    })
-                });
-
+                // The create-game-request API already updates the room if it finds a matching room
+                // So we don't need to call the /start endpoint separately
+                // Just update local state and refresh room data
                 setGameRequestId(data.data.gameRequestId);
                 setGameRequestInitiatedBy(userTeamId); // Track that current user initiated
                 fetchRoom();

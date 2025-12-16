@@ -42,8 +42,25 @@ export default function LobbyScreen({
   const [minimumElo, setMinimumElo] = useState(0);
   const [roomType, setRoomType] = useState<'public' | 'private'>('public');
   const [updating, setUpdating] = useState(false);
+  const [hasActiveRoom, setHasActiveRoom] = useState(false);
+  const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
   const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
+
+  // Check if user has an active room
+  const checkActiveRoom = async () => {
+    try {
+      const response = await fetch(`/api/waiting-rooms/check-active?team_id=${userTeamId}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setHasActiveRoom(data.hasActiveRoom);
+        setActiveRoomId(data.activeRoom?.id || null);
+      }
+    } catch (error) {
+      console.error('Error checking active room:', error);
+    }
+  };
 
   // Fetch rooms
   const fetchRooms = async () => {
@@ -64,11 +81,21 @@ export default function LobbyScreen({
 
   useEffect(() => {
     fetchRooms();
-    const interval = setInterval(fetchRooms, 5000);
+    checkActiveRoom();
+    const interval = setInterval(() => {
+      fetchRooms();
+      checkActiveRoom();
+    }, 5000);
     return () => clearInterval(interval);
   }, [userTeamId]);
 
   const handleOpenCreateModal = () => {
+    if (hasActiveRoom && activeRoomId) {
+      toast.error('You already have an active room. Please close or cancel your existing room before creating a new one.');
+      // Optionally navigate to the active room
+      onRoomSelected(activeRoomId);
+      return;
+    }
     setMinimumElo(0);
     setRoomType('public');
     setShowCreateModal(true);
@@ -102,9 +129,13 @@ export default function LobbyScreen({
       if (data.success) {
         toast.success('Room created!');
         setShowCreateModal(false);
+        setHasActiveRoom(true);
+        setActiveRoomId(data.room.id);
         onRoomSelected(data.room.id);
       } else {
         toast.error(data.error || 'Failed to create room');
+        // Refresh active room status in case it changed
+        checkActiveRoom();
       }
     } catch (error) {
       console.error('Error creating room:', error);
@@ -193,15 +224,32 @@ export default function LobbyScreen({
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-3 sm:p-6">
             {/* Create Room Button */}
-            <button
-              onClick={handleOpenCreateModal}
-              className="mb-4 sm:mb-6 w-full bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg hover:bg-green-700 transition-colors font-semibold text-base sm:text-lg flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Create New Room
-            </button>
+            {hasActiveRoom ? (
+              <div className="mb-4 sm:mb-6 w-full bg-yellow-500/20 border border-yellow-500/50 text-yellow-200 px-4 sm:px-6 py-3 sm:py-4 rounded-lg font-semibold text-base sm:text-lg flex items-center justify-center gap-2">
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                You already have an active room. Close it to create a new one.
+                {activeRoomId && (
+                  <button
+                    onClick={() => onRoomSelected(activeRoomId)}
+                    className="ml-2 underline hover:text-yellow-100"
+                  >
+                    Go to room
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={handleOpenCreateModal}
+                className="mb-4 sm:mb-6 w-full bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg hover:bg-green-700 transition-colors font-semibold text-base sm:text-lg flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Create New Room
+              </button>
+            )}
 
             {/* Rooms List */}
             {loading ? (

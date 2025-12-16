@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { teams, waitingRooms } from '@/db/schema';
-import { and, eq, gt, lte } from 'drizzle-orm';
+import { and, eq, gt, lte, or, inArray } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
     try {
@@ -66,18 +66,20 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Check if team already has an open waiting room (non-expired)
+        // Check if team already has an active waiting room (open, full, or starting - not expired/cancelled)
         const now = new Date();
         const [existingRoom] = await db
             .select({
                 id: waitingRooms.id,
+                status: waitingRooms.status,
                 expires_at: waitingRooms.expiresAt,
             })
             .from(waitingRooms)
             .where(
                 and(
                     eq(waitingRooms.hostTeamId, team_id),
-                    eq(waitingRooms.status, 'open'),
+                    // Check for any active status (open, full, starting) that hasn't expired
+                    inArray(waitingRooms.status, ['open', 'full', 'starting']),
                     gt(waitingRooms.expiresAt, now)
                 )
             )
@@ -85,7 +87,7 @@ export async function POST(request: NextRequest) {
 
         if (existingRoom) {
             return NextResponse.json(
-                { success: false, error: 'Team already has an open waiting room' },
+                { success: false, error: 'You already have an active waiting room. Please close or cancel your existing room before creating a new one.' },
                 { status: 400 }
             );
         }

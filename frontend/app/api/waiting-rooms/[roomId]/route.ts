@@ -28,6 +28,7 @@ export async function GET(
                 room_type: waitingRooms.roomType,
                 expires_at: waitingRooms.expiresAt,
                 minimum_elo_rating: waitingRooms.minimumEloRating,
+                game_request_id: waitingRooms.gameRequestId,
                 host_team: {
                     id: hostTeam.id,
                     name: hostTeam.name,

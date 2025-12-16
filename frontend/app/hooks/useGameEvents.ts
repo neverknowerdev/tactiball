@@ -34,7 +34,9 @@ export function useGameEvents(
                 setIsGameRequestModalOpen(false);
                 setGameRequestData(null);
 
-                toast.error(`Game request ${gameEvent.game_request_id} cancelled!`, {
+                // Handle both request_id and game_request_id field names
+                const cancelledRequestId = gameEvent.request_id || gameEvent.game_request_id;
+                toast.error(`Game request ${cancelledRequestId || 'unknown'} cancelled!`, {
                     position: "top-center",
                     autoClose: 3000,
                 });

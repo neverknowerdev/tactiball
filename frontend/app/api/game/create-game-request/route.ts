@@ -8,7 +8,7 @@ import { chain } from '@/config/chains';
 import { sendWebhookMessage } from '@/lib/webhook';
 import { db } from '@/lib/database';
 import { waitingRooms } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 
 interface CreateGameRequestRequest {
     wallet_address: string;
@@ -25,7 +25,7 @@ interface CreateGameRequestRequest {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { team1_id, team2_id, wallet_address } = body;
+        const { team1_id, team2_id, wallet_address, room_id } = body;
 
         // Authentication is handled by Next.js middleware
         // wallet_address is already validated by middleware
@@ -96,29 +96,55 @@ export async function POST(request: NextRequest) {
         });
 
         // Check if this game request came from a waiting room
+        // If room_id is provided, update that specific room
+        // Otherwise, try to find a matching room
         try {
-            const [room] = await db
-                .select({ id: waitingRooms.id })
-                .from(waitingRooms)
-                .where(
-                    and(
-                        eq(waitingRooms.hostTeamId, team1_id),
-                        eq(waitingRooms.guestTeamId, team2_id),
-                        eq(waitingRooms.status, 'full')
+            let roomToUpdate = null;
+            
+            if (room_id) {
+                // Update the specific room if room_id is provided
+                const [specificRoom] = await db
+                    .select({ id: waitingRooms.id })
+                    .from(waitingRooms)
+                    .where(eq(waitingRooms.id, Number(room_id)))
+                    .limit(1);
+                
+                if (specificRoom) {
+                    roomToUpdate = specificRoom;
+                }
+            } else {
+                // Fallback: try to find a matching room by team IDs
+                // Check for both 'full' and 'starting' status (in case previous game request was cancelled)
+                const [room] = await db
+                    .select({ id: waitingRooms.id })
+                    .from(waitingRooms)
+                    .where(
+                        and(
+                            eq(waitingRooms.hostTeamId, team1_id),
+                            eq(waitingRooms.guestTeamId, team2_id),
+                            or(
+                                eq(waitingRooms.status, 'full'),
+                                eq(waitingRooms.status, 'starting')
+                            )
+                        )
                     )
-                )
-                .limit(1);
+                    .limit(1);
+                
+                if (room) {
+                    roomToUpdate = room;
+                }
+            }
 
-            if (room) {
+            if (roomToUpdate) {
                 await db
                     .update(waitingRooms)
                     .set({
                         gameRequestId: gameRequestId,
                         status: 'starting'
                     })
-                    .where(eq(waitingRooms.id, room.id));
+                    .where(eq(waitingRooms.id, roomToUpdate.id));
 
-                console.log('Updated waiting room:', room.id);
+                console.log('Updated waiting room:', roomToUpdate.id);
             }
         } catch (waitingRoomError) {
             console.error('Error updating waiting room:', waitingRoomError);
@@ -160,6 +186,11 @@ export async function POST(request: NextRequest) {
                     case 'TeamAlreadyHasActiveGame':
                         return NextResponse.json(
                             { success: false, error: 'One or both teams already have an active game', errorName: errorName },
+                            { status: 400 }
+                        );
+                    case 'GameRequestNotExpired':
+                        return NextResponse.json(
+                            { success: false, error: 'Please wait a moment before creating a new game request. Your previous request needs to expire first (about 1 minute).', errorName: errorName },
                             { status: 400 }
                         );
                     default:

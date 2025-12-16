@@ -22,7 +22,35 @@ export async function POST(
             );
         }
 
+        // Check if room exists and get current state
+        const [existingRoom] = await db
+            .select({
+                id: waitingRooms.id,
+                status: waitingRooms.status,
+                gameRequestId: waitingRooms.gameRequestId,
+            })
+            .from(waitingRooms)
+            .where(eq(waitingRooms.id, Number(roomId)))
+            .limit(1);
+
+        if (!existingRoom) {
+            return NextResponse.json(
+                { success: false, error: 'Room not found' },
+                { status: 404 }
+            );
+        }
+
+        // If room already has this game_request_id, it's already updated
+        if (existingRoom.gameRequestId === game_request_id) {
+            return NextResponse.json({
+                success: true,
+                room: existingRoom,
+                message: 'Room already updated with this game request'
+            });
+        }
+
         // Update room status to 'starting' and add game request ID
+        // Allow update even if room is already in 'starting' status (idempotent)
         const [updatedRoom] = await db
             .update(waitingRooms)
             .set({
@@ -33,7 +61,7 @@ export async function POST(
             .returning();
 
         if (!updatedRoom) {
-            console.error('Error updating room: not found');
+            console.error('Error updating room: update failed');
             return NextResponse.json(
                 { success: false, error: 'Failed to update room' },
                 { status: 500 }
