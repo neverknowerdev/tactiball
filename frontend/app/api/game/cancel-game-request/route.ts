@@ -22,6 +22,9 @@ interface CancelGameRequestRequest {
 }
 
 export async function POST(request: NextRequest) {
+    // Declare gameRequest in outer scope so it's accessible in error handler
+    let gameRequest: { gameRequestId: bigint; team1id: bigint; team2id: bigint; createdAt: bigint } | null = null;
+    
     try {
         const body = await request.json();
         const { game_request_id, wallet_address } = body;
@@ -52,7 +55,6 @@ export async function POST(request: NextRequest) {
         }
 
         // Get game request from contract to find team1id and team2id
-        let gameRequest: { gameRequestId: bigint; team1id: bigint; team2id: bigint; createdAt: bigint };
         try {
             const result: unknown = await publicClient.readContract({
                 address: CONTRACT_ADDRESS,
@@ -63,6 +65,13 @@ export async function POST(request: NextRequest) {
             gameRequest = result as { gameRequestId: bigint; team1id: bigint; team2id: bigint; createdAt: bigint };
         } catch (error) {
             console.error('Error fetching game request from contract:', error);
+            return NextResponse.json(
+                { success: false, error: 'Game request does not exist or has already been cancelled' },
+                { status: 400 }
+            );
+        }
+
+        if (!gameRequest) {
             return NextResponse.json(
                 { success: false, error: 'Game request does not exist' },
                 { status: 400 }
@@ -201,7 +210,32 @@ export async function POST(request: NextRequest) {
                 switch (errorName) {
                     case 'DoesNotExist':
                         return NextResponse.json(
-                            { success: false, error: 'Game request does not exist', errorName: errorName },
+                            { success: false, error: 'Game request does not exist or has already been cancelled', errorName: errorName },
+                            { status: 400 }
+                        );
+                    case 'GameRequestNotExpired':
+                        // This happens if trying to cancel within 1 minute of creation
+                        // The contract prevents cancellation for 1 minute after creation
+                        if (gameRequest) {
+                            try {
+                                const currentTime = Math.floor(Date.now() / 1000);
+                                const createdAt = Number(gameRequest.createdAt);
+                                const ageInSeconds = currentTime - createdAt;
+                                
+                                if (ageInSeconds < 60) {
+                                    const remainingSeconds = 60 - ageInSeconds;
+                                    return NextResponse.json(
+                                        { success: false, error: `Please wait ${remainingSeconds} more seconds before cancelling. Game requests can only be cancelled after 1 minute from creation.`, errorName: errorName },
+                                        { status: 400 }
+                                    );
+                                }
+                            } catch (calcError) {
+                                console.error('Error calculating game request age:', calcError);
+                            }
+                        }
+                        // Fallback message
+                        return NextResponse.json(
+                            { success: false, error: 'Please wait 1 minute after creating the game request before cancelling.', errorName: errorName },
                             { status: 400 }
                         );
                     case 'GameOwnerShouldCall':
@@ -213,10 +247,9 @@ export async function POST(request: NextRequest) {
                         );
                     default:
                         return NextResponse.json(
-                            { success: false, error: 'Failed to cancel game request', errorName: errorName },
+                            { success: false, error: `Failed to cancel game request${errorName ? `: ${errorName}` : ''}`, errorName: errorName || 'UNKNOWN' },
                             { status: 400 }
                         );
-                        break;
                 }
             }
         }
