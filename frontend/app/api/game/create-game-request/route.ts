@@ -7,7 +7,7 @@ import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
 import { sendWebhookMessage } from '@/lib/webhook';
 import { db } from '@/lib/database';
-import { waitingRooms } from '@/db/schema';
+import { waitingRooms, teams } from '@/db/schema';
 import { and, eq, or } from 'drizzle-orm';
 
 interface CreateGameRequestRequest {
@@ -52,6 +52,56 @@ export async function POST(request: NextRequest) {
                 { success: false, error: 'Teams cannot be the same' },
                 { status: 400 }
             );
+        }
+
+        // Verify that the wallet_address matches team1's wallet (only team1 can create game request)
+        // This check prevents the GameOwnerShouldCall error from the contract
+        try {
+            const team1DataResult: unknown = await publicClient.readContract({
+                address: CONTRACT_ADDRESS,
+                abi: CONTRACT_ABI,
+                functionName: 'getTeam',
+                args: [BigInt(team1_id)]
+            });
+            const team1Data = team1DataResult as { wallet: Address };
+            
+            const team1Wallet = team1Data.wallet.toLowerCase();
+            const userWallet = wallet_address.toLowerCase();
+            
+            console.log('Wallet verification:', {
+                team1_id,
+                team1_wallet: team1Wallet,
+                user_wallet: userWallet,
+                match: team1Wallet === userWallet
+            });
+            
+            if (team1Wallet !== userWallet) {
+                console.warn('Wallet mismatch: user wallet does not match team1 wallet');
+                return NextResponse.json(
+                    { success: false, error: `Only the team1 owner can create game requests. Your wallet (${wallet_address}) does not match team1's wallet (${team1Data.wallet}).` },
+                    { status: 403 }
+                );
+            }
+        } catch (error) {
+            console.error('Error verifying team1 wallet from contract, trying database:', error);
+            // Fallback: try to verify from database
+            try {
+                const [team1] = await db
+                    .select({ primaryWallet: teams.primaryWallet })
+                    .from(teams)
+                    .where(eq(teams.id, team1_id))
+                    .limit(1);
+                
+                if (team1?.primaryWallet && team1.primaryWallet.toLowerCase() !== wallet_address.toLowerCase()) {
+                    return NextResponse.json(
+                        { success: false, error: `Only the team1 owner can create game requests. Your wallet does not match team1's wallet.` },
+                        { status: 403 }
+                    );
+                }
+            } catch (dbError) {
+                console.error('Error verifying team1 wallet from database:', dbError);
+                // Continue anyway - the contract will reject it with a proper error if wrong
+            }
         }
 
         // Simulate the transaction first using publicClient
@@ -193,9 +243,14 @@ export async function POST(request: NextRequest) {
                             { success: false, error: 'Please wait a moment before creating a new game request. Your previous request needs to expire first (about 1 minute).', errorName: errorName },
                             { status: 400 }
                         );
+                    case 'GameOwnerShouldCall':
+                        return NextResponse.json(
+                            { success: false, error: 'Only the team1 owner can create game requests. Your wallet does not match team1\'s wallet address.', errorName: errorName },
+                            { status: 403 }
+                        );
                     default:
                         return NextResponse.json(
-                            { success: false, error: 'Failed to create game request', errorName: errorName },
+                            { success: false, error: `Failed to create game request${errorName ? `: ${errorName}` : ''}`, errorName: errorName || 'UNKNOWN' },
                             { status: 400 }
                         );
                         break;
