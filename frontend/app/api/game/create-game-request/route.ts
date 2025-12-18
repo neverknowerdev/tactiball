@@ -54,54 +54,36 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Verify that the wallet_address matches team1's wallet (only team1 can create game request)
-        // This check prevents the GameOwnerShouldCall error from the contract
+        // Verify that the wallet_address matches team1's wallet from the database
+        // This is a pre-check to avoid calling the contract unnecessarily
+        // The contract will also verify this, but we do it here for better error messages
         try {
-            const team1DataResult: unknown = await publicClient.readContract({
-                address: CONTRACT_ADDRESS,
-                abi: CONTRACT_ABI,
-                functionName: 'getTeam',
-                args: [BigInt(team1_id)]
-            });
-            const team1Data = team1DataResult as { wallet: Address };
+            const [team1] = await db
+                .select({ primaryWallet: teams.primaryWallet })
+                .from(teams)
+                .where(eq(teams.id, team1_id))
+                .limit(1);
             
-            const team1Wallet = team1Data.wallet.toLowerCase();
-            const userWallet = wallet_address.toLowerCase();
-            
-            console.log('Wallet verification:', {
-                team1_id,
-                team1_wallet: team1Wallet,
-                user_wallet: userWallet,
-                match: team1Wallet === userWallet
-            });
-            
-            if (team1Wallet !== userWallet) {
-                console.warn('Wallet mismatch: user wallet does not match team1 wallet');
-                return NextResponse.json(
-                    { success: false, error: `Only the team1 owner can create game requests. Your wallet (${wallet_address}) does not match team1's wallet (${team1Data.wallet}).` },
-                    { status: 403 }
-                );
-            }
-        } catch (error) {
-            console.error('Error verifying team1 wallet from contract, trying database:', error);
-            // Fallback: try to verify from database
-            try {
-                const [team1] = await db
-                    .select({ primaryWallet: teams.primaryWallet })
-                    .from(teams)
-                    .where(eq(teams.id, team1_id))
-                    .limit(1);
+            if (team1?.primaryWallet) {
+                const team1Wallet = team1.primaryWallet.toLowerCase();
+                const userWallet = wallet_address.toLowerCase();
                 
-                if (team1?.primaryWallet && team1.primaryWallet.toLowerCase() !== wallet_address.toLowerCase()) {
-                    return NextResponse.json(
-                        { success: false, error: `Only the team1 owner can create game requests. Your wallet does not match team1's wallet.` },
-                        { status: 403 }
-                    );
+                console.log('Wallet verification:', {
+                    team1_id,
+                    team1_wallet_from_db: team1Wallet,
+                    user_wallet: userWallet,
+                    match: team1Wallet === userWallet
+                });
+                
+                if (team1Wallet !== userWallet) {
+                    console.warn('Wallet mismatch: user wallet does not match team1 wallet from database');
+                    // Don't return error here - let the contract verify it as the source of truth
+                    // The contract check is more reliable since it's the actual blockchain state
                 }
-            } catch (dbError) {
-                console.error('Error verifying team1 wallet from database:', dbError);
-                // Continue anyway - the contract will reject it with a proper error if wrong
             }
+        } catch (dbError) {
+            console.error('Error verifying team1 wallet from database:', dbError);
+            // Continue anyway - the contract will verify it
         }
 
         // Simulate the transaction first using publicClient
