@@ -54,38 +54,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Verify that the wallet_address matches team1's wallet from the database
-        // This is a pre-check to avoid calling the contract unnecessarily
-        // The contract will also verify this, but we do it here for better error messages
-        try {
-            const [team1] = await db
-                .select({ primaryWallet: teams.primaryWallet })
-                .from(teams)
-                .where(eq(teams.id, team1_id))
-                .limit(1);
-            
-            if (team1?.primaryWallet) {
-                const team1Wallet = team1.primaryWallet.toLowerCase();
-                const userWallet = wallet_address.toLowerCase();
-                
-                console.log('Wallet verification:', {
-                    team1_id,
-                    team1_wallet_from_db: team1Wallet,
-                    user_wallet: userWallet,
-                    match: team1Wallet === userWallet
-                });
-                
-                if (team1Wallet !== userWallet) {
-                    console.warn('Wallet mismatch: user wallet does not match team1 wallet from database');
-                    // Don't return error here - let the contract verify it as the source of truth
-                    // The contract check is more reliable since it's the actual blockchain state
-                }
-            }
-        } catch (dbError) {
-            console.error('Error verifying team1 wallet from database:', dbError);
-            // Continue anyway - the contract will verify it
-        }
-
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
