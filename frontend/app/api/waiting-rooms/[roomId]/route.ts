@@ -6,6 +6,9 @@ import { db } from '@/lib/database';
 import { waitingRooms, teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
+import { publicClient } from '@/lib/providers';
+import { CONTRACT_ABI, CONTRACT_ADDRESS } from '@/lib/contract';
+import { chain } from '@/config/chains';
 
 export async function GET(
     request: NextRequest,
@@ -55,6 +58,49 @@ export async function GET(
                 { success: false, error: 'Room not found' },
                 { status: 404 }
             );
+        }
+
+        // Validate game request exists in contract if one is stored in database
+        if (room.game_request_id) {
+            try {
+                await publicClient.readContract({
+                    address: CONTRACT_ADDRESS,
+                    abi: CONTRACT_ABI,
+                    functionName: 'getGameRequest',
+                    args: [BigInt(room.game_request_id)]
+                });
+                // Game request exists in contract - all good
+            } catch (error: any) {
+                // Check if error is "DoesNotExist" - only clear database in that case
+                const isDoesNotExist = error?.message?.includes('DoesNotExist') || 
+                                      error?.shortMessage?.includes('DoesNotExist') ||
+                                      error?.cause?.data?.errorName === 'DoesNotExist';
+                
+                if (isDoesNotExist) {
+                    // Game request doesn't exist in contract - clear it from database
+                    console.log(`Game request ${room.game_request_id} doesn't exist in contract, clearing from database`);
+                    
+                    try {
+                        await db
+                            .update(waitingRooms)
+                            .set({
+                                gameRequestId: null,
+                                status: room.guest_team_id ? 'full' : 'open'
+                            })
+                            .where(eq(waitingRooms.id, room.id));
+
+                        // Update the room object to reflect the cleared game request
+                        room.game_request_id = null;
+                        room.status = room.guest_team_id ? 'full' : 'open';
+                    } catch (dbError) {
+                        console.error('Error clearing game request from database:', dbError);
+                        // Continue anyway - we'll try again on next fetch
+                    }
+                } else {
+                    // Other error (network, etc.) - log but don't clear database
+                    console.error('Error checking game request in contract:', error);
+                }
+            }
         }
 
         return NextResponse.json({
