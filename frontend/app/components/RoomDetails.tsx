@@ -51,6 +51,29 @@ export default function RoomDetails({
     const [gameRequestInitiatedBy, setGameRequestInitiatedBy] = useState<number | null>(null);
     const [guestCancellationRequested, setGuestCancellationRequested] = useState(false);
     const { address } = useAccount();
+    
+    // Use refs to access current values in event handlers without adding to dependencies
+    const roomRef = useRef(room);
+    const gameRequestIdRef = useRef(gameRequestId);
+    const gameRequestInitiatedByRef = useRef(gameRequestInitiatedBy);
+    const isHostRef = useRef(isHost);
+    
+    // Keep refs in sync with state
+    useEffect(() => {
+        roomRef.current = room;
+    }, [room]);
+    
+    useEffect(() => {
+        gameRequestIdRef.current = gameRequestId;
+    }, [gameRequestId]);
+    
+    useEffect(() => {
+        gameRequestInitiatedByRef.current = gameRequestInitiatedBy;
+    }, [gameRequestInitiatedBy]);
+    
+    useEffect(() => {
+        isHostRef.current = isHost;
+    }, [isHost]);
     const { signMessageAsync } = useSignMessage();
     const { composeCast } = useComposeCast();
 
@@ -101,53 +124,61 @@ export default function RoomDetails({
             setShareUrl(`${window.location.origin}/room/${roomId}`);
         }
 
-        // Poll for updates every 3 seconds
-        const interval = setInterval(fetchRoom, 3000);
+        // Poll for updates every 5 seconds (reduced frequency)
+        // Use a ref to track if we should continue polling
+        let isPolling = true;
+        const interval = setInterval(() => {
+            if (isPolling) {
+                fetchRoom();
+            }
+        }, 5000);
         
         // Listen to game events for real-time updates
         const handleGameEvent = (event: CustomEvent) => {
             const gameEvent = event.detail;
+            const currentRoom = roomRef.current;
+            const currentGameRequestId = gameRequestIdRef.current;
+            const currentIsHost = isHostRef.current;
             
             if (gameEvent.type === 'GAME_REQUEST_CREATED') {
                 // Check if this event is for the current room
-                const isForCurrentRoom = room && (
-                    (gameEvent.team1_info?.id === room.host_team.id && gameEvent.team2_info?.id === room.guest_team?.id) ||
-                    (gameEvent.team1_info?.id === room.guest_team?.id && gameEvent.team2_info?.id === room.host_team.id) ||
-                    (gameEvent.team1_id === room.host_team.id && gameEvent.team2_id === room.guest_team?.id) ||
-                    (gameEvent.team1_id === room.guest_team?.id && gameEvent.team2_id === room.host_team.id)
+                const isForCurrentRoom = currentRoom && (
+                    (gameEvent.team1_info?.id === currentRoom.host_team.id && gameEvent.team2_info?.id === currentRoom.guest_team?.id) ||
+                    (gameEvent.team1_info?.id === currentRoom.guest_team?.id && gameEvent.team2_info?.id === currentRoom.host_team.id) ||
+                    (gameEvent.team1_id === currentRoom.host_team.id && gameEvent.team2_id === currentRoom.guest_team?.id) ||
+                    (gameEvent.team1_id === currentRoom.guest_team?.id && gameEvent.team2_id === currentRoom.host_team.id)
                 );
                 
-                if (gameEvent.game_request_id === gameRequestId || isForCurrentRoom) {
+                if (gameEvent.game_request_id === currentGameRequestId || isForCurrentRoom) {
                     // Update game request ID from event
                     const newGameRequestId = gameEvent.game_request_id;
                     if (newGameRequestId) {
                         setGameRequestId(newGameRequestId);
                     }
                     // In contract, team1 is always the initiator
-                    // Update initiator if we have the info
                     const initiatorId = gameEvent.team1_info?.id || gameEvent.team1_id;
                     if (initiatorId) {
                         setGameRequestInitiatedBy(initiatorId);
-                    } else if (room && !gameRequestInitiatedBy) {
+                    } else if (currentRoom && !gameRequestInitiatedByRef.current) {
                         // Fallback: if we don't have initiator info but have a room,
                         // and team1_id matches host, set host as initiator
-                        if (gameEvent.team1_id === room.host_team.id) {
-                            setGameRequestInitiatedBy(room.host_team.id);
+                        if (gameEvent.team1_id === currentRoom.host_team.id) {
+                            setGameRequestInitiatedBy(currentRoom.host_team.id);
                         }
                     }
                     fetchRoom(); // Refresh room to get updated game_request_id
                 }
             } else if (gameEvent.type === 'GUEST_CANCELLATION_REQUEST') {
                 // Guest wants to cancel - show notification to host
-                if (isHost && gameEvent.game_request_id === gameRequestId) {
+                if (currentIsHost && gameEvent.game_request_id === currentGameRequestId) {
                     setGuestCancellationRequested(true);
                 }
             } else if (gameEvent.type === 'GAME_REQUEST_CANCELLED') {
                 // Handle both request_id and game_request_id field names
                 const cancelledRequestId = gameEvent.request_id || gameEvent.game_request_id;
-                if (cancelledRequestId === gameRequestId || 
-                    (room && (gameEvent.team1_id === room.host_team.id || gameEvent.team2_id === room.host_team.id ||
-                             gameEvent.team1_id === room.guest_team?.id || gameEvent.team2_id === room.guest_team?.id))) {
+                if (cancelledRequestId === currentGameRequestId || 
+                    (currentRoom && (gameEvent.team1_id === currentRoom.host_team.id || gameEvent.team2_id === currentRoom.host_team.id ||
+                             gameEvent.team1_id === currentRoom.guest_team?.id || gameEvent.team2_id === currentRoom.guest_team?.id))) {
                     setGameRequestId(null);
                     setGameRequestInitiatedBy(null);
                     setGuestCancellationRequested(false);
@@ -164,10 +195,11 @@ export default function RoomDetails({
         window.addEventListener('game-event', handleGameEvent as EventListener);
 
         return () => {
+            isPolling = false;
             clearInterval(interval);
             window.removeEventListener('game-event', handleGameEvent as EventListener);
         };
-    }, [roomId, gameRequestId, room, userTeamId, onGameStarting]);
+    }, [roomId, userTeamId, onGameStarting]); // Removed room and gameRequestId from dependencies
 
     // Share via Base/Farcaster using useComposeCast
     const shareToBase = async () => {
