@@ -5,9 +5,10 @@ import { sendTransactionWithRetry } from '@/lib/paymaster';
 import { CONTRACT_ABI, CONTRACT_ADDRESS, RELAYER_ADDRESS } from '@/lib/contract';
 import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
+import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
 import { db } from '@/lib/database';
-import { waitingRooms, teams } from '@/db/schema';
+import { waitingRooms } from '@/db/schema';
 import { and, eq, or } from 'drizzle-orm';
 
 interface CreateGameRequestRequest {
@@ -23,24 +24,21 @@ interface CreateGameRequestRequest {
 }
 
 export async function POST(request: NextRequest) {
-    // Declare variables in outer scope for error handling
-    let team1_id: number | undefined;
-    let team2_id: number | undefined;
-    let wallet_address: string | undefined;
-    
     try {
-        const body = await request.json();
-        ({ team1_id, team2_id, wallet_address } = body);
-        const { room_id } = body;
-
-        // Authentication is handled by Next.js middleware
-        // wallet_address is already validated by middleware
-        // Sentry user context is set in middleware
+        const { team1_id, team2_id, signature, message, wallet_address, room_id } = await request.json();
 
         // Validate required fields
-        if (!team1_id || !team2_id) {
+        if (!team1_id || !team2_id || !signature || !message || !wallet_address) {
             return NextResponse.json(
-                { success: false, error: 'Missing required fields: team1_id and team2_id' },
+                { success: false, error: 'Missing required fields' },
+                { status: 400 }
+            );
+        }
+
+        // Validate wallet address format
+        if (!/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
+            return NextResponse.json(
+                { success: false, error: 'Invalid wallet address format' },
                 { status: 400 }
             );
         }
@@ -60,13 +58,14 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Log the request details for debugging
-        console.log('Creating game request:', {
-            wallet_address,
-            team1_id,
-            team2_id,
-            room_id
-        });
+        // Validate signature and message
+        const { isValid, error } = await checkAuthSignatureAndMessage(signature, message, wallet_address);
+        if (!isValid) {
+            return NextResponse.json(
+                { success: false, error: error },
+                { status: 401 }
+            );
+        }
 
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
@@ -92,14 +91,9 @@ export async function POST(request: NextRequest) {
             (log: any) => log.eventName === 'GameRequestCreated'
         ) as { eventName: string; args: { gameRequestId: bigint } } | undefined;
 
-        if (!gameRequestCreatedEvent) {
-            return NextResponse.json(
-                { success: false, error: 'GameRequestCreated event not found in transaction logs' },
-                { status: 500 }
-            );
-        }
-
-        const gameRequestId = Number(gameRequestCreatedEvent.args.gameRequestId);
+        const gameRequestId = gameRequestCreatedEvent 
+            ? Number(gameRequestCreatedEvent.args.gameRequestId)
+            : null;
 
         console.log('Creating game request with relayer:', {
             wallet_address,
@@ -112,63 +106,65 @@ export async function POST(request: NextRequest) {
         // Check if this game request came from a waiting room
         // If room_id is provided, update that specific room
         // Otherwise, try to find a matching room
-        try {
-            let roomToUpdate = null;
-            
-            if (room_id) {
-                // Update the specific room if room_id is provided
-                const [specificRoom] = await db
-                    .select({ id: waitingRooms.id })
-                    .from(waitingRooms)
-                    .where(eq(waitingRooms.id, Number(room_id)))
-                    .limit(1);
+        if (gameRequestId) {
+            try {
+                let roomToUpdate = null;
                 
-                if (specificRoom) {
-                    roomToUpdate = specificRoom;
-                }
-            } else {
-                // Fallback: try to find a matching room by team IDs
-                // Check for both 'full' and 'starting' status (in case previous game request was cancelled)
-                const [room] = await db
-                    .select({ id: waitingRooms.id })
-                    .from(waitingRooms)
-                    .where(
-                        and(
-                            eq(waitingRooms.hostTeamId, team1_id),
-                            eq(waitingRooms.guestTeamId, team2_id),
-                            or(
-                                eq(waitingRooms.status, 'full'),
-                                eq(waitingRooms.status, 'starting')
+                if (room_id) {
+                    // Update the specific room if room_id is provided
+                    const [specificRoom] = await db
+                        .select({ id: waitingRooms.id })
+                        .from(waitingRooms)
+                        .where(eq(waitingRooms.id, Number(room_id)))
+                        .limit(1);
+                    
+                    if (specificRoom) {
+                        roomToUpdate = specificRoom;
+                    }
+                } else {
+                    // Fallback: try to find a matching room by team IDs
+                    // Check for both 'full' and 'starting' status (in case previous game request was cancelled)
+                    const [room] = await db
+                        .select({ id: waitingRooms.id })
+                        .from(waitingRooms)
+                        .where(
+                            and(
+                                eq(waitingRooms.hostTeamId, team1_id),
+                                eq(waitingRooms.guestTeamId, team2_id),
+                                or(
+                                    eq(waitingRooms.status, 'full'),
+                                    eq(waitingRooms.status, 'starting')
+                                )
                             )
                         )
-                    )
-                    .limit(1);
-                
-                if (room) {
-                    roomToUpdate = room;
+                        .limit(1);
+                    
+                    if (room) {
+                        roomToUpdate = room;
+                    }
                 }
-            }
 
-            if (roomToUpdate) {
-                await db
-                    .update(waitingRooms)
-                    .set({
-                        gameRequestId: gameRequestId,
-                        status: 'starting'
-                    })
-                    .where(eq(waitingRooms.id, roomToUpdate.id));
+                if (roomToUpdate) {
+                    await db
+                        .update(waitingRooms)
+                        .set({
+                            gameRequestId: gameRequestId,
+                            status: 'starting'
+                        })
+                        .where(eq(waitingRooms.id, roomToUpdate.id));
 
-                console.log('Updated waiting room:', roomToUpdate.id);
+                    console.log('Updated waiting room:', roomToUpdate.id);
+                }
+            } catch (waitingRoomError) {
+                console.error('Error updating waiting room:', waitingRoomError);
             }
-        } catch (waitingRoomError) {
-            console.error('Error updating waiting room:', waitingRoomError);
         }
 
         return NextResponse.json({
             success: true,
             message: 'Game request created successfully',
             data: {
-                gameRequestId: gameRequestId,
+                gameRequestId: gameRequestId || paymasterReceipt.receipt.transactionHash, // Use gameRequestId if available, otherwise transaction hash
                 team1_id,
                 team2_id,
                 status: 'pending',
@@ -207,42 +203,9 @@ export async function POST(request: NextRequest) {
                             { success: false, error: 'Please wait a moment before creating a new game request. Your previous request needs to expire first (about 1 minute).', errorName: errorName },
                             { status: 400 }
                         );
-                    case 'GameOwnerShouldCall':
-                        // This error means the wallet_address doesn't match team1's wallet in the contract
-                        // The contract requires: teams[team1id].wallet == sender
-                        console.error('GameOwnerShouldCall error - wallet mismatch:', {
-                            wallet_address: wallet_address || 'unknown',
-                            team1_id: team1_id || 'unknown',
-                            team2_id: team2_id || 'unknown',
-                            error: 'Wallet does not match team1 wallet in contract'
-                        });
-                        
-                        // Try to get team1's wallet from contract for better error message
-                        if (team1_id) {
-                            try {
-                                const team1DataResult: unknown = await publicClient.readContract({
-                                    address: CONTRACT_ADDRESS,
-                                    abi: CONTRACT_ABI,
-                                    functionName: 'getTeam',
-                                    args: [BigInt(team1_id)]
-                                });
-                                const team1Data = team1DataResult as { wallet: Address };
-                                console.error('Team1 wallet from contract:', team1Data.wallet);
-                                return NextResponse.json(
-                                    { success: false, error: `Wallet mismatch: Your wallet (${wallet_address || 'unknown'}) does not match team1's wallet (${team1Data.wallet}) in the contract. Only the team1 owner can create game requests.`, errorName: errorName },
-                                    { status: 403 }
-                                );
-                            } catch (lookupError) {
-                                console.error('Error looking up team1 wallet:', lookupError);
-                            }
-                        }
-                        return NextResponse.json(
-                            { success: false, error: 'Only the team1 (host) owner can create game requests. Your wallet does not match team1\'s wallet in the contract.', errorName: errorName },
-                            { status: 403 }
-                        );
                     default:
                         return NextResponse.json(
-                            { success: false, error: `Failed to create game request${errorName ? `: ${errorName}` : ''}`, errorName: errorName || 'UNKNOWN' },
+                            { success: false, error: 'Failed to create game request', errorName: errorName },
                             { status: 400 }
                         );
                         break;
