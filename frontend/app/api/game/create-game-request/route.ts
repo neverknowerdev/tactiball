@@ -54,6 +54,14 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Log the request details for debugging
+        console.log('Creating game request:', {
+            wallet_address,
+            team1_id,
+            team2_id,
+            room_id
+        });
+
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
@@ -194,10 +202,36 @@ export async function POST(request: NextRequest) {
                             { status: 400 }
                         );
                     case 'GameOwnerShouldCall':
-                        return NextResponse.json(
-                            { success: false, error: 'Only the team1 owner can create game requests. Your wallet does not match team1\'s wallet address.', errorName: errorName },
-                            { status: 403 }
-                        );
+                        // This error means the wallet_address doesn't match team1's wallet in the contract
+                        // The contract requires: teams[team1id].wallet == sender
+                        console.error('GameOwnerShouldCall error - wallet mismatch:', {
+                            wallet_address,
+                            team1_id,
+                            team2_id,
+                            error: 'Wallet does not match team1 wallet in contract'
+                        });
+                        
+                        // Try to get team1's wallet from contract for better error message
+                        try {
+                            const team1DataResult: unknown = await publicClient.readContract({
+                                address: CONTRACT_ADDRESS,
+                                abi: CONTRACT_ABI,
+                                functionName: 'getTeam',
+                                args: [BigInt(team1_id)]
+                            });
+                            const team1Data = team1DataResult as { wallet: Address };
+                            console.error('Team1 wallet from contract:', team1Data.wallet);
+                            return NextResponse.json(
+                                { success: false, error: `Wallet mismatch: Your wallet (${wallet_address}) does not match team1's wallet (${team1Data.wallet}) in the contract. Only the team1 owner can create game requests.`, errorName: errorName },
+                                { status: 403 }
+                            );
+                        } catch (lookupError) {
+                            console.error('Error looking up team1 wallet:', lookupError);
+                            return NextResponse.json(
+                                { success: false, error: 'Only the team1 (host) owner can create game requests. Your wallet does not match team1\'s wallet in the contract.', errorName: errorName },
+                                { status: 403 }
+                            );
+                        }
                     default:
                         return NextResponse.json(
                             { success: false, error: `Failed to create game request${errorName ? `: ${errorName}` : ''}`, errorName: errorName || 'UNKNOWN' },
