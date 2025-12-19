@@ -49,6 +49,7 @@ export default function RoomDetails({
     const [updating, setUpdating] = useState(false);
     const [gameRequestId, setGameRequestId] = useState<number | null>(null);
     const [gameRequestInitiatedBy, setGameRequestInitiatedBy] = useState<number | null>(null);
+    const [guestCancellationRequested, setGuestCancellationRequested] = useState(false);
     const { address } = useAccount();
     const { signMessageAsync } = useSignMessage();
     const { composeCast } = useComposeCast();
@@ -78,6 +79,7 @@ export default function RoomDetails({
                 } else {
                     setGameRequestId(null);
                     setGameRequestInitiatedBy(null);
+                    setGuestCancellationRequested(false);
                 }
             } else {
                 toast.error('Room not found');
@@ -135,6 +137,11 @@ export default function RoomDetails({
                     }
                     fetchRoom(); // Refresh room to get updated game_request_id
                 }
+            } else if (gameEvent.type === 'GUEST_CANCELLATION_REQUEST') {
+                // Guest wants to cancel - show notification to host
+                if (isHost && gameEvent.game_request_id === gameRequestId) {
+                    setGuestCancellationRequested(true);
+                }
             } else if (gameEvent.type === 'GAME_REQUEST_CANCELLED') {
                 // Handle both request_id and game_request_id field names
                 const cancelledRequestId = gameEvent.request_id || gameEvent.game_request_id;
@@ -143,6 +150,7 @@ export default function RoomDetails({
                              gameEvent.team1_id === room.guest_team?.id || gameEvent.team2_id === room.guest_team?.id))) {
                     setGameRequestId(null);
                     setGameRequestInitiatedBy(null);
+                    setGuestCancellationRequested(false);
                     fetchRoom();
                 }
             } else if (gameEvent.type === 'GAME_STARTED') {
@@ -323,7 +331,18 @@ export default function RoomDetails({
 
     // Create game request (only host can initiate)
     const handleStartGame = async () => {
-        if (!address || !room?.guest_team_id || !isHost) return;
+        if (!address || !room?.guest_team_id) return;
+        
+        // Double-check that user is the host - this is critical for contract validation
+        if (room.host_team.id !== userTeamId) {
+            toast.error('Only the host can start the game');
+            return;
+        }
+        
+        if (!isHost) {
+            toast.error('Only the host can start the game');
+            return;
+        }
 
         setProcessing(true);
         try {
@@ -331,8 +350,46 @@ export default function RoomDetails({
 
             // Only host can create game request
             // team1 must be owned by the wallet calling the function (host)
+            // CRITICAL: Ensure we're using the host team as team1
             const team1_id = room.host_team.id;
             const team2_id = room.guest_team_id;
+            
+            // Verify one more time that the current user is the host
+            if (team1_id !== userTeamId) {
+                console.error('Security check failed: team1_id does not match userTeamId', {
+                    team1_id,
+                    userTeamId,
+                    host_team_id: room.host_team.id
+                });
+                toast.error('Error: You are not the host of this room');
+                setProcessing(false);
+                return;
+            }
+            
+            // CRITICAL: Verify that the wallet address matches the host team's wallet
+            // The contract requires teams[team1id].wallet == sender
+            if (room.host_team.primary_wallet && room.host_team.primary_wallet.toLowerCase() !== address.toLowerCase()) {
+                console.error('Wallet mismatch detected:', {
+                    host_wallet: room.host_team.primary_wallet,
+                    user_wallet: address,
+                    team1_id,
+                    userTeamId
+                });
+                toast.error('Error: Your wallet does not match the host team\'s wallet. Only the host can start the game.');
+                setProcessing(false);
+                return;
+            }
+
+            console.log('Creating game request:', {
+                userTeamId,
+                team1_id,
+                team2_id,
+                host_team_id: room.host_team.id,
+                guest_team_id: room.guest_team_id,
+                wallet_address: address,
+                host_wallet: room.host_team.primary_wallet,
+                isHost
+            });
 
             const response = await fetch('/api/game/create-game-request', {
                 method: 'POST',
@@ -412,7 +469,7 @@ export default function RoomDetails({
     };
 
     // Cancel game request
-    const handleCancelGameRequest = async () => {
+    const handleCancelGameRequest = async (approveGuestCancellation = false) => {
         if (!address || !gameRequestId) return;
 
         setProcessing(true);
@@ -426,17 +483,25 @@ export default function RoomDetails({
                     game_request_id: gameRequestId,
                     wallet_address: address,
                     signature,
-                    message
+                    message,
+                    approve_guest_cancellation: approveGuestCancellation
                 })
             });
 
             const data = await response.json();
 
             if (data.success) {
-                toast.success('Game request cancelled');
-                setGameRequestId(null);
-                setGameRequestInitiatedBy(null);
-                fetchRoom();
+                if (data.data?.requires_host_approval) {
+                    // Guest cancellation request sent to host
+                    toast.success('Cancellation request sent to host');
+                } else {
+                    // Actual cancellation completed
+                    toast.success('Game request cancelled');
+                    setGameRequestId(null);
+                    setGameRequestInitiatedBy(null);
+                    setGuestCancellationRequested(false);
+                    fetchRoom();
+                }
             } else {
                 toast.error(data.error || 'Failed to cancel game request');
             }
@@ -446,6 +511,11 @@ export default function RoomDetails({
         } finally {
             setProcessing(false);
         }
+    };
+
+    // Host approves guest cancellation
+    const handleApproveGuestCancellation = async () => {
+        await handleCancelGameRequest(true);
     };
 
     // Open settings modal
@@ -719,8 +789,35 @@ export default function RoomDetails({
                         </div>
                     )}
 
+                    {/* Guest Cancellation Request Message */}
+                    {guestCancellationRequested && isHost && gameRequestId && (
+                        <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-4 mb-6">
+                            <div className="text-center">
+                                <p className="text-yellow-200 font-semibold mb-2">
+                                    {room?.guest_team?.name || 'Guest'} wants to cancel the game request
+                                </p>
+                                <div className="flex gap-2 justify-center">
+                                    <button
+                                        onClick={handleApproveGuestCancellation}
+                                        disabled={processing}
+                                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {processing ? 'Cancelling...' : 'Approve Cancellation'}
+                                    </button>
+                                    <button
+                                        onClick={() => setGuestCancellationRequested(false)}
+                                        disabled={processing}
+                                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Dismiss
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Game Request Status Messages */}
-                    {gameRequestId && (
+                    {gameRequestId && !guestCancellationRequested && (
                         <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4 mb-6">
                             {gameRequestInitiatedBy === userTeamId ? (
                                 // Current user initiated: Waiting for confirmation

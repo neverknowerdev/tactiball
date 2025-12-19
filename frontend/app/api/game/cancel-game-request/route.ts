@@ -7,6 +7,7 @@ import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
+import { WebSocketBroadcastingService } from '@/lib/ably';
 
 interface CancelGameRequestRequest {
     walletAddress: string;
@@ -21,13 +22,14 @@ interface CancelGameRequestRequest {
 
 export async function POST(request: NextRequest) {
     try {
-        const { game_request_id, signature, message, wallet_address } = await request.json();
+        const { game_request_id, signature, message, wallet_address, approve_guest_cancellation } = await request.json();
 
         console.log('Cancelling game request:', {
             game_request_id,
             signature,
             message,
-            wallet_address
+            wallet_address,
+            approve_guest_cancellation
         });
 
         // Validate required fields
@@ -63,12 +65,104 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Get game request from contract to determine team1 and team2
+        const gameRequest = await publicClient.readContract({
+            address: CONTRACT_ADDRESS,
+            abi: CONTRACT_ABI,
+            functionName: 'getGameRequest',
+            args: [BigInt(game_request_id)]
+        }) as unknown as { gameRequestId: bigint; team1id: bigint; team2id: bigint; createdAt: bigint };
+
+        if (!gameRequest || gameRequest.createdAt === BigInt(0)) {
+            return NextResponse.json(
+                { success: false, error: 'Game request does not exist' },
+                { status: 400 }
+            );
+        }
+
+        const team1id = Number(gameRequest.team1id);
+        const team2id = Number(gameRequest.team2id);
+
+        // Get user's team ID from wallet
+        const userTeamId = await publicClient.readContract({
+            address: CONTRACT_ADDRESS,
+            abi: CONTRACT_ABI,
+            functionName: 'getTeamIdByWallet',
+            args: [wallet_address as Address]
+        }) as unknown as bigint;
+
+        const userTeamIdNum = Number(userTeamId);
+
+        console.log('Game request details:', {
+            team1id,
+            team2id,
+            userTeamId: userTeamIdNum,
+            isHost: userTeamIdNum === team1id,
+            isGuest: userTeamIdNum === team2id,
+            approve_guest_cancellation
+        });
+
+        // If user is guest (team2) and not approving guest cancellation, broadcast cancellation request to host
+        if (userTeamIdNum === team2id && !approve_guest_cancellation) {
+            // Guest wants to cancel - notify host via WebSocket
+            const ablyApiKey = process.env.ABLY_BROADCASTING_API_KEY;
+            if (!ablyApiKey) {
+                return NextResponse.json(
+                    { success: false, error: 'WebSocket service not configured' },
+                    { status: 500 }
+                );
+            }
+
+            const wsService = new WebSocketBroadcastingService(ablyApiKey);
+            
+            // Broadcast to host (team1) that guest wants to cancel
+            await wsService.broadcastToTeam(team1id, {
+                type: 'GUEST_CANCELLATION_REQUEST',
+                game_request_id: game_request_id,
+                team1id: team1id,
+                team2id: team2id,
+                guest_team_id: team2id,
+                timestamp: Date.now()
+            });
+
+            await wsService.close();
+
+            return NextResponse.json({
+                success: true,
+                message: 'Cancellation request sent to host',
+                data: {
+                    game_request_id,
+                    status: 'cancellation_requested',
+                    requires_host_approval: true
+                }
+            });
+        }
+
+        // If user is guest (team2) trying to approve cancellation, this is invalid
+        if (userTeamIdNum === team2id && approve_guest_cancellation) {
+            return NextResponse.json(
+                { success: false, error: 'Only the host can approve guest cancellation requests' },
+                { status: 403 }
+            );
+        }
+
+        // If user is not team1 (host), they cannot cancel directly
+        if (userTeamIdNum !== team1id) {
+            return NextResponse.json(
+                { success: false, error: 'Only the host can cancel this game request' },
+                { status: 403 }
+            );
+        }
+
+        // User is host (team1) - proceed with cancellation
+        const cancelWallet = wallet_address;
+
         // Simulate the transaction first using publicClient
         const simulation = await publicClient.simulateContract({
             address: CONTRACT_ADDRESS,
             abi: CONTRACT_ABI,
             functionName: 'cancelGameRequestRelayer',
-            args: [wallet_address as Address, game_request_id],
+            args: [cancelWallet as Address, game_request_id],
             chain: chain,
             account: RELAYER_ADDRESS
         });

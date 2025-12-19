@@ -21,7 +21,7 @@ export async function getGameFromDBServer(gameId: string): Promise<GameFetchResu
         let game;
         try {
             game = await db
-                .select()
+            .select()
                 .from(games)
                 .where(eq(games.id, numericId))
                 .limit(1);
@@ -49,10 +49,10 @@ export async function getGameFromDBServer(gameId: string): Promise<GameFetchResu
                         historyIpfsCid: games.historyIpfsCid,
                         isVerified: games.isVerified
                     })
-                    .from(games)
-                    .where(eq(games.id, numericId))
-                    .limit(1);
-                
+            .from(games)
+            .where(eq(games.id, numericId))
+            .limit(1);
+
                 // Add null for missing columns to match expected interface
                 game = gameResult ? [{
                     ...gameResult,

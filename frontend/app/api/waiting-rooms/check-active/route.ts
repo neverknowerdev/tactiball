@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
         const now = new Date();
 
         // Check for any active room (open, full, or starting) that hasn't expired
+        // Check both as host and as guest
         const [activeRoom] = await db
             .select({
                 id: waitingRooms.id,
@@ -30,7 +31,10 @@ export async function GET(request: NextRequest) {
             .from(waitingRooms)
             .where(
                 and(
-                    eq(waitingRooms.hostTeamId, parsedTeamId),
+                    or(
+                        eq(waitingRooms.hostTeamId, parsedTeamId),
+                        eq(waitingRooms.guestTeamId, parsedTeamId)
+                    ),
                     inArray(waitingRooms.status, ['open', 'full', 'starting']),
                     gt(waitingRooms.expiresAt, now)
                 )

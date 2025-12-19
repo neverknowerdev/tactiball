@@ -421,9 +421,9 @@ async function handleNewGameState(decodedData: DecodedEvent, database: Database,
     // Use the updateGame function to fetch from contract and update database
     // Call newGameState SQL function to reset game state
     try {
-        await database.execute(sql`
-            SELECT public.new_game_state(${gameId}, ${JSON.stringify(historyItem)}::jsonb)
-        `);
+    await database.execute(sql`
+        SELECT public.new_game_state(${gameId}, ${JSON.stringify(historyItem)}::jsonb)
+    `);
     } catch (error: any) {
         // Handle case where game doesn't exist in database
         if (error?.message?.includes('Game with ID') || error?.code === 'P0001') {

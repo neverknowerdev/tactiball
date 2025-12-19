@@ -203,6 +203,11 @@ export async function POST(request: NextRequest) {
                             { success: false, error: 'Please wait a moment before creating a new game request. Your previous request needs to expire first (about 1 minute).', errorName: errorName },
                             { status: 400 }
                         );
+                    case 'GameOwnerShouldCall':
+                        return NextResponse.json(
+                            { success: false, error: 'Only the team1 owner can create game requests. Please ensure you are the host of this room.', errorName: errorName },
+                            { status: 403 }
+                        );
                     default:
                         return NextResponse.json(
                             { success: false, error: 'Failed to create game request', errorName: errorName },

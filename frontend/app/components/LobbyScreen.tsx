@@ -240,15 +240,15 @@ export default function LobbyScreen({
                 )}
               </div>
             ) : (
-              <button
-                onClick={handleOpenCreateModal}
-                className="mb-4 sm:mb-6 w-full bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg hover:bg-green-700 transition-colors font-semibold text-base sm:text-lg flex items-center justify-center gap-2"
-              >
-                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Create New Room
-              </button>
+            <button
+              onClick={handleOpenCreateModal}
+              className="mb-4 sm:mb-6 w-full bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg hover:bg-green-700 transition-colors font-semibold text-base sm:text-lg flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create New Room
+            </button>
             )}
 
             {/* Rooms List */}
