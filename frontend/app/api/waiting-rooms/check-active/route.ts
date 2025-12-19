@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { waitingRooms } from '@/db/schema';
-import { and, eq, gt, inArray } from 'drizzle-orm';
+import { and, eq, gt, inArray, or } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
     try {

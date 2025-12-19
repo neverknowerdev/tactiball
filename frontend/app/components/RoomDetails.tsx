@@ -872,7 +872,7 @@ export default function RoomDetails({
                             gameRequestInitiatedBy === userTeamId ? (
                                 // Current user initiated: Waiting for confirmation - show Cancel button
                                 <button
-                                    onClick={handleCancelGameRequest}
+                                    onClick={() => handleCancelGameRequest()}
                                     disabled={processing}
                                     className="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -882,7 +882,7 @@ export default function RoomDetails({
                                 // Other user initiated: Confirmation request - show Start Game and Cancel buttons
                                 <>
                                     <button
-                                        onClick={handleCancelGameRequest}
+                                        onClick={() => handleCancelGameRequest()}
                                         disabled={processing}
                                         className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
@@ -899,7 +899,7 @@ export default function RoomDetails({
                             ) : (
                                 // Don't know who initiated - show cancel button only
                                 <button
-                                    onClick={handleCancelGameRequest}
+                                    onClick={() => handleCancelGameRequest()}
                                     disabled={processing}
                                     className="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
