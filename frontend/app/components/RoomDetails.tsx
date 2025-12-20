@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { useComposeCast } from '@coinbase/onchainkit/minikit';
 import { authUserWithSignature } from '@/lib/auth';
@@ -51,6 +51,11 @@ export default function RoomDetails({
     const [gameRequestInitiatedBy, setGameRequestInitiatedBy] = useState<number | null>(null);
     const [guestCancellationRequested, setGuestCancellationRequested] = useState(false);
     const { address } = useAccount();
+    const { signMessageAsync } = useSignMessage();
+    const { composeCast } = useComposeCast();
+
+    // Check if user is host
+    const isHost = room?.host_team.id === userTeamId;
     
     // Use refs to access current values in event handlers without adding to dependencies
     const roomRef = useRef(room);
@@ -74,11 +79,6 @@ export default function RoomDetails({
     useEffect(() => {
         isHostRef.current = isHost;
     }, [isHost]);
-    const { signMessageAsync } = useSignMessage();
-    const { composeCast } = useComposeCast();
-
-    // Check if user is host
-    const isHost = room?.host_team.id === userTeamId;
 
     // Fetch room details
     const fetchRoom = async () => {
