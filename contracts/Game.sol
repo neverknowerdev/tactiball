@@ -22,7 +22,6 @@ error TeamAlreadyHasActiveGame();
 error GameIsNotActive();
 error MovesAlreadyCommitted();
 error OnlyRelayerCanCall();
-error GameRequestNotExpired();
 error GameRequestTimeoutNotReached();
 error ActionsNotCommitted();
 error FinishGameByTimeout_NoLastMove();
@@ -337,9 +336,6 @@ contract ChessBallGame is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         if (gameRequests[gameRequestId].createdAt == 0) revert DoesNotExist();
         if (teams[gameRequests[gameRequestId].team1id].wallet != sender)
             revert GameOwnerShouldCall();
-        if (
-            gameRequests[gameRequestId].createdAt + 1 minutes >= block.timestamp
-        ) revert GameRequestNotExpired();
 
         uint256 team1id = gameRequests[gameRequestId].team1id;
         uint256 team2id = gameRequests[gameRequestId].team2id;
