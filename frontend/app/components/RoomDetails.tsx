@@ -49,7 +49,6 @@ export default function RoomDetails({
     const [updating, setUpdating] = useState(false);
     const [gameRequestId, setGameRequestId] = useState<number | null>(null);
     const [gameRequestInitiatedBy, setGameRequestInitiatedBy] = useState<number | null>(null);
-    const [guestCancellationRequested, setGuestCancellationRequested] = useState(false);
     const { address } = useAccount();
     const { signMessageAsync } = useSignMessage();
     const { composeCast } = useComposeCast();
@@ -61,7 +60,6 @@ export default function RoomDetails({
     const roomRef = useRef(room);
     const gameRequestIdRef = useRef(gameRequestId);
     const gameRequestInitiatedByRef = useRef(gameRequestInitiatedBy);
-    const isHostRef = useRef(isHost);
     
     // Keep refs in sync with state
     useEffect(() => {
@@ -75,10 +73,6 @@ export default function RoomDetails({
     useEffect(() => {
         gameRequestInitiatedByRef.current = gameRequestInitiatedBy;
     }, [gameRequestInitiatedBy]);
-    
-    useEffect(() => {
-        isHostRef.current = isHost;
-    }, [isHost]);
 
     // Fetch room details
     const fetchRoom = async () => {
@@ -102,7 +96,6 @@ export default function RoomDetails({
                 } else {
                     setGameRequestId(null);
                     setGameRequestInitiatedBy(null);
-                    setGuestCancellationRequested(false);
                 }
             } else {
                 toast.error('Room not found');
@@ -136,9 +129,8 @@ export default function RoomDetails({
         // Listen to game events for real-time updates
         const handleGameEvent = (event: CustomEvent) => {
             const gameEvent = event.detail;
-            const currentRoom = roomRef.current;
-            const currentGameRequestId = gameRequestIdRef.current;
-            const currentIsHost = isHostRef.current;
+        const currentRoom = roomRef.current;
+        const currentGameRequestId = gameRequestIdRef.current;
             
             if (gameEvent.type === 'GAME_REQUEST_CREATED') {
                 // Check if this event is for the current room
@@ -168,10 +160,15 @@ export default function RoomDetails({
                     }
                     fetchRoom(); // Refresh room to get updated game_request_id
                 }
-            } else if (gameEvent.type === 'GUEST_CANCELLATION_REQUEST') {
-                // Guest wants to cancel - show notification to host
-                if (currentIsHost && gameEvent.game_request_id === currentGameRequestId) {
-                    setGuestCancellationRequested(true);
+            } else if (gameEvent.type === 'GAME_REQUEST_UI_CANCELLED') {
+                // Game request was cancelled in UI (not contract)
+                if (gameEvent.room_id === Number(roomId)) {
+                    setGameRequestId(null);
+                    setGameRequestInitiatedBy(null);
+                    fetchRoom();
+                    // Show cancellation message
+                    const cancelledByName = gameEvent.cancelled_by_team_name || 'Player';
+                    toast.info(`${cancelledByName} cancelled the game request`);
                 }
             } else if (gameEvent.type === 'GAME_REQUEST_CANCELLED') {
                 // Handle both request_id and game_request_id field names
@@ -181,7 +178,6 @@ export default function RoomDetails({
                              gameEvent.team1_id === currentRoom.guest_team?.id || gameEvent.team2_id === currentRoom.guest_team?.id))) {
                     setGameRequestId(null);
                     setGameRequestInitiatedBy(null);
-                    setGuestCancellationRequested(false);
                     fetchRoom();
                 }
             } else if (gameEvent.type === 'GAME_STARTED') {
@@ -500,40 +496,32 @@ export default function RoomDetails({
         }
     };
 
-    // Cancel game request
-    const handleCancelGameRequest = async (approveGuestCancellation = false) => {
-        if (!address || !gameRequestId) return;
+    // Cancel game request (UI-only, no contract interaction)
+    const handleCancelGameRequest = async () => {
+        if (!address || !gameRequestId || !room) return;
 
         setProcessing(true);
         try {
             const { signature, message } = await authUserWithSignature(address, signMessageAsync);
 
-            const response = await fetch('/api/game/cancel-game-request', {
+            const response = await fetch(`/api/waiting-rooms/${roomId}/cancel-game-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    game_request_id: gameRequestId,
                     wallet_address: address,
                     signature,
-                    message,
-                    approve_guest_cancellation: approveGuestCancellation
+                    message
                 })
             });
 
             const data = await response.json();
 
             if (data.success) {
-                if (data.data?.requires_host_approval) {
-                    // Guest cancellation request sent to host
-                    toast.success('Cancellation request sent to host');
-                } else {
-                    // Actual cancellation completed
-                    toast.success('Game request cancelled');
-                    setGameRequestId(null);
-                    setGameRequestInitiatedBy(null);
-                    setGuestCancellationRequested(false);
-                    fetchRoom();
-                }
+                // Clear game request state
+                setGameRequestId(null);
+                setGameRequestInitiatedBy(null);
+                fetchRoom();
+                // Message will be shown via WebSocket event
             } else {
                 toast.error(data.error || 'Failed to cancel game request');
             }
@@ -545,10 +533,6 @@ export default function RoomDetails({
         }
     };
 
-    // Host approves guest cancellation
-    const handleApproveGuestCancellation = async () => {
-        await handleCancelGameRequest(true);
-    };
 
     // Open settings modal
     const handleOpenSettings = () => {
@@ -821,35 +805,8 @@ export default function RoomDetails({
                         </div>
                     )}
 
-                    {/* Guest Cancellation Request Message */}
-                    {guestCancellationRequested && isHost && gameRequestId && (
-                        <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-4 mb-6">
-                            <div className="text-center">
-                                <p className="text-yellow-200 font-semibold mb-2">
-                                    {room?.guest_team?.name || 'Guest'} wants to cancel the game request
-                                </p>
-                                <div className="flex gap-2 justify-center">
-                                    <button
-                                        onClick={handleApproveGuestCancellation}
-                                        disabled={processing}
-                                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {processing ? 'Cancelling...' : 'Approve Cancellation'}
-                                    </button>
-                                    <button
-                                        onClick={() => setGuestCancellationRequested(false)}
-                                        disabled={processing}
-                                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Dismiss
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Game Request Status Messages */}
-                    {gameRequestId && !guestCancellationRequested && (
+                    {gameRequestId && (
                         <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4 mb-6">
                             {gameRequestInitiatedBy === userTeamId ? (
                                 // Current user initiated: Waiting for confirmation
