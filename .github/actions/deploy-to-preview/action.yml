@@ -1,0 +1,62 @@
+name: 'Deploy to Preview'
+description: 'Deploy latest deployment to preview.tactiball.fun using cached deployment URL'
+inputs:
+  branch_name:
+    description: 'Branch name for cache key'
+    required: true
+  vercel_token:
+    description: 'Vercel authentication token'
+    required: true
+  vercel_org_id:
+    description: 'Vercel organization ID'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Restore latest deployment URL from cache
+      id: restore-cache
+      uses: actions/cache@v4
+      with:
+        path: latest-deployment-url.txt
+        key: latest-deployment-url-${{ inputs.branch_name }}
+        restore-keys: |
+          latest-deployment-url-${{ inputs.branch_name }}-
+
+    - name: Get latest deployment URL
+      id: get-url
+      shell: bash
+      run: |
+        # Check if file exists (from current job or restored from cache)
+        if [ -f latest-deployment-url.txt ]; then
+          LATEST_DEPLOYMENT_URL=$(cat latest-deployment-url.txt | tr -d '\n\r ')
+          if [ -n "$LATEST_DEPLOYMENT_URL" ]; then
+            echo "📦 Latest deployment URL: $LATEST_DEPLOYMENT_URL"
+            echo "deployment_url=$LATEST_DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Error: latest-deployment-url.txt is empty"
+            exit 1
+          fi
+        else
+          echo "❌ Error: latest-deployment-url.txt not found"
+          exit 1
+        fi
+
+    - name: Deploy to preview.tactiball.fun
+      shell: bash
+      run: |
+        DEPLOYMENT_URL="${{ steps.get-url.outputs.deployment_url }}"
+        PREVIEW_DOMAIN="preview.tactiball.fun"
+        
+        echo "🔗 Creating alias: $PREVIEW_DOMAIN -> $DEPLOYMENT_URL"
+        
+        # Create alias using Vercel CLI
+        vercel alias "$DEPLOYMENT_URL" "$PREVIEW_DOMAIN" \
+          --token=${{ inputs.vercel_token }} \
+          --scope=${{ inputs.vercel_org_id }}
+        
+        echo "✅ Successfully deployed to $PREVIEW_DOMAIN"
+      env:
+        VERCEL_TOKEN: ${{ inputs.vercel_token }}
+        VERCEL_ORG_ID: ${{ inputs.vercel_org_id }}
+

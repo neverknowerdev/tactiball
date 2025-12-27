@@ -1,13 +1,13 @@
 BEGIN;
 -- Drop the unique constraint
-ALTER TABLE teams 
+ALTER TABLE public.teams 
 DROP CONSTRAINT IF EXISTS unique_zealy_user_id;
 
 -- Drop the index
-DROP INDEX IF EXISTS idx_teams_zealy_user_id;
+DROP INDEX IF EXISTS public.idx_teams_zealy_user_id;
 
 -- Drop the column
-ALTER TABLE teams 
+ALTER TABLE public.teams 
 DROP COLUMN IF EXISTS zealy_user_id;
 
 COMMIT;

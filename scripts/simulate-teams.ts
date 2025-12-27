@@ -217,10 +217,10 @@ Examples:
   tsx scripts/simulate-teams.ts 1 2 3
 
   # Simulate team 5 with custom event-router URL
-  tsx scripts/simulate-teams.ts 5 "https://your-project.supabase.co/functions/v1/event-router"
+  tsx scripts/simulate-teams.ts 5 "https://api.example.com/functions/v1/event-router"
 
   # Simulate multiple teams with custom URL
-  tsx scripts/simulate-teams.ts 1 2 3 4 5 "https://your-project.supabase.co/functions/v1/event-router"
+  tsx scripts/simulate-teams.ts 1 2 3 4 5 "https://api.example.com/functions/v1/event-router"
 
 Configuration:
   Update CONTRACT_ADDRESS and RPC_URL in the script before running.

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { publicClient } from '@/lib/providers';
 import { CONTRACT_ADDRESS, CONTRACT_ABI, RELAYER_ADDRESS } from '@/lib/contract';
 import { processGameMoves } from './process-game-moves';
@@ -55,8 +54,13 @@ export async function POST(request: NextRequest) {
     try {
         const body: CommitGameActionsRequest = await request.json();
 
+        // Authentication is handled by Next.js middleware
+        // wallet_address is already validated by middleware
+        // Sentry user context is set in middleware
+        const wallet_address = body.wallet_address;
+
         // Validate required fields
-        if (!body.game_id || !body.team_id || !body.team_enum || !body.wallet_address || !body.signature || !body.message) {
+        if (!body.game_id || !body.team_id || !body.team_enum) {
             return NextResponse.json(
                 { error: 'Missing required fields', errorName: 'MISSING_FIELDS' },
                 { status: 400 }
@@ -68,20 +72,6 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
                 { error: 'Invalid team enum. Must be 1 (team1) or 2 (team2)', errorName: 'INVALID_TEAM_ENUM' },
                 { status: 400 }
-            );
-        }
-
-        // Authenticate user
-        const isAuthenticated = await checkAuthSignatureAndMessage(
-            body.wallet_address,
-            body.signature,
-            body.message
-        );
-
-        if (!isAuthenticated) {
-            return NextResponse.json(
-                { error: 'Authentication failed', errorName: 'AUTH_FAILED' },
-                { status: 401 }
             );
         }
 

@@ -1,7 +1,8 @@
 import { type Address, decodeEventLog } from 'viem';
-import gameArtifact from '../../artifacts/contracts/Game.sol/ChessBallGame.json';
+import gameArtifact from './abis/ChessBallGame.json';
 import { publicClient } from './providers';
 import { Position } from './game';
+import { chain } from '@/config/chains';
 
 export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as Address || process.env.NEXT_PUBLIC_TESTNET_CONTRACT_ADDRESS as Address;
 //  || (process.env.ENV == 'prod' ? '0x5582A4C5a7e1d1997189774Cb1785aCb3d1E063d' as Address : '0x4385EBE9D693b205fdf5CCB552E912e0bf9B533c' as Address)
@@ -75,6 +76,35 @@ export async function getGameFromContract(gameId: string): Promise<GameFetchResu
     try {
         console.log('Fetching game data from contract for game ID:', gameId);
 
+        console.log('Using contract address:', CONTRACT_ADDRESS);
+        console.log('RPC URL:', process.env.RPC_URL || 'https://sepolia.base.org');
+        console.log('Chain ID:', chain.id);
+        console.log('Chain name:', chain.name);
+        console.log('Contract address:', CONTRACT_ADDRESS);
+
+        // Validate contract address is set
+        if (!CONTRACT_ADDRESS) {
+            console.error('CONTRACT_ADDRESS is not set. Check NEXT_PUBLIC_CONTRACT_ADDRESS or NEXT_PUBLIC_TESTNET_CONTRACT_ADDRESS environment variables');
+            return {
+                success: false,
+                error: 'CONTRACT_ERROR',
+                message: 'Contract address not configured. Please set NEXT_PUBLIC_TESTNET_CONTRACT_ADDRESS in your environment variables.'
+            };
+        }
+
+        // Verify contract has code at this address
+        const code = await publicClient.getBytecode({ address: CONTRACT_ADDRESS });
+        if (!code || code === '0x') {
+            console.error('No contract code found at address:', CONTRACT_ADDRESS);
+            return {
+                success: false,
+                error: 'CONTRACT_ERROR',
+                message: `No contract code found at address ${CONTRACT_ADDRESS}. Please verify NEXT_PUBLIC_TESTNET_CONTRACT_ADDRESS is set to the correct contract address (0xFC874C3Ada9a5Cc24BCC475a5B4d982B32243D1a)`
+            };
+        }
+
+        console.log('Contract code found, length:', code.length);
+
         // Call the getGame function on the smart contract
         const gameData = await publicClient.readContract({
             address: CONTRACT_ADDRESS,
@@ -136,6 +166,15 @@ export async function getGameFromContract(gameId: string): Promise<GameFetchResu
             };
         }
 
+        // Check for StackUnderflow - usually means contract address is wrong or contract doesn't exist
+        if (error.message && error.message.includes('StackUnderflow')) {
+            return {
+                success: false,
+                error: 'CONTRACT_ERROR',
+                message: `Contract call failed. Please verify NEXT_PUBLIC_TESTNET_CONTRACT_ADDRESS is set correctly. Current address: ${CONTRACT_ADDRESS || 'NOT SET'}`
+            };
+        }
+
         // Check if it's a network/contract error
         if (error.message && (
             error.message.includes('network') ||
@@ -153,7 +192,7 @@ export async function getGameFromContract(gameId: string): Promise<GameFetchResu
         return {
             success: false,
             error: 'CONTRACT_ERROR',
-            message: 'Failed to fetch game data from contract'
+            message: error.message || 'Failed to fetch game data from contract'
         };
     }
 }

@@ -1,57 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkAuthSignatureAndMessage } from "@/lib/auth";
-import { createAnonClient } from "@/lib/supabase";
+import { db } from "@/lib/database";
+import { teams } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
-    const { walletAddress, zealyUserId, signature, message } = await req.json();
+    const body = await req.json();
+    const { zealyUserId, walletAddress } = body;
 
-    if (!walletAddress || !zealyUserId || !signature || !message) {
+    // Authentication is handled by Next.js middleware
+    // walletAddress is already validated by middleware
+    // Sentry user context is set in middleware
+
+    if (!zealyUserId) {
       return NextResponse.json(
         {
           success: false,
-          error: "Missing required fields",
+          error: "Missing required field: zealyUserId",
         },
         { status: 400 },
       );
     }
 
-    // Verify wallet signature using checkAuthSignatureAndMessage
-    const verificationResult = await checkAuthSignatureAndMessage(
-      signature,
-      message,
-      walletAddress
-    );
-
-    if (!verificationResult.isValid) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: verificationResult.error || "Invalid wallet signature",
-        },
-        { status: 401 },
-      );
-    }
-
-    const supabase = createAnonClient();
-
-    // Check if team exists for this wallet using primary_wallet
-    const { data: team, error: fetchError } = await supabase
-      .from("teams")
-      .select("id, name, zealy_user_id, primary_wallet")
-      .eq("primary_wallet", walletAddress)
-      .maybeSingle();
-
-    if (fetchError) {
-      console.error("Database error:", fetchError);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Database error",
-        },
-        { status: 500 },
-      );
-    }
+    const [team] = await db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        zealy_user_id: teams.zealyUserId,
+        primary_wallet: teams.primaryWallet,
+      })
+      .from(teams)
+      .where(eq(teams.primaryWallet, walletAddress))
+      .limit(1);
 
     if (!team) {
       return NextResponse.json(
@@ -64,22 +44,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Update team with Zealy user ID
-    const { error: updateError } = await supabase
-      .from("teams")
-      .update({ zealy_user_id: zealyUserId })
-      .eq("primary_wallet", walletAddress);
-
-    if (updateError) {
-      console.error("Update error:", updateError);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to link Zealy account",
-        },
-        { status: 500 },
-      );
-    }
+    await db
+      .update(teams)
+      .set({ zealyUserId: zealyUserId })
+      .where(eq(teams.primaryWallet, walletAddress));
 
     console.log(`✅ Successfully linked Zealy user ${zealyUserId} to team ${team.name} (${walletAddress})`);
 

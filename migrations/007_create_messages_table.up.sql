@@ -35,5 +35,5 @@ COMMENT ON COLUMN public.messages.created_at IS 'Record creation timestamp';
 
 
 -- Grant permissions
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.messages TO PUBLIC;
-GRANT USAGE, SELECT ON SEQUENCE public.messages_id_seq TO PUBLIC;
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON messages TO PUBLIC;
+-- GRANT USAGE, SELECT ON SEQUENCE messages_id_seq TO PUBLIC;

@@ -1,0 +1,49 @@
+name: Deploy to Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: 'Branch name to deploy (leave empty for current branch)'
+        required: false
+        type: string
+
+jobs:
+  deploy-to-preview:
+    name: Deploy to preview.tactiball.fun
+    runs-on: ubuntu-latest
+    environment: preview
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+
+    - name: Install Vercel CLI
+      run: npm install --global vercel@latest
+
+    - name: Determine branch name
+      id: branch-name
+      run: |
+        if [ -n "${{ github.event.inputs.branch_name }}" ]; then
+          BRANCH_NAME="${{ github.event.inputs.branch_name }}"
+        else
+          BRANCH_NAME="${{ github.ref_name }}"
+        fi
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "📦 Using branch: $BRANCH_NAME"
+
+    - name: Deploy to Preview
+      uses: ./.github/actions/deploy-to-preview
+      with:
+        branch_name: ${{ steps.branch-name.outputs.branch_name }}
+        vercel_token: ${{ secrets.VERCEL_TOKEN }}
+        vercel_org_id: ${{ vars.VERCEL_ORG_ID }}
+

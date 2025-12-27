@@ -12,4 +12,48 @@ Sentry.init({
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
+
+  // Environment configuration
+  environment: process.env.VERCEL_ENV || process.env.NODE_ENV || 'development',
+
+  // Integrations to capture console errors
+  integrations: [
+    Sentry.consoleIntegration({
+      levels: ['error'],
+    }),
+  ],
 });
+
+// Intercept console.error and send to Sentry
+const originalConsoleError = console.error;
+console.error = (...args: any[]) => {
+  // Call original console.error first
+  originalConsoleError.apply(console, args);
+
+  // Extract error object if present
+  const errorArg = args.find(arg => arg instanceof Error);
+
+  if (errorArg) {
+    // If we have an Error object, capture it
+    Sentry.captureException(errorArg, {
+      tags: {
+        source: 'console.error',
+      },
+      extra: {
+        consoleArgs: args.filter(arg => !(arg instanceof Error)),
+      },
+    });
+  } else {
+    // Otherwise, capture as a message
+    const message = args.map(arg =>
+      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+    ).join(' ');
+
+    Sentry.captureMessage(message, {
+      level: 'error',
+      tags: {
+        source: 'console.error',
+      },
+    });
+  }
+};

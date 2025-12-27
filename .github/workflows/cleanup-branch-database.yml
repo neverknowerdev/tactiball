@@ -1,0 +1,60 @@
+name: Cleanup Branch Database
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup-database:
+    name: Cleanup Branch Database
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    environment: preview
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup PostgreSQL client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+
+    - name: Delete branch database
+      run: |
+        # Get branch name from PR head
+        BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+        
+        # Sanitize branch name the same way as in vercel-deploy.yml
+        DB_NAME=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g' | sed 's/^_*//;s/_*$//' | cut -c1-63)
+        
+        # If DB_NAME is empty after sanitization, skip
+        if [ -z "$DB_NAME" ]; then
+          echo "⚠️  Could not determine database name from branch: $BRANCH_NAME"
+          exit 0
+        fi
+        
+        echo "Branch name: $BRANCH_NAME"
+        echo "Database name to delete: $DB_NAME"
+        
+        # Parse existing DB_CONNECTION_STRING
+        ORIGINAL_CONN_STRING="${{ secrets.DB_CONNECTION_STRING }}"
+        
+        # Check if database exists before trying to delete
+        DB_EXISTS=$(psql "$ORIGINAL_CONN_STRING" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" 2>/dev/null || echo "")
+        
+        if [ "$DB_EXISTS" = "1" ]; then
+          echo "🔌 Terminating active connections to database: $DB_NAME"
+          psql "$ORIGINAL_CONN_STRING" -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();" || true
+          
+          # Wait a moment for connections to close
+          sleep 2
+          
+          echo "🗑️  Dropping database: $DB_NAME"
+          psql "$ORIGINAL_CONN_STRING" -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+          echo "✅ Database $DB_NAME deleted successfully"
+        else
+          echo "ℹ️  Database $DB_NAME does not exist, skipping deletion"
+        fi
+      env:
+        DB_CONNECTION_STRING: ${{ secrets.DB_CONNECTION_STRING }}

@@ -1,9 +1,13 @@
 import { createHmac } from 'crypto';
-import { createWriteClient } from './supabase';
 import { WebSocketBroadcastingService, BroadcastMessage } from './ably';
 import { Game, TeamEnum } from './game';
 import { AbiDecoder, DecodedEvent } from './contract';
 import { WebhookEvent } from './webhook';
+import { db, type Database } from '@/lib/database';
+import { teams, games, messages } from '@/db/schema';
+import { eq, inArray, and } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { DatabaseError } from 'pg';
 
 (BigInt.prototype as any).toJSON = function () {
     return this.toString()
@@ -21,7 +25,7 @@ export async function processEventRouter(webhookEvent: WebhookEvent): Promise<{ 
         }
 
         // Create Supabase client with service role key for admin operations
-        const supabase = createWriteClient();
+        const database = db;
 
         // Create WebSocket service with Ably
         const wsService = new WebSocketBroadcastingService(ablyApiKey);
@@ -38,14 +42,30 @@ export async function processEventRouter(webhookEvent: WebhookEvent): Promise<{ 
 
                 console.log('decodedData', decodedData);
 
+                // Extract required fields with fallbacks
+                const blockNumber = Number(webhookEvent.event.data.block.number);
+                const transactionHash = log.transaction?.hash || '';
+                const logIndex = Number(log.index);
+
+                // Skip if required fields are missing
+                if (!blockNumber || !transactionHash || !logIndex || isNaN(logIndex)) {
+                    console.warn('Skipping log due to missing required fields:', {
+                        blockNumber,
+                        transactionHash,
+                        logIndex,
+                        log
+                    });
+                    continue;
+                }
+
                 // Save event to messages table - only process if this is the first time
                 const messageRecord = await saveEventToMessages(
-                    supabase,
+                    database,
                     decodedData,
                     webhookEvent.event.data.block.timestamp,
-                    Number(webhookEvent.event.data.block.number),
-                    log.transaction.hash,
-                    Number(log.index)
+                    blockNumber,
+                    transactionHash,
+                    logIndex
                 );
 
                 // Only process the event if the message was successfully inserted (first time processing)
@@ -54,10 +74,10 @@ export async function processEventRouter(webhookEvent: WebhookEvent): Promise<{ 
                     continue;
                 }
 
-                await processLog(supabase, wsService, decodedData, webhookEvent.event.data.block.timestamp);
+                await processLog(database, wsService, decodedData, webhookEvent.event.data.block.timestamp);
 
                 // Mark the message as processed
-                await markMessageAsProcessed(supabase, messageRecord.id);
+                await markMessageAsProcessed(database, messageRecord.id);
             }
 
             return { success: true };
@@ -74,41 +94,44 @@ export async function processEventRouter(webhookEvent: WebhookEvent): Promise<{ 
     }
 }
 
-async function processLog(supabase: any, wsService: WebSocketBroadcastingService, eventLog: DecodedEvent, timestamp: number) {
+async function processLog(database: Database, wsService: WebSocketBroadcastingService, eventLog: DecodedEvent, timestamp: number) {
     try {
         console.log('eventLog', eventLog);
         console.log(`Processing event for the first time: ${eventLog.eventName}`);
 
         switch (eventLog.eventName) {
             case 'TeamCreated':
-                await handleTeamCreated(eventLog, supabase, wsService, timestamp);
+                await handleTeamCreated(eventLog, database, wsService, timestamp);
+                break;
+            case 'TeamNameChanged':
+                await handleTeamNameChanged(eventLog, database, wsService, timestamp);
                 break;
             case 'GameRequestCreated':
-                await handleGameRequestCreated(eventLog, supabase, wsService, timestamp);
+                await handleGameRequestCreated(eventLog, database, wsService, timestamp);
                 break;
             case 'GameRequestCancelled':
-                await handleGameRequestCancelled(eventLog, supabase, wsService, timestamp);
+                await handleGameRequestCancelled(eventLog, database, wsService, timestamp);
                 break;
             case 'GameStarted':
-                await handleGameStarted(eventLog, supabase, wsService, timestamp);
+                await handleGameStarted(eventLog, database, wsService, timestamp);
                 break;
             case 'gameActionCommitted':
-                await handleGameActionCommitted(eventLog, supabase, wsService, timestamp);
+                await handleGameActionCommitted(eventLog, database, wsService, timestamp);
                 break;
             case 'NewGameState':
-                await handleNewGameState(eventLog, supabase, wsService, timestamp);
+                await handleNewGameState(eventLog, database, wsService, timestamp);
                 break;
             case 'GameFinished':
-                await handleGameFinished(eventLog, supabase, wsService, timestamp);
+                await handleGameFinished(eventLog, database, wsService, timestamp);
                 break;
             case 'GameStateError':
-                await handleGameStateError(eventLog, supabase, wsService, timestamp);
+                await handleGameStateError(eventLog, database, wsService, timestamp);
                 break;
             case 'GoalScored':
-                await handleGoalScored(eventLog, supabase, wsService, timestamp);
+                await handleGoalScored(eventLog, database, wsService, timestamp);
                 break;
             case 'EloUpdated':
-                await handleEloUpdated(eventLog, supabase, wsService, timestamp);
+                await handleEloUpdated(eventLog, database, wsService, timestamp);
                 break;
             default:
                 console.log(`Unknown event: ${eventLog.eventName}`);
@@ -118,60 +141,59 @@ async function processLog(supabase: any, wsService: WebSocketBroadcastingService
     }
 }
 
-async function saveEventToMessages(supabase: any, eventLog: DecodedEvent, timestamp: number, blockNumber: number, transactionHash: string, logIndex: number) {
-    if (!blockNumber || !transactionHash || !logIndex) {
-        console.error('Missing required arguments to save event to messages');
-        throw new Error('Missing required arguments to save event to messages');
+async function saveEventToMessages(database: Database, eventLog: DecodedEvent, timestamp: number, blockNumber: number, transactionHash: string, logIndex: number) {
+    // Validate required arguments - allow 0 but not undefined/null/NaN
+    if (blockNumber === undefined || blockNumber === null || isNaN(blockNumber) ||
+        !transactionHash || transactionHash === '' ||
+        logIndex === undefined || logIndex === null || isNaN(logIndex)) {
+        console.error('Missing required arguments to save event to messages', {
+            blockNumber,
+            transactionHash,
+            logIndex,
+            eventName: eventLog.eventName
+        });
+        // Return null instead of throwing to allow processing to continue
+        return null;
     }
 
-    const msg = {
-        block_number: Number(blockNumber),
-        transaction_hash: transactionHash,
-        log_index: Number(logIndex),
-        timestamp: new Date(timestamp * 1000).toISOString(),
-        event_name: eventLog.eventName,
-        args: eventLog.args || {}
-    };
-
-    console.log('msg', msg);
     try {
-        const { data, error } = await supabase
-            .from('messages')
-            .insert(msg)
-            .select()
-            .single();
+        const [inserted] = await database
+            .insert(messages)
+            .values({
+                blockNumber: Number(blockNumber),
+                transactionHash,
+                logIndex: Number(logIndex),
+                timestamp: new Date(timestamp * 1000),
+                eventName: eventLog.eventName,
+                args: eventLog.args || {}
+            })
+            .returning();
 
-        if (error) {
-            if (error.code === '23505') {
-                console.log('Message is skipped due to constraint - already processed');
-                return null; // Return null to indicate this message was already processed
-            }
-            console.error('Error saving event to messages:', error);
-            throw error;
+        if (!inserted) {
+            return null;
         }
 
-        console.log(`Event saved to messages: ${eventLog.eventName} (ID: ${data.id})`);
-        return data; // Return the inserted record
+        console.log(`Event saved to messages: ${eventLog.eventName} (ID: ${inserted.id})`);
+        return inserted;
     } catch (error) {
+        if (error instanceof DatabaseError && error.code === '23505') {
+            console.log('Message is skipped due to constraint - already processed');
+            return null;
+        }
         console.error('Error in saveEventToMessages:', error);
         return null;
     }
 }
 
-async function markMessageAsProcessed(supabase: any, messageId: number) {
+async function markMessageAsProcessed(database: Database, messageId: number) {
     try {
-        const { error } = await supabase
-            .from('messages')
-            .update({
-                is_processed: true,
-                processed_at: new Date().toISOString()
+        await database
+            .update(messages)
+            .set({
+                isProcessed: true,
+                processedAt: new Date()
             })
-            .eq('id', messageId);
-
-        if (error) {
-            console.error('Error marking message as processed:', error);
-            throw error;
-        }
+            .where(eq(messages.id, messageId));
 
         console.log(`Message ${messageId} marked as processed at ${new Date().toISOString()}`);
     } catch (error) {
@@ -180,7 +202,7 @@ async function markMessageAsProcessed(supabase: any, messageId: number) {
 }
 
 // Event handlers
-async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleTeamCreated(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { teamId, owner, name, country } = AbiDecoder.getTypedArgs(decodedData);
 
     console.log('teamId', teamId);
@@ -188,48 +210,60 @@ async function handleTeamCreated(decodedData: DecodedEvent, supabase: any, wsSer
     console.log('name', name);
     console.log('country', country);
 
-    // Insert new team into database with basic info first
-    const { data, error } = await supabase
-        .from('teams')
-        .insert({
+    await database
+        .insert(teams)
+        .values({
             id: teamId,
-            primary_wallet: owner,
-            name: name,
-            country: country,
-            elo_rating: 10000,
-            created_at: new Date(timestamp * 1000).toISOString()
+            primaryWallet: owner,
+            name,
+            country,
+            eloRating: 10000,
+            createdAt: new Date(timestamp * 1000)
         })
-        .select();
-
-    if (error) {
-        if (error.code === '23505') {
-            console.log('Team already exists');
-            return;
-        }
-        console.error('Error inserting team:', error);
-        throw error;
-    }
+        .onConflictDoNothing({ target: teams.id });
 
     console.log(`Team created: ${teamId} - ${name}`);
 }
 
-async function handleGameRequestCreated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleTeamNameChanged(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
+    const { teamId, oldName, newName } = AbiDecoder.getTypedArgs(decodedData);
+
+    // Update database
+    await database
+        .update(teams)
+        .set({ name: newName })
+        .where(eq(teams.id, teamId));
+
+    // Broadcast to team channel
+    await wsService.broadcastToTeam(teamId, {
+        type: 'TEAM_NAME_CHANGED',
+        team_id: teamId,
+        old_name: oldName,
+        new_name: newName,
+        timestamp: timestamp * 1000
+    });
+}
+
+async function handleGameRequestCreated(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { gameRequestId, team1id, team2id } = AbiDecoder.getTypedArgs(decodedData);
     console.log('gameRequestId', gameRequestId, 'team1id', team1id, 'team2id', team2id);
 
     // Get both teams' info in a single query
-    const { data: teamsData, error: teamsError } = await supabase
-        .from('teams')
-        .select('id, name, country, primary_wallet, active_game_id, elo_rating, game_request_id')
-        .in('id', [team1id, team2id]);
+    const teamsData = await database
+        .select({
+            id: teams.id,
+            name: teams.name,
+            country: teams.country,
+            primary_wallet: teams.primaryWallet,
+            active_game_id: teams.activeGameId,
+            elo_rating: teams.eloRating,
+            game_request_id: teams.gameRequestId
+        })
+        .from(teams)
+        .where(inArray(teams.id, [team1id, team2id]));
 
-    if (teamsError) {
-        console.error('Error getting teams:', teamsError);
-        throw teamsError;
-    }
-
-    const team1Data = teamsData.find((team: any) => team.id === team1id);
-    const team2Data = teamsData.find((team: any) => team.id === team2id);
+    const team1Data = teamsData.find((team: typeof teamsData[0]) => team.id === team1id);
+    const team2Data = teamsData.find((team: typeof teamsData[0]) => team.id === team2id);
 
     // Broadcast to team channel
     await wsService.broadcastToGameTeams(Number(team1id), Number(team2id), {
@@ -245,7 +279,7 @@ async function handleGameRequestCreated(decodedData: DecodedEvent, supabase: any
     console.log(`Game request created: ${gameRequestId}`);
 }
 
-async function handleGameRequestCancelled(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleGameRequestCancelled(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { gameRequestId, team1id, team2id } = AbiDecoder.getTypedArgs(decodedData);
 
     // Broadcast to both team channels
@@ -260,7 +294,7 @@ async function handleGameRequestCancelled(decodedData: DecodedEvent, supabase: a
     console.log(`Game request cancelled: ${gameRequestId}`);
 }
 
-async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleGameStarted(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { gameId, team1id, team2id, teamWithBall } = AbiDecoder.getTypedArgs(decodedData);
 
     // Broadcast to both team channels
@@ -284,18 +318,19 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
     });
 
     // Get team data from database
-    const { data: teamsData, error: teamsError } = await supabase
-        .from('teams')
-        .select('id, name, elo_rating, country')
-        .in('id', [team1id, team2id]);
+    const teamsData = await database
+        .select({
+            id: teams.id,
+            name: teams.name,
+            elo_rating: teams.eloRating,
+            country: teams.country,
+            primary_wallet: teams.primaryWallet
+        })
+        .from(teams)
+        .where(inArray(teams.id, [team1id, team2id]));
 
-    if (teamsError) {
-        console.error('Error fetching teams:', teamsError);
-        throw teamsError;
-    }
-
-    const team1Data = teamsData.find((team: any) => team.id === team1id);
-    const team2Data = teamsData.find((team: any) => team.id === team2id);
+    const team1Data = teamsData.find((team: typeof teamsData[0]) => team.id === team1id);
+    const team2Data = teamsData.find((team: typeof teamsData[0]) => team.id === team2id);
 
     if (!team1Data || !team2Data) {
         console.error('Could not find team data');
@@ -306,40 +341,39 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
     const firstHistoryItem = getFirstHistoryItem("2-2-1", teamWithBall);
 
     // Insert new game into database
-    const { data, error } = await supabase
-        .from('games')
-        .insert({
-            id: gameId,
-            team1: team1id,
-            team2: team2id,
-            created_at: new Date(timestamp * 1000).toISOString(),
-            last_move_at: null,
-            status: 'active',
-            moves_made: 0,
-            team1_info: {
-                elo_rating_old: 0,
-                elo_rating_new: 0,
-                elo_rating_diff: 0,
-                name: team1Data.name,
-                wallet: team1Data.primary_wallet,
-                formation: "2-2-1",
-                country: team1Data.country,
-            },
-            team2_info: {
-                elo_rating_old: 0,
-                elo_rating_new: 0,
-                elo_rating_diff: 0,
-                name: team2Data.name,
-                wallet: team2Data.primary_wallet,
-                formation: "2-2-1",
-                country: team2Data.country,
-            },
-            history: [firstHistoryItem]
-        })
-        .select();
-
-    if (error) {
-        if (error.code === '23505') {
+    try {
+        await database
+            .insert(games)
+            .values({
+                id: gameId,
+                team1: team1id,
+                team2: team2id,
+                createdAt: new Date(timestamp * 1000),
+                lastMoveAt: null,
+                status: 'active',
+                movesMade: 0,
+                team1Info: {
+                    elo_rating_old: 0,
+                    elo_rating_new: 0,
+                    elo_rating_diff: 0,
+                    name: team1Data.name,
+                    wallet: team1Data.primary_wallet,
+                    formation: "2-2-1",
+                    country: team1Data.country,
+                },
+                team2Info: {
+                    elo_rating_old: 0,
+                    elo_rating_new: 0,
+                    elo_rating_diff: 0,
+                    name: team2Data.name,
+                    wallet: team2Data.primary_wallet,
+                    formation: "2-2-1",
+                    country: team2Data.country,
+                },
+                history: [firstHistoryItem]
+            });
+    } catch (error) {
+        if (error instanceof DatabaseError && error.code === '23505') {
             console.log('Game already exists');
             return;
         }
@@ -347,16 +381,15 @@ async function handleGameStarted(decodedData: DecodedEvent, supabase: any, wsSer
         throw error;
     }
 
-    // Update teams with active game
-    await supabase
-        .from('teams')
-        .update({ active_game_id: gameId })
-        .in('id', [team1id, team2id]);
+    await database
+        .update(teams)
+        .set({ activeGameId: gameId })
+        .where(inArray(teams.id, [team1id, team2id]));
 
     console.log(`Game started: ${gameId}`);
 }
 
-async function handleGameActionCommitted(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleGameActionCommitted(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { gameId, timestamp: gameActionTimestamp } = AbiDecoder.getTypedArgs(decodedData);
 
     // Broadcast to game channel
@@ -369,7 +402,7 @@ async function handleGameActionCommitted(decodedData: DecodedEvent, supabase: an
     console.log(`Game action committed: ${gameId} at ${timestamp}`);
 }
 
-async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleNewGameState(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { gameId, stateType, time, clashRandomNumbers, team1Actions, team2Actions, boardState } = AbiDecoder.getTypedArgs(decodedData);
     const ballPosition = boardState.ballPosition;
     const ballOwner = boardState.ballOwner;
@@ -387,11 +420,18 @@ async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsSe
     };
     // Use the updateGame function to fetch from contract and update database
     // Call newGameState SQL function to reset game state
-    const { data, error: sqlFuncError } = await supabase.rpc('new_game_state', { game_id: gameId, history_item: historyItem });
-
-    if (sqlFuncError) {
-        console.error('Error calling newGameState SQL function:', sqlFuncError);
-        throw sqlFuncError;
+    try {
+    await database.execute(sql`
+        SELECT public.new_game_state(${gameId}, ${JSON.stringify(historyItem)}::jsonb)
+    `);
+    } catch (error: any) {
+        // Handle case where game doesn't exist in database
+        if (error?.message?.includes('Game with ID') || error?.code === 'P0001') {
+            console.warn(`Game ${gameId} not found in database when processing NewGameState event. This may happen if the game was deleted or never created.`);
+            // Still broadcast the event even if DB update fails
+        } else {
+            throw error;
+        }
     }
 
     // Broadcast to game channel
@@ -414,7 +454,7 @@ async function handleNewGameState(decodedData: DecodedEvent, supabase: any, wsSe
     console.log(`Latest history item: ${JSON.stringify(historyItem)}`);
 }
 
-async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleGameFinished(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { gameId, winner, finishReason } = AbiDecoder.getTypedArgs(decodedData);
 
     // Broadcast to game channel
@@ -429,16 +469,14 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
     // Determine status based on finish reason
     const status = finishReason === 0 ? 'finished' : 'finished_by_timeout';
 
-    // Get game record from database
-    const { data: game, error: fetchError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .single();
+    const [game] = await database
+        .select()
+        .from(games)
+        .where(eq(games.id, gameId))
+        .limit(1);
 
-    if (fetchError) {
-        console.error('Error fetching game:', fetchError);
-        throw fetchError;
+    if (!game) {
+        throw new Error(`Game ${gameId} not found`);
     }
 
     let winnerTeamId = null;
@@ -449,27 +487,20 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
     }
 
     // Update active_game_id to null for both teams
-    const { error: updateError } = await supabase
-        .from('teams')
-        .update({ active_game_id: null })
-        .in('id', [game.team1, game.team2])
-        .eq('active_game_id', gameId);
+    await database
+        .update(teams)
+        .set({ activeGameId: null })
+        .where(
+            and(
+                inArray(teams.id, [game.team1!, game.team2!]),
+                eq(teams.activeGameId, gameId)
+            )
+        );
 
-    if (updateError) {
-        console.error('Error updating teams active_game_id:', updateError);
-        throw updateError;
-    }
-
-    // Update game status to finished
-    const { error: gameUpdateError } = await supabase
-        .from('games')
-        .update({ status: status, winner: winnerTeamId })
-        .eq('id', gameId);
-
-    if (gameUpdateError) {
-        console.error('Error updating game status:', gameUpdateError);
-        throw gameUpdateError;
-    }
+    await database
+        .update(games)
+        .set({ status: status as any, winner: winnerTeamId })
+        .where(eq(games.id, gameId));
 
     // Also broadcast to team channels
     await wsService.broadcastToGameTeams(game.team1, game.team2, {
@@ -485,21 +516,24 @@ async function handleGameFinished(decodedData: DecodedEvent, supabase: any, wsSe
     console.log(`Game finished: ${gameId}, winner: ${winner}, reason: ${finishReason}`);
 }
 
-async function handleGameStateError(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleGameStateError(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { gameId, causedByTeam, errorType, errorMsg } = AbiDecoder.getTypedArgs(decodedData);
 
     console.log(`Handling GameStateError event for game ${gameId}, caused by team ${causedByTeam}, error: ${errorMsg}`);
 
     try {
         // Get game info to find team channels
-        const { data: game, error } = await supabase
-            .from('games')
-            .select('team1, team2')
-            .eq('id', gameId)
-            .single();
+        const [game] = await database
+            .select({
+                team1: games.team1,
+                team2: games.team2
+            })
+            .from(games)
+            .where(eq(games.id, gameId))
+            .limit(1);
 
-        if (error) {
-            console.error('Error fetching game info:', error);
+        if (!game) {
+            console.error('Error fetching game info');
             return;
         }
 
@@ -524,7 +558,7 @@ async function handleGameStateError(decodedData: DecodedEvent, supabase: any, ws
     }
 }
 
-async function handleGoalScored(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleGoalScored(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { gameId, scoringTeam } = AbiDecoder.getTypedArgs(decodedData);
 
     console.log(`Goal scored: ${gameId} by team ${scoringTeam}`);
@@ -540,40 +574,41 @@ async function handleGoalScored(decodedData: DecodedEvent, supabase: any, wsServ
     }
 
     // Get game info to find team channels
-    const { data: gameInfo, error } = await supabase
-        .from('games')
-        .select('team1, team2, team1_score, team2_score')
-        .eq('id', gameId)
-        .single();
+    const [gameInfo] = await database
+        .select({
+            team1: games.team1,
+            team2: games.team2,
+            team1_score: games.team1Score,
+            team2_score: games.team2Score
+        })
+        .from(games)
+        .where(eq(games.id, gameId))
+        .limit(1);
 
-    if (error) {
-        console.error('Error fetching game info:', error);
+    if (!gameInfo) {
+        console.error('Error fetching game info');
         return;
     }
 
-    let updateData;
+    let updateData: { team1Score?: number; team2Score?: number } | undefined;
     if (scoringTeam === 1) {
         if (gameInfo.team1_score === null) {
             gameInfo.team1_score = 0;
         }
-        updateData = { team1_score: Number(gameInfo.team1_score) + 1 };
+        updateData = { team1Score: Number(gameInfo.team1_score) + 1 };
     } else if (scoringTeam === 2) {
         if (gameInfo.team2_score === null) {
             gameInfo.team2_score = 0;
         }
-        updateData = { team2_score: Number(gameInfo.team2_score) + 1 };
+        updateData = { team2Score: Number(gameInfo.team2_score) + 1 };
     }
 
     // Update score in database based on which team scored
-    const { data: gameInfoUpdate, error: gameInfoUpdateError } = await supabase
-        .from('games')
-        .update(updateData)
-        .eq('id', gameId)
-        .select();
-
-    if (gameInfoUpdateError) {
-        console.error('Error updating game score:', gameInfoUpdateError);
-        return;
+    if (updateData) {
+        await database
+            .update(games)
+            .set(updateData)
+            .where(eq(games.id, gameId));
     }
 
     console.log(`Updated score for game ${gameId}`);
@@ -587,17 +622,14 @@ async function handleGoalScored(decodedData: DecodedEvent, supabase: any, wsServ
     });
 }
 
-async function handleEloUpdated(decodedData: DecodedEvent, supabase: any, wsService: WebSocketBroadcastingService, timestamp: number) {
+async function handleEloUpdated(decodedData: DecodedEvent, database: Database, wsService: WebSocketBroadcastingService, timestamp: number) {
     const { teamId, gameId, eloRating } = AbiDecoder.getTypedArgs(decodedData);
 
     console.log(`Elo updated: ${teamId} to ${eloRating}`);
 
-    const { error: gameUpdateError } = await supabase.rpc('update_elo_rating', { team_id_param: teamId, game_id_param: gameId, new_elo_rating: eloRating });
-
-    if (gameUpdateError) {
-        console.error('Error updating game elo rating:', gameUpdateError);
-        throw gameUpdateError;
-    }
+    await database.execute(sql`
+        SELECT public.update_elo_rating(${teamId}, ${gameId}, ${eloRating})
+    `);
 }
 
 function isValidSignatureForStringBody(

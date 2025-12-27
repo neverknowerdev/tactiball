@@ -3,4 +3,4 @@
 -- Date: 2024-12-19
 
 -- Drop the function
-DROP FUNCTION IF EXISTS public.update_elo_rating(BIGINT, BIGINT, NUMERIC);
+DROP FUNCTION IF EXISTS update_elo_rating(BIGINT, BIGINT, NUMERIC);

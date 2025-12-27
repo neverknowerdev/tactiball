@@ -7,6 +7,9 @@ import { base } from 'viem/chains';
 import { chain } from '@/config/chains';
 import { checkAuthSignatureAndMessage } from '@/lib/auth';
 import { sendWebhookMessage } from '@/lib/webhook';
+import { db } from '@/lib/database';
+import { waitingRooms } from '@/db/schema';
+import { and, eq, or } from 'drizzle-orm';
 
 interface CreateGameRequestRequest {
     wallet_address: string;
@@ -22,7 +25,7 @@ interface CreateGameRequestRequest {
 
 export async function POST(request: NextRequest) {
     try {
-        const { team1_id, team2_id, signature, message, wallet_address } = await request.json();
+        const { team1_id, team2_id, signature, message, wallet_address, room_id } = await request.json();
 
         // Validate required fields
         if (!team1_id || !team2_id || !signature || !message || !wallet_address) {
@@ -83,18 +86,85 @@ export async function POST(request: NextRequest) {
 
         await sendWebhookMessage(logs);
 
+        // Extract gameRequestId from GameRequestCreated event
+        const gameRequestCreatedEvent = logs.find(
+            (log: any) => log.eventName === 'GameRequestCreated'
+        ) as { eventName: string; args: { gameRequestId: bigint } } | undefined;
+
+        const gameRequestId = gameRequestCreatedEvent 
+            ? Number(gameRequestCreatedEvent.args.gameRequestId)
+            : null;
+
         console.log('Creating game request with relayer:', {
             wallet_address,
             team1_id,
             team2_id,
+            gameRequestId,
             transactionHash: paymasterReceipt.receipt.transactionHash
         });
+
+        // Check if this game request came from a waiting room
+        // If room_id is provided, update that specific room
+        // Otherwise, try to find a matching room
+        if (gameRequestId) {
+            try {
+                let roomToUpdate = null;
+                
+                if (room_id) {
+                    // Update the specific room if room_id is provided
+                    const [specificRoom] = await db
+                        .select({ id: waitingRooms.id })
+                        .from(waitingRooms)
+                        .where(eq(waitingRooms.id, Number(room_id)))
+                        .limit(1);
+                    
+                    if (specificRoom) {
+                        roomToUpdate = specificRoom;
+                    }
+                } else {
+                    // Fallback: try to find a matching room by team IDs
+                    // Check for both 'full' and 'starting' status (in case previous game request was cancelled)
+                    const [room] = await db
+                        .select({ id: waitingRooms.id })
+                        .from(waitingRooms)
+                        .where(
+                            and(
+                                eq(waitingRooms.hostTeamId, team1_id),
+                                eq(waitingRooms.guestTeamId, team2_id),
+                                or(
+                                    eq(waitingRooms.status, 'full'),
+                                    eq(waitingRooms.status, 'starting')
+                                )
+                            )
+                        )
+                        .limit(1);
+                    
+                    if (room) {
+                        roomToUpdate = room;
+                    }
+                }
+
+                if (roomToUpdate) {
+                    await db
+                        .update(waitingRooms)
+                        .set({
+                            gameRequestId: gameRequestId,
+                            status: 'starting'
+                        })
+                        .where(eq(waitingRooms.id, roomToUpdate.id));
+
+                    console.log('Updated waiting room:', roomToUpdate.id);
+                }
+            } catch (waitingRoomError) {
+                console.error('Error updating waiting room:', waitingRoomError);
+            }
+        }
 
         return NextResponse.json({
             success: true,
             message: 'Game request created successfully',
             data: {
-                gameRequestId: paymasterReceipt.receipt.transactionHash, // Using transaction hash as temporary ID
+                gameRequestId: gameRequestId || paymasterReceipt.receipt.transactionHash, // Use gameRequestId if available, otherwise transaction hash
                 team1_id,
                 team2_id,
                 status: 'pending',
@@ -127,6 +197,16 @@ export async function POST(request: NextRequest) {
                         return NextResponse.json(
                             { success: false, error: 'One or both teams already have an active game', errorName: errorName },
                             { status: 400 }
+                        );
+                    case 'GameRequestNotExpired':
+                        return NextResponse.json(
+                            { success: false, error: 'Please wait a moment before creating a new game request. Your previous request needs to expire first (about 1 minute).', errorName: errorName },
+                            { status: 400 }
+                        );
+                    case 'GameOwnerShouldCall':
+                        return NextResponse.json(
+                            { success: false, error: 'Only the team1 owner can create game requests. Please ensure you are the host of this room.', errorName: errorName },
+                            { status: 403 }
                         );
                     default:
                         return NextResponse.json(

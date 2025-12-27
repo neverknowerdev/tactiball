@@ -220,50 +220,148 @@ yarn db:update-game-stats
 - Indexes on `status`, `created_at`, `last_move_at` for filtering
 - GIN indexes on JSONB columns for efficient querying
 
+## Migration Tracking System
+
+The migration system uses a `migrations` table to track all applied migrations. This table is automatically created by the first migration (`000_migrations.up.sql`) and contains:
+
+- `id` - Primary key (BIGSERIAL)
+- `name` - Migration name with operation suffix (e.g., `create_teams_table.up`)
+- `version` - Migration version number (INTEGER)
+- `hash` - SHA256 hash of the migration file
+- `is_dirty` - Boolean flag indicating if migration is in progress
+- `created_at` - Timestamp when the migration was applied
+
+The system ensures:
+- Migrations are only applied once
+- Failed migrations are marked as dirty
+- Version numbers are stored as integers
+- Rollbacks remove migration records from the tracking table
+
 ## Usage
 
-### Apply Migrations
-Run all up migrations automatically:
-```bash
-# Using the migration runner script
-./migrations/run-migrations.sh
+### Running Migrations
 
-# Using yarn
-yarn db:migrate
+The migration system uses `run-migrations.sh` script which supports both up and down migrations.
+
+#### Apply Migrations (Up)
+
+Apply all new migrations that haven't been applied yet:
+```bash
+# Apply all new migrations
+./migrations/run-migrations.sh up
+
+# Apply migrations up to a specific version
+./migrations/run-migrations.sh up 005
 ```
 
-The script automatically finds and runs all `.up.sql` files in the correct order.
-
-### Rollback Specific Migrations
-To rollback a specific migration, run the corresponding `.down.sql` file:
+**Examples:**
 ```bash
-# Rollback in reverse order due to dependencies
-psql -d your_database -f migrations/006_add_last_games_result_to_teams.down.sql
-psql -d your_database -f migrations/005_create_statistic_update_trigger.down.sql
-psql -d your_database -f migrations/004_create_statistic_update_functions.down.sql
-psql -d your_database -f migrations/003_create_teams_statistic_table.down.sql
-psql -d your_database -f migrations/002_create_games_table.down.sql
-psql -d your_database -f migrations/001_create_teams_table.down.sql
+# Apply all pending migrations
+./migrations/run-migrations.sh up
+
+# Apply only migrations up to version 005
+./migrations/run-migrations.sh up 005
+
+# With custom database connection string
+DB_CONNECTION_STRING="postgres://user:pass@localhost:5432/dbname" ./migrations/run-migrations.sh up
 ```
 
-**Note:** Rollback migrations must be run in reverse order due to foreign key dependencies.
+The script will:
+1. Check database connection
+2. Ensure migrations table exists
+3. Find the latest applied migration
+4. Apply all new migrations in order
+5. Track each migration in the database with hash and version
 
-### Using Yarn Scripts
+#### Rollback Migrations (Down)
+
+Rollback migrations to a specific version:
 ```bash
-# Run all migrations
-yarn db:migrate
+# Rollback to a specific version number
+./migrations/run-migrations.sh down 005
 
-# Rollback specific components
-yarn db:rollback:last-games-result
-yarn db:rollback:statistic-trigger
-yarn db:rollback:statistic-functions
-yarn db:rollback:statistic-table
-yarn db:rollback:games
-yarn db:rollback:teams
-
-# Refresh statistics manually
-yarn db:refresh-stats
+# Rollback to a specific migration by name
+./migrations/run-migrations.sh down create_teams_table
 ```
+
+**Examples:**
+```bash
+# Rollback to version 005 (removes all migrations after 005)
+./migrations/run-migrations.sh down 005
+
+# Rollback to a migration by name
+./migrations/run-migrations.sh down create_teams_table
+
+# With custom database connection string
+DB_CONNECTION_STRING="postgres://user:pass@localhost:5432/dbname" ./migrations/run-migrations.sh down 003
+```
+
+**Important Notes:**
+- Down migrations require a target version or migration name (required argument)
+- The script will show a confirmation prompt before rolling back
+- Migrations are rolled back in reverse order (newest first)
+- Rolled back migrations are removed from the tracking table
+
+### Migration File Naming
+
+Migration files must follow this naming convention:
+- Up migrations: `NNN_description.up.sql` (e.g., `001_create_teams_table.up.sql`)
+- Down migrations: `NNN_description.down.sql` (e.g., `001_create_teams_table.down.sql`)
+
+Where:
+- `NNN` is a zero-padded version number (e.g., `001`, `002`, `015`)
+- `description` is a descriptive name using underscores
+- The version number is parsed as an integer (leading zeros are handled automatically)
+
+### Checking Migration Status
+
+You can check the current migration status by querying the migrations table:
+```sql
+-- View all applied migrations
+SELECT version, name, is_dirty, created_at
+FROM public.migrations
+ORDER BY version;
+
+-- Check for dirty (failed) migrations
+SELECT version, name, created_at
+FROM public.migrations
+WHERE is_dirty = true;
+
+-- Get latest applied version
+SELECT MAX(version) as latest_version
+FROM public.migrations
+WHERE is_dirty = false;
+```
+
+### Environment Variables
+
+The migration script uses the `DB_CONNECTION_STRING` environment variable:
+```bash
+# Set database connection string
+export DB_CONNECTION_STRING="postgres://user:password@localhost:5432/database"
+
+# Or use inline
+DB_CONNECTION_STRING="postgres://user:password@localhost:5432/database" ./migrations/run-migrations.sh up
+```
+
+If not set, it defaults to: `postgres://postgres:postgres@localhost:5432/postgres`
+
+### Troubleshooting
+
+**Migration marked as dirty:**
+If a migration fails, it will be marked as `is_dirty = true`. You should:
+1. Fix the issue in the migration file
+2. Manually clean up any partial changes
+3. Update the migration record: `UPDATE public.migrations SET is_dirty = false WHERE version = X;`
+4. Re-run the migration
+
+**Version conflicts:**
+If you need to re-apply a migration:
+1. Remove it from the migrations table: `DELETE FROM public.migrations WHERE version = X;`
+2. Re-run the migration script
+
+**Checking migration file hash:**
+The system tracks file hashes to detect changes. If a migration file is modified after being applied, you'll need to remove the old record and re-apply it.
 
 ## Notes
 
@@ -272,6 +370,9 @@ yarn db:refresh-stats
 - JSONB columns use GIN indexes for efficient JSON querying
 - Default values are set for appropriate columns
 - All tables include comprehensive comments for documentation
+- Migration versions are stored as integers in the database
+- The migration system automatically tracks applied migrations and prevents duplicate applications
+- Failed migrations are marked as dirty to prevent data corruption
 
 ## Dependencies
 

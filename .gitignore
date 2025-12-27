@@ -90,6 +90,7 @@ dist
 # Temporary folders
 tmp/
 temp/
+.postgres/
 
 # Editor directories and files
 .vscode/
@@ -159,3 +160,4 @@ supabase/.temp
 .tmp
 .openzeppelin
 !.openzeppelin/base.json
+.vercel

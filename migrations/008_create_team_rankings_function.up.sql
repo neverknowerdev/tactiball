@@ -2,11 +2,8 @@
 -- Description: Create function to get team rankings efficiently
 -- Date: 2024-12-19
 
--- Drop function if exists to ensure clean recreation
-DROP FUNCTION IF EXISTS public.get_team_rankings(BIGINT);
-
 -- Create function to get team rankings
-CREATE OR REPLACE FUNCTION public.get_team_rankings(team_id_param BIGINT)
+CREATE OR REPLACE FUNCTION get_team_rankings(team_id_param BIGINT)
 RETURNS TABLE(
     team_id BIGINT,
     elo_rating NUMERIC,
@@ -24,22 +21,22 @@ BEGIN
         t.country as countryIndex,
         (
             SELECT COUNT(*) + 1 
-            FROM teams t2 
+            FROM public.teams t2 
             WHERE t2.elo_rating > t.elo_rating
         ) AS global_rank,
         (
             SELECT COUNT(*) + 1 
-            FROM teams t3 
+            FROM public.teams t3 
             WHERE t3.country = t.country 
             AND t3.elo_rating > t.elo_rating
         ) AS country_rank
-    FROM teams t
+    FROM public.teams t
     WHERE t.id = team_id_param;
 END;
 $$;
 
 -- Grant execute permissions
-GRANT EXECUTE ON FUNCTION public.get_team_rankings(BIGINT) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION get_team_rankings(BIGINT) TO PUBLIC;
 
 -- Add comment
-COMMENT ON FUNCTION public.get_team_rankings(BIGINT) IS 'Returns global and country rankings for a specific team based on ELO rating';
+COMMENT ON FUNCTION get_team_rankings(BIGINT) IS 'Returns global and country rankings for a specific team based on ELO rating';

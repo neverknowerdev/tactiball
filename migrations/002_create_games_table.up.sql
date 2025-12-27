@@ -3,26 +3,28 @@
 -- Date: 2024-12-19
 
 -- Create game status enum type (matching smart contract)
-CREATE TYPE public.game_status AS ENUM ('active', 'finished', 'finished_by_timeout');
+CREATE TYPE game_status AS ENUM ('active', 'finished', 'finished_by_timeout');
 
 -- Create games table
 CREATE TABLE IF NOT EXISTS public.games (
     id BIGSERIAL PRIMARY KEY,
-    created_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL,
     last_move_at TIMESTAMP,
     last_move_team BIGINT,
-    team1 BIGINT,
-    team2 BIGINT,
-    status public.game_status DEFAULT 'active',
-    moves_made INTEGER DEFAULT 0,
-    winner BIGINT,
+    team1 BIGINT NOT NULL,
+    team2 BIGINT NOT NULL,
+    status game_status DEFAULT 'active' NOT NULL,
+    moves_made INTEGER DEFAULT 0 NOT NULL,
+    winner BIGINT NOT NULL,
     history JSONB,
-    team1_info JSONB DEFAULT '{}'::JSONB,
-    team2_info JSONB DEFAULT '{}'::JSONB,
-    team1_score SMALLINT DEFAULT '0'::SMALLINT,
-    team2_score SMALLINT DEFAULT '0'::SMALLINT,
+    team1_info JSONB DEFAULT '{}'::JSONB NOT NULL,
+    team2_info JSONB DEFAULT '{}'::JSONB NOT NULL,
+    team1_score SMALLINT DEFAULT '0'::SMALLINT NOT NULL,
+    team2_score SMALLINT DEFAULT '0'::SMALLINT NOT NULL,
     history_ipfs_cid VARCHAR,
-    is_verified BOOLEAN DEFAULT FALSE
+    is_verified BOOLEAN DEFAULT FALSE NOT NULL,
+    team1_moves JSONB,
+    team2_moves JSONB
 );
 
 -- Create foreign key constraints
@@ -84,7 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_teams_active_game_id ON public.teams(active_game_
 COMMENT ON COLUMN public.teams.active_game_id IS 'Active game identifier for the team';
 
 -- Create function to handle new game state updates
-CREATE OR REPLACE FUNCTION public.new_game_state(game_id BIGINT, history_item JSONB)
+CREATE OR REPLACE FUNCTION new_game_state(game_id BIGINT, history_item JSONB)
 RETURNS void AS $$
 BEGIN
     -- Update the game record to clear team moves and increment moves counter
@@ -103,4 +105,4 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Add comment for the function
-COMMENT ON FUNCTION public.new_game_state(BIGINT,JSONB) IS 'Updates game state by clearing team moves and incrementing moves counter, returns the latest history item';
+COMMENT ON FUNCTION new_game_state(BIGINT,JSONB) IS 'Updates game state by clearing team moves and incrementing moves counter, returns the latest history item';

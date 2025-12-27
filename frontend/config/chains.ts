@@ -12,9 +12,13 @@ const chainMap = {
 } as const;
 
 // Get current environment
+// Vercel sets VERCEL_ENV to 'preview' for preview deployments
+// NODE_ENV is 'production' in Vercel preview, so we need to check VERCEL_ENV first
 const env = (process.env.NEXT_PUBLIC_ENV ||
+  process.env.VERCEL_ENV ||
   process.env.NODE_ENV ||
   'development') as keyof typeof chainMap;
+
 
 // Export the global chain
 export const chain: AppChain = chainMap[env] || baseSepolia;

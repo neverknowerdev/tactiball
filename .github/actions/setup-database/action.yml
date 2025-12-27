@@ -1,0 +1,200 @@
+name: 'Setup Database with Migrations Cache'
+description: 'Create database and run migrations with caching support'
+inputs:
+  branch_name:
+    description: 'Branch name for database name generation'
+    required: true
+  db_connection_string:
+    description: 'Original database connection string'
+    required: true
+  force_deploy:
+    description: 'Force database setup and migrations even if cache exists'
+    required: false
+    default: 'false'
+outputs:
+  db_name:
+    description: 'Generated database name'
+    value: ${{ steps.db-name.outputs.db_name }}
+  db_connection_string:
+    description: 'New database connection string'
+    value: ${{ steps.final-output.outputs.db_connection_string }}
+  isDeployed:
+    description: 'Whether a new database was created/migrated (not from cache)'
+    value: ${{ steps.final-output.outputs.isDeployed || 'false' }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup PostgreSQL client
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+
+    - name: Get branch database name
+      id: db-name
+      shell: bash
+      run: |
+        # Get branch name and sanitize it for database name
+        BRANCH_NAME="${{ inputs.branch_name }}"
+        # Sanitize branch name: lowercase, replace special chars with underscores, remove leading/trailing underscores
+        DB_NAME=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g' | sed 's/^_*//;s/_*$//' | cut -c1-63)
+        
+        # If DB_NAME is empty after sanitization, use a default
+        if [ -z "$DB_NAME" ]; then
+          DB_NAME="preview_$(date +%s)"
+        fi
+        
+        echo "Branch name: $BRANCH_NAME"
+        echo "Database name: $DB_NAME"
+        echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
+
+    - name: Calculate migrations hash
+      id: migrations-hash
+      shell: bash
+      run: |
+        MIGRATIONS_HASH=$(find migrations -type f -exec sha256sum {} \; | sort -k 2 | sha256sum | cut -d' ' -f1)
+        echo "hash=$MIGRATIONS_HASH" >> $GITHUB_OUTPUT
+        echo "📋 Migrations hash: $MIGRATIONS_HASH"
+
+    - name: Restore migrations hash cache
+      id: cache-migrations
+      uses: actions/cache@v4
+      with:
+        path: migrations-hash-cache.json
+        key: migrations-hash-${{ steps.db-name.outputs.db_name }}-${{ steps.migrations-hash.outputs.hash }}
+
+    - name: Check database and migrations status
+      id: check-db
+      shell: bash
+      env:
+        DB_CONNECTION_STRING: ${{ inputs.db_connection_string }}
+      run: |
+        DB_NAME="${{ steps.db-name.outputs.db_name }}"
+        ORIGINAL_CONN_STRING="${{ inputs.db_connection_string }}"
+        FORCE_DEPLOY="${{ inputs.force_deploy }}"
+        
+        # Check if database exists
+        DB_EXISTS=$(psql "$ORIGINAL_CONN_STRING" -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" 2>/dev/null || echo "")
+        
+        if [ "$DB_EXISTS" = "1" ]; then
+          echo "db_exists=true" >> $GITHUB_OUTPUT
+          echo "✅ Database exists: $DB_NAME"
+          
+          # Force deploy check
+          if [ "$FORCE_DEPLOY" = "true" ]; then
+            echo "🔨 Force deploy is enabled, will run migrations"
+            echo "should_run_migrations=true" >> $GITHUB_OUTPUT
+          # Check migrations hash if cache exists
+          elif [ -f migrations-hash-cache.json ]; then
+            CACHED_HASH=$(jq -r '.hash' migrations-hash-cache.json 2>/dev/null || echo "")
+            CURRENT_HASH="${{ steps.migrations-hash.outputs.hash }}"
+            
+            if [ "$CACHED_HASH" = "$CURRENT_HASH" ] && [ -n "$CACHED_HASH" ]; then
+              echo "✅ Migrations hash matches, skipping migrations"
+              echo "should_run_migrations=false" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Migrations hash mismatch, will run migrations"
+              echo "should_run_migrations=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ No migrations hash cache found, will run migrations"
+            echo "should_run_migrations=true" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "db_exists=false" >> $GITHUB_OUTPUT
+          echo "should_run_migrations=true" >> $GITHUB_OUTPUT
+          echo "📦 Database does not exist: $DB_NAME"
+        fi
+
+    - name: Create branch database and run migrations
+      id: setup-db
+      if: steps.check-db.outputs.db_exists != 'true' || steps.check-db.outputs.should_run_migrations == 'true'
+      shell: bash
+      env:
+        DB_CONNECTION_STRING: ${{ inputs.db_connection_string }}
+      run: |
+        DB_NAME="${{ steps.db-name.outputs.db_name }}"
+        ORIGINAL_CONN_STRING="${{ inputs.db_connection_string }}"
+        
+        # Create new connection string with the new database name
+        # Replace everything after the last / until ? or & or end of line with DB_NAME
+        NEW_CONN_STRING=$(echo "$ORIGINAL_CONN_STRING" | sed -E "s|(.*)/[^/?&]*|\1/${DB_NAME}|")
+        
+        # If database exists and we need to run migrations, drop and recreate
+        if [ "${{ steps.check-db.outputs.db_exists }}" = "true" ]; then
+          echo "Database exists, terminating connections and dropping..."
+          # Terminate all active connections to the database (connect to 'postgres' database)
+          psql "$ORIGINAL_CONN_STRING" -c "
+            SELECT pg_terminate_backend(pg_stat_activity.pid)
+            FROM pg_stat_activity
+            WHERE pg_stat_activity.datname = '$DB_NAME'
+              AND pid <> pg_backend_pid();
+          " 2>/dev/null || echo "No active connections to terminate"
+          # Wait a moment for connections to close
+          sleep 2
+          # Drop the database
+          psql "$ORIGINAL_CONN_STRING" -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+        fi
+        
+        # Create the database (will only run if it doesn't exist or was successfully dropped)
+        psql "$ORIGINAL_CONN_STRING" -c "CREATE DATABASE \"$DB_NAME\";"
+        
+        echo "✅ New database created: $DB_NAME"
+        echo "✅ New connection string set"
+        
+        # Run migrations on the new database
+        echo "🔄 Running migrations on database: $DB_NAME"
+        cd migrations
+        DB_CONNECTION_STRING="$NEW_CONN_STRING" ./run-migrations.sh up
+        cd ..
+        
+        echo "✅ Migrations completed successfully"
+        
+        # Save migrations hash to cache file
+        CURRENT_HASH="${{ steps.migrations-hash.outputs.hash }}"
+        jq -n \
+          --arg hash "$CURRENT_HASH" \
+          '{hash: $hash}' > migrations-hash-cache.json
+        
+        echo "db_connection_string=$NEW_CONN_STRING" >> $GITHUB_OUTPUT
+        echo "isDeployed=true" >> $GITHUB_OUTPUT
+
+    - name: Set database connection string for existing DB
+      id: set-existing-db
+      if: steps.check-db.outputs.db_exists == 'true' && steps.check-db.outputs.should_run_migrations != 'true'
+      shell: bash
+      env:
+        DB_CONNECTION_STRING: ${{ inputs.db_connection_string }}
+      run: |
+        DB_NAME="${{ steps.db-name.outputs.db_name }}"
+        ORIGINAL_CONN_STRING="${{ inputs.db_connection_string }}"
+        NEW_CONN_STRING=$(echo "$ORIGINAL_CONN_STRING" | sed -E "s|(.*)/[^/?&]*|\1/${DB_NAME}|")
+        echo "db_connection_string=$NEW_CONN_STRING" >> $GITHUB_OUTPUT
+        echo "✅ Using existing database: $DB_NAME"
+
+    - name: Save migrations hash to cache
+      if: steps.setup-db.outcome == 'success'
+      uses: actions/cache@v4
+      with:
+        path: migrations-hash-cache.json
+        key: migrations-hash-${{ steps.db-name.outputs.db_name }}-${{ steps.migrations-hash.outputs.hash }}
+
+    - name: Set final database connection string output
+      id: final-output
+      shell: bash
+      run: |
+        # Get connection string from whichever step ran
+        if [ -n "${{ steps.setup-db.outputs.db_connection_string }}" ]; then
+          echo "db_connection_string=${{ steps.setup-db.outputs.db_connection_string }}" >> $GITHUB_OUTPUT
+          # If setup-db ran, deployment happened
+          echo "isDeployed=true" >> $GITHUB_OUTPUT
+        elif [ -n "${{ steps.set-existing-db.outputs.db_connection_string }}" ]; then
+          echo "db_connection_string=${{ steps.set-existing-db.outputs.db_connection_string }}" >> $GITHUB_OUTPUT
+          # If using existing DB, no deployment happened
+          echo "isDeployed=false" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Error: No database connection string was set"
+          exit 1
+        fi
+

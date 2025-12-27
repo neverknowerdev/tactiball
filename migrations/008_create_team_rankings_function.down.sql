@@ -3,4 +3,4 @@
 -- Date: 2024-12-19
 
 -- Drop the function
-DROP FUNCTION IF EXISTS public.get_team_rankings(BIGINT);
+DROP FUNCTION IF EXISTS get_team_rankings(BIGINT);

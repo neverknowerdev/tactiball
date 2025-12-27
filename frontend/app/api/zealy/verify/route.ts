@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAnonClient } from "@/lib/supabase";
+import { db } from "@/lib/database";
+import { teams } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const ZEALY_API_KEY =
   process.env.ZEALY_API_KEY;
@@ -73,24 +75,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = createAnonClient();
-
-    // Query using primary_wallet (the actual column name)
-    const { data: team, error } = await supabase
-      .from("teams")
-      .select("id, name, primary_wallet, zealy_user_id")
-      .eq("primary_wallet", zealyConnectIdentifier.toLowerCase())
-      .maybeSingle();
-
-    if (error) {
-      console.error(`[${requestId}] Database error:`, error);
-      return NextResponse.json(
-        {
-          message: `Database error. Request ID: ${requestId}`,
-        },
-        { status: 400 },
-      );
-    }
+    const [team] = await db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        primary_wallet: teams.primaryWallet,
+        zealy_user_id: teams.zealyUserId
+      })
+      .from(teams)
+      .where(eq(teams.primaryWallet, zealyConnectIdentifier.toLowerCase()))
+      .limit(1);
 
     if (!team) {
       console.log(`[${requestId}] No team found for wallet:`, zealyConnectIdentifier);

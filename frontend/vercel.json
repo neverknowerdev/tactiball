@@ -1,0 +1,10 @@
+{
+    "installCommand": "npm ci",
+    "buildCommand": "npm run build",
+    "crons": [
+        {
+            "path": "/api/cron/cleanup-rooms",
+            "schedule": "*/15 * * * *"
+        }
+    ]
+}
