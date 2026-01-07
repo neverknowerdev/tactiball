@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Game } from '@/lib/game';
+import { Game, GameAction } from '@/lib/game';
 import { convertEventStateToGameState, GameStateType, TeamEnum } from '@/lib/game';
 import { toast } from 'react-toastify';
 import { GameSubmissionState } from '../types';
@@ -11,6 +11,7 @@ interface UseGameEventsProps {
     setGameResultModal: (modal: any) => void;
     setLastMoveAt: (timestamp: number) => void;
     isNewStateRecalculatedRef: React.MutableRefObject<boolean | null>;
+    onNewGameStateWithActions?: (team1Actions: GameAction[], team2Actions: GameAction[], clashRandomResults: number[], finalState: GameState) => void;
 }
 
 export function useGameEvents({
@@ -19,7 +20,8 @@ export function useGameEvents({
     setGameSubmissionState,
     setGameResultModal,
     setLastMoveAt,
-    isNewStateRecalculatedRef
+    isNewStateRecalculatedRef,
+    onNewGameStateWithActions
 }: UseGameEventsProps) {
     useEffect(() => {
         const handleGameEvent = (event: CustomEvent) => {
@@ -39,12 +41,34 @@ export function useGameEvents({
                 const gameState = convertEventStateToGameState(gameEvent.new_state);
                 console.log('Converted gameState', gameState);
 
-                game!.saveState(gameState);
-                game!.restoreState(gameState);
+                // Convert actions to GameAction format for animation
+                const convertActions = (actions: any[]): GameAction[] => {
+                    if (!actions || !Array.isArray(actions)) return [];
+                    return actions.map((action: any) => ({
+                        playerId: action.playerId || action.player_id || 0,
+                        teamEnum: action.teamEnum || (action.team_enum === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2),
+                        moveType: action.moveType || action.move_type || gameState.type,
+                        oldPosition: action.oldPosition || action.old_position || { x: 0, y: 0 },
+                        newPosition: action.newPosition || action.new_position || { x: 0, y: 0 },
+                        playerKey: () => `${action.playerId || action.player_id || 0}`
+                    }));
+                };
 
-                isNewStateRecalculatedRef.current = true;
+                const team1Actions = convertActions(gameEvent.team1_actions || gameState.team1Moves || []);
+                const team2Actions = convertActions(gameEvent.team2_actions || gameState.team2Moves || []);
+                const clashRandomResults = gameEvent.clash_random_numbers || gameState.clashRandomResults || [];
 
-                setGame(game!);
+                // Trigger animation callback if provided
+                if (onNewGameStateWithActions && game!.history.length > 0) {
+                    onNewGameStateWithActions(team1Actions, team2Actions, clashRandomResults, gameState);
+                } else {
+                    // No animation, directly apply the state
+                    game!.saveState(gameState);
+                    game!.restoreState(gameState);
+                    isNewStateRecalculatedRef.current = true;
+                    setGame(game!);
+                }
+
                 // Reset submission state when new game state is received
                 setGameSubmissionState(GameSubmissionState.IDLE);
 
@@ -114,6 +138,6 @@ export function useGameEvents({
         return () => {
             window.removeEventListener('game-event', handleGameEvent as EventListener);
         };
-    }, [game, setGame, setGameSubmissionState, setGameResultModal, setLastMoveAt, isNewStateRecalculatedRef]);
+    }, [game, setGame, setGameSubmissionState, setGameResultModal, setLastMoveAt, isNewStateRecalculatedRef, onNewGameStateWithActions]);
 }
 
