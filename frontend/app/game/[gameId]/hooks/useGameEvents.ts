@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Game, GameAction } from '@/lib/game';
+import { Game, GameAction, GameState } from '@/lib/game';
 import { convertEventStateToGameState, GameStateType, TeamEnum } from '@/lib/game';
 import { toast } from 'react-toastify';
 import { GameSubmissionState } from '../types';

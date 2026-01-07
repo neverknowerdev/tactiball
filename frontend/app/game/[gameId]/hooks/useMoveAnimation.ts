@@ -140,11 +140,16 @@ export function useMoveAnimation({
         
         // Set up interval for next step
         intervalRef.current = setTimeout(() => {
-            setAnimationState(prev => ({
-                ...prev,
-                currentStep: prev.currentStep + 1,
-                animatedState: prev.rendererStates![prev.currentStep + 1]
-            }));
+            setAnimationState(prev => {
+                if (!prev.rendererStates) {
+                    return prev;
+                }
+                return {
+                    ...prev,
+                    currentStep: prev.currentStep + 1,
+                    animatedState: prev.rendererStates[prev.currentStep + 1]
+                };
+            });
         }, animationDuration);
         
         // Cleanup
@@ -153,6 +158,7 @@ export function useMoveAnimation({
                 clearTimeout(intervalRef.current);
             }
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [animationState.isAnimating, animationState.currentStep, animationState.rendererStates, animationDuration]);
     
     // Cleanup on unmount
