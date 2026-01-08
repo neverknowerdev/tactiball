@@ -199,10 +199,30 @@ async function main() {
     console.log(`\nDeployment info saved to deployment.json under network: ${networkKey}`);
     console.log(`📁 File now contains deployments for ${Object.keys(allDeployments).length} network(s)`);
 
-    console.log("Vefrifying implementation..");
-    await hre.run("verify:verify", {
-        address: currentImplAddress,
-    });
+    console.log("Verifying implementation..");
+    try {
+        // Wait a bit for the contract to propagate on the block explorer
+        console.log("⏳ Waiting 3 seconds for contract propagation...");
+        await delay(3000);
+        
+        await hre.run("verify:verify", {
+            address: currentImplAddress,
+            contract: "contracts/Game.sol:ChessBallGame",
+            constructorArguments: [],
+            libraries: {
+                GameLib: gameLibAddress
+            }
+        });
+        console.log("✅ Implementation verification successful!");
+    } catch (error: any) {
+        console.log("⚠️  Implementation verification failed:", error.message);
+        if (error.message.includes("Already Verified")) {
+            console.log("ℹ️  Contract already verified on block explorer");
+        } else {
+            console.log("\n💡 Manual verification options:");
+            console.log(`   npx hardhat verify --network worldchain ${currentImplAddress} --libraries GameLib:${gameLibAddress}`);
+        }
+    }
 
     console.log("All done!");
 
