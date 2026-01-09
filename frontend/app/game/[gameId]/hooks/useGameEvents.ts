@@ -47,7 +47,7 @@ export function useGameEvents({
                     return actions.map((action: any) => ({
                         playerId: action.playerId || action.player_id || 0,
                         teamEnum: action.teamEnum || (action.team_enum === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2),
-                        moveType: action.moveType || action.move_type || gameState.type,
+                        moveType: action.moveType || action.move_type || 'run', // Default to 'run' if not specified
                         oldPosition: action.oldPosition || action.old_position || { x: 0, y: 0 },
                         newPosition: action.newPosition || action.new_position || { x: 0, y: 0 },
                         playerKey: () => `${action.playerId || action.player_id || 0}`

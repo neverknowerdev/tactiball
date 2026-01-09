@@ -212,6 +212,13 @@
     transform: scale(1.1);
 }
 
+/* Animation styles - force re-render on grid position changes */
+.player.animating,
+.ball.animating {
+    will-change: grid-row, grid-column;
+    transition: none; /* Disable transition during animation, rely on React re-renders */
+}
+
 /* Ball styles */
 .ball {
     position: relative;

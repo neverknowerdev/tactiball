@@ -90,6 +90,14 @@ export function useMoveAnimation({
         team2Actions: GameAction[],
         clashRandomResults: number[] = []
     ) => {
+        console.log('🎬 Starting animation with:', {
+            gameId,
+            previousState,
+            team1Actions: team1Actions.length,
+            team2Actions: team2Actions.length,
+            clashRandomResults: clashRandomResults.length
+        });
+        
         // Calculate rendererStates
         const rendererStates = calculateRendererStates(
             gameId,
@@ -99,7 +107,10 @@ export function useMoveAnimation({
             clashRandomResults
         );
         
+        console.log('📊 Calculated rendererStates:', rendererStates.length, 'states');
+        
         if (rendererStates.length === 0) {
+            console.log('⚠️ No rendererStates to animate');
             // No animation needed
             if (onCompleteRef.current) {
                 onCompleteRef.current();
@@ -108,6 +119,7 @@ export function useMoveAnimation({
         }
         
         // Start animation from first step
+        console.log('▶️ Starting animation from step 0');
         setAnimationState({
             isAnimating: true,
             currentStep: 0,
@@ -124,8 +136,11 @@ export function useMoveAnimation({
         
         const { rendererStates, currentStep } = animationState;
         
+        console.log(`🎞️ Animation step ${currentStep} of ${rendererStates.length - 1}`);
+        
         if (currentStep >= rendererStates.length - 1) {
             // Animation complete
+            console.log('✅ Animation complete');
             setAnimationState(prev => ({
                 ...prev,
                 isAnimating: false
@@ -144,10 +159,12 @@ export function useMoveAnimation({
                 if (!prev.rendererStates) {
                     return prev;
                 }
+                const nextStep = prev.currentStep + 1;
+                console.log(`⏭️ Moving to step ${nextStep}`);
                 return {
                     ...prev,
-                    currentStep: prev.currentStep + 1,
-                    animatedState: prev.rendererStates[prev.currentStep + 1]
+                    currentStep: nextStep,
+                    animatedState: prev.rendererStates[nextStep]
                 };
             });
         }, animationDuration);

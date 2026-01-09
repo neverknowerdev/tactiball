@@ -55,11 +55,12 @@ export default function GameField({
                 {game.team1.players.map((player, index) => {
                     const position = getPlayerPosition(player.id, 'team1');
                     return (
-                        <div key={index} className={`player team1 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''}`}
+                        <div 
+                            key={`team1-${player.id}`} 
+                            className={`player team1 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''} ${animatedState ? 'animating' : ''}`}
                             style={{
                                 gridRow: position.y + 1,
-                                gridColumn: position.x + 1,
-                                transition: animatedState ? 'grid-row 0.3s ease, grid-column 0.3s ease' : undefined
+                                gridColumn: position.x + 1
                             }}>
                             {isDebugMode && (
                                 <div className="absolute -top-2 -left-2 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -72,11 +73,12 @@ export default function GameField({
                 {game.team2.players.map((player, index) => {
                     const position = getPlayerPosition(player.id, 'team2');
                     return (
-                        <div key={index} className={`player team2 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''}`}
+                        <div 
+                            key={`team2-${player.id}`} 
+                            className={`player team2 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''} ${animatedState ? 'animating' : ''}`}
                             style={{
                                 gridRow: position.y + 1,
-                                gridColumn: position.x + 1,
-                                transition: animatedState ? 'grid-row 0.3s ease, grid-column 0.3s ease' : undefined
+                                gridColumn: position.x + 1
                             }}>
                             {isDebugMode && (
                                 <div className="absolute -top-2 -left-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -87,7 +89,8 @@ export default function GameField({
                     );
                 })}
                 <div 
-                    className={`ball ${getBallOwner() != null ? getBallOwner() : ''} ${isHasOldStateBall() ? 'action-done' : ''}`} 
+                    key={`ball-${animatedState ? 'animated' : 'static'}`}
+                    className={`ball ${getBallOwner() != null ? getBallOwner() : ''} ${isHasOldStateBall() ? 'action-done' : ''} ${animatedState ? 'animating' : ''}`} 
                     style={{
                         gridRow: getBallPosition().y + 1,
                         gridColumn: getBallPosition().x + 1
