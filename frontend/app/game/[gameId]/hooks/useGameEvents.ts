@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Game, GameAction, GameState } from '@/lib/game';
+import { Game, GameAction, GameState, MoveType } from '@/lib/game';
 import { convertEventStateToGameState, GameStateType, TeamEnum } from '@/lib/game';
 import { toast } from 'react-toastify';
 import { GameSubmissionState } from '../types';
@@ -44,14 +44,34 @@ export function useGameEvents({
                 // Convert actions to GameAction format for animation
                 const convertActions = (actions: any[]): GameAction[] => {
                     if (!actions || !Array.isArray(actions)) return [];
-                    return actions.map((action: any) => ({
-                        playerId: action.playerId || action.player_id || 0,
-                        teamEnum: action.teamEnum || (action.team_enum === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2),
-                        moveType: action.moveType || action.move_type || 'run', // Default to 'run' if not specified
-                        oldPosition: action.oldPosition || action.old_position || { x: 0, y: 0 },
-                        newPosition: action.newPosition || action.new_position || { x: 0, y: 0 },
-                        playerKey: () => `${action.playerId || action.player_id || 0}`
-                    }));
+                    return actions.map((action: any) => {
+                        // Convert move type string to MoveType enum
+                        const getMoveType = (mt: any): MoveType => {
+                            if (typeof mt === 'string') {
+                                const upper = mt.toUpperCase();
+                                if (upper === 'PASS') return MoveType.PASS;
+                                if (upper === 'TACKLE') return MoveType.TACKLE;
+                                if (upper === 'RUN') return MoveType.RUN;
+                                if (upper === 'SHOT') return MoveType.SHOT;
+                            }
+                            if (typeof mt === 'number') {
+                                if (mt === 0) return MoveType.PASS;
+                                if (mt === 1) return MoveType.TACKLE;
+                                if (mt === 2) return MoveType.RUN;
+                                if (mt === 3) return MoveType.SHOT;
+                            }
+                            return MoveType.RUN; // Default fallback
+                        };
+                        
+                        return {
+                            playerId: action.playerId || action.player_id || 0,
+                            teamEnum: action.teamEnum || (action.team_enum === 1 ? TeamEnum.TEAM1 : TeamEnum.TEAM2),
+                            moveType: getMoveType(action.moveType || action.move_type),
+                            oldPosition: action.oldPosition || action.old_position || { x: 0, y: 0 },
+                            newPosition: action.newPosition || action.new_position || { x: 0, y: 0 },
+                            playerKey: () => `${action.playerId || action.player_id || 0}`
+                        };
+                    });
                 };
 
                 const team1Actions = convertActions(gameEvent.team1_actions || gameState.team1Moves || []);

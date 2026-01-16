@@ -56,8 +56,8 @@ export default function GameField({
                     const position = getPlayerPosition(player.id, 'team1');
                     return (
                         <div 
-                            key={`team1-${player.id}`} 
-                            className={`player team1 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''} ${animatedState ? 'animating' : ''}`}
+                            key={`team1-${player.id}-${animatedState ? `${position.x}-${position.y}` : 'static'}`} 
+                            className={`player team1 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''}`}
                             style={{
                                 gridRow: position.y + 1,
                                 gridColumn: position.x + 1
@@ -74,8 +74,8 @@ export default function GameField({
                     const position = getPlayerPosition(player.id, 'team2');
                     return (
                         <div 
-                            key={`team2-${player.id}`} 
-                            className={`player team2 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''} ${animatedState ? 'animating' : ''}`}
+                            key={`team2-${player.id}-${animatedState ? `${position.x}-${position.y}` : 'static'}`} 
+                            className={`player team2 player${player.key()} ${isHasOldState(player) ? 'action-done' : ''}`}
                             style={{
                                 gridRow: position.y + 1,
                                 gridColumn: position.x + 1
@@ -89,8 +89,8 @@ export default function GameField({
                     );
                 })}
                 <div 
-                    key={`ball-${animatedState ? 'animated' : 'static'}`}
-                    className={`ball ${getBallOwner() != null ? getBallOwner() : ''} ${isHasOldStateBall() ? 'action-done' : ''} ${animatedState ? 'animating' : ''}`} 
+                    key={`ball-${animatedState ? `animated-${animatedState.ballPosition.x}-${animatedState.ballPosition.y}` : 'static'}`}
+                    className={`ball ${getBallOwner() != null ? getBallOwner() : ''} ${isHasOldStateBall() ? 'action-done' : ''}`} 
                     style={{
                         gridRow: getBallPosition().y + 1,
                         gridColumn: getBallPosition().x + 1

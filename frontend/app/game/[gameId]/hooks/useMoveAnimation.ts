@@ -24,6 +24,9 @@ function calculateRendererStates(
     tempGame.saveState(previousState);
     tempGame.restoreState(previousState);
     
+    // Ensure playerMoves is empty before adding new moves
+    tempGame.playerMoves = [];
+    
     // Apply team1 moves
     team1Actions.forEach((action: GameAction) => {
         const player = tempGame.team1.players.find(p => p.id === action.playerId);
@@ -153,14 +156,32 @@ export function useMoveAnimation({
             return;
         }
         
-        // Set up interval for next step
+        // Clear any existing timeout
+        if (intervalRef.current) {
+            clearTimeout(intervalRef.current);
+        }
+        
+        // Set up timeout for next step
         intervalRef.current = setTimeout(() => {
             setAnimationState(prev => {
-                if (!prev.rendererStates) {
+                if (!prev.rendererStates || !prev.isAnimating) {
                     return prev;
                 }
                 const nextStep = prev.currentStep + 1;
                 console.log(`⏭️ Moving to step ${nextStep}`);
+                
+                // Check if we've reached the end
+                if (nextStep >= prev.rendererStates.length) {
+                    console.log('✅ Animation complete in timeout');
+                    if (onCompleteRef.current) {
+                        onCompleteRef.current();
+                    }
+                    return {
+                        ...prev,
+                        isAnimating: false
+                    };
+                }
+                
                 return {
                     ...prev,
                     currentStep: nextStep,
@@ -173,9 +194,9 @@ export function useMoveAnimation({
         return () => {
             if (intervalRef.current) {
                 clearTimeout(intervalRef.current);
+                intervalRef.current = null;
             }
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [animationState.isAnimating, animationState.currentStep, animationState.rendererStates, animationDuration]);
     
     // Cleanup on unmount
