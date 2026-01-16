@@ -9,7 +9,7 @@ import '../game.css';
 import * as Sentry from "@sentry/nextjs";
 
 // Game utilities
-import { Game, TeamPlayer } from '@/lib/game';
+import { Game, TeamPlayer, GameAction, GameState } from '@/lib/game';
 import { authUserWithSignature } from '@/lib/auth';
 
 // Types
@@ -23,6 +23,7 @@ import { useCellStates } from './hooks/useCellStates';
 import { useHistoryNavigation } from './hooks/useHistoryNavigation';
 import { usePlayerSelection } from './hooks/usePlayerSelection';
 import { useGameSubscription } from './hooks/useGameSubscription';
+import { useMoveAnimation } from './hooks/useMoveAnimation';
 
 // Components
 import GameTipsModal from './GameTipsModal';
@@ -132,13 +133,64 @@ export default function GamePage() {
         setGameSubmissionState
     });
 
+    // Animation hook
+    const {
+        isAnimating,
+        animatedState,
+        startAnimation,
+        stopAnimation
+    } = useMoveAnimation({
+        animationDuration: 300,
+        onAnimationComplete: () => {
+            // After animation completes, apply the final state
+            if (game && pendingGameState) {
+                game.saveState(pendingGameState);
+                game.restoreState(pendingGameState);
+                isNewStateRecalculatedRef.current = true;
+                setGame(game);
+                setPendingGameState(null);
+            }
+        }
+    });
+
+    // Store pending game state during animation
+    const [pendingGameState, setPendingGameState] = useState<GameState | null>(null);
+
+    // Handler for when new game state with actions is received
+    const handleNewGameStateWithActions = (
+        team1Actions: GameAction[],
+        team2Actions: GameAction[],
+        clashRandomResults: number[],
+        finalState: GameState
+    ) => {
+        if (!game || game.history.length === 0) {
+            return;
+        }
+
+        // Get the previous state
+        const previousState = game.history[game.history.length - 1];
+        
+        // Store the final state to apply after animation
+        setPendingGameState(finalState);
+        
+        // Start the animation
+        startAnimation(
+            game.gameId,
+            previousState,
+            team1Actions,
+            team2Actions,
+            clashRandomResults
+        );
+    };
+
     useGameEvents({
         game,
         setGame,
         setGameSubmissionState,
         setGameResultModal,
         setLastMoveAt,
-        isNewStateRecalculatedRef
+        isNewStateRecalculatedRef,
+        onNewGameStateWithActions: handleNewGameStateWithActions
     });
 
     useEffect(() => {
@@ -361,6 +413,7 @@ export default function GamePage() {
                         onCellClick={handleCellClick}
                         isHasOldState={isHasOldState}
                         isHasOldStateBall={isHasOldStateBall}
+                        animatedState={isAnimating ? animatedState : null}
                     />
 
                     {/* Ready Button or Connect Wallet */}
