@@ -1,0 +1,329 @@
+type Board = record {
+  team1 : vec Pos;
+  team2 : vec Pos;
+  ball : Pos;
+  ball_owner : opt Side;
+};
+type ChainConfig = record {
+  name : text;
+  enabled : bool;
+  // EIP-155 chain id, e.g. 8453 for Base.
+  chain_id : nat64;
+  testnet : bool;
+};
+type ChainSyncOverview = record {
+  pending : nat64;
+  chain : text;
+  oldest_pending_at : opt nat64;
+  in_flight : nat64;
+  failed : nat64;
+  synced : nat64;
+};
+type CommitResult = record {
+  // True when this commit completed the turn and it was resolved.
+  resolved : bool;
+  game : GameView;
+};
+type Event = record { at : nat64; seq : nat64; kind : EventKind };
+type EventKind = variant {
+  GameRequestClosed : record { request_id : nat64; reason : text };
+  SettingsChanged : record { by : principal };
+  TeamCreated : record { name : text; team_id : nat64; user_id : nat64 };
+  GameFinished : record {
+    status : GameStatus;
+    score1 : nat8;
+    score2 : nat8;
+    winner : opt Side;
+    game_id : nat64;
+  };
+  TurnResolved : record {
+    score1 : nat8;
+    score2 : nat8;
+    turn : nat32;
+    game_id : nat64;
+  };
+  GameRequested : record {
+    request_id : nat64;
+    from_team : nat64;
+    to_team : nat64;
+  };
+  UserCreated : record { user_id : nat64; home_chain : text; identity : text };
+  WalletLinked : record { user_id : nat64; identity : text };
+  GameStarted : record { team1 : nat64; team2 : nat64; game_id : nat64 };
+};
+// One rendered step of a turn, used by the frontend to animate it.
+type Frame = record { kind : FrameKind; board : Board };
+type FrameKind = variant {
+  Move;
+  StartPositions;
+  // Team 1 scored.
+  GoalTeam1;
+  // Team 2 scored.
+  GoalTeam2;
+};
+type GameMode = variant {
+  // Direct invite to a chosen team.
+  Invite;
+  // Quick match: paired with whoever is waiting.
+  Queue;
+};
+// Per-mode switch: `None` means anyone may play this mode.
+type GameModePolicy = record {
+  mode : GameMode;
+  requires_verification : opt VerificationLevel;
+};
+type GameRequestView = record {
+  id : nat64;
+  from_team : TeamView;
+  to_team : TeamView;
+  created_at : nat64;
+  expires_at : nat64;
+};
+type GameStatus = variant {
+  // Neither side committed in time; no winner, no ELO change.
+  Abandoned;
+  Active;
+  // A player conceded; the opponent wins 3:0, no ELO change.
+  Surrendered;
+  // Played all turns.
+  Finished;
+  // One side did not commit in time; the other wins 3:0 (no ELO change, as in v1).
+  FinishedByTimeout;
+};
+type GameSummary = record {
+  id : nat64;
+  status : GameStatus;
+  team1 : GameTeam;
+  team2 : GameTeam;
+  score1 : nat8;
+  score2 : nat8;
+  winner : opt Side;
+  created_at : nat64;
+  finished_at : opt nat64;
+};
+type GameTeam = record {
+  country : nat16;
+  name : text;
+  team_id : nat64;
+  user_id : nat64;
+  elo_after : opt nat64;
+  home_chain : text;
+  elo_before : nat64;
+};
+type GameView = record {
+  id : nat64;
+  status : GameStatus;
+  team1 : GameTeam;
+  team2 : GameTeam;
+  max_turns : nat32;
+  // The caller's side in this game, if they play in it.
+  my_side : opt Side;
+  score1 : nat8;
+  score2 : nat8;
+  mode : GameMode;
+  turns_played : nat32;
+  winner : opt Side;
+  turn_deadline : nat64;
+  created_at : nat64;
+  version : nat64;
+  turn_started_at : nat64;
+  board : Board;
+  committed1 : bool;
+  committed2 : bool;
+  // The caller's own committed moves for the current turn.
+  my_pending : opt vec Move;
+  finished_at : opt nat64;
+};
+type GlobalStats = record {
+  teams : nat64;
+  games : nat64;
+  goals : nat64;
+  users : nat64;
+  finished_games : nat64;
+  active_games : nat64;
+  teams_by_chain : vec record { text; nat64 };
+};
+type Health = record {
+  time : nat64;
+  version : text;
+  cycles : nat;
+  users : nat64;
+  active_games : nat64;
+  entropy_ready : bool;
+};
+// Init / upgrade argument. Everything is optional so `()` and `(null)` work.
+type InitArgs = record { settings : opt SettingsUpdate };
+type Lobby = record {
+  incoming : vec GameRequestView;
+  in_queue : bool;
+  active_game : opt nat64;
+  outgoing : vec GameRequestView;
+};
+type Move = record {
+  to : Pos;
+  player_id : nat8;
+  move_type : MoveType;
+  from : Pos;
+};
+type MoveType = variant { Run; Pass; Shot; Tackle };
+type Pos = record { x : nat8; y : nat8 };
+type PrepareSignIn = record {
+  // `window.location.host` of the frontend; must be an allowed domain.
+  domain : text;
+  chain_id : nat64;
+  // 0x-prefixed EVM address of the wallet.
+  address : text;
+};
+type Result = variant { Ok : nat64; Err : text };
+type Result_1 = variant { Ok : Settings; Err : text };
+type Result_10 = variant { Ok : Lobby; Err : text };
+type Result_11 = variant { Ok : GameView; Err : text };
+type Result_2 = variant { Ok : User; Err : text };
+type Result_3 = variant { Ok : SessionInfo; Err : text };
+type Result_4 = variant { Ok : SignInMessage; Err : text };
+type Result_5 = variant { Ok; Err : text };
+type Result_6 = variant { Ok : CommitResult; Err : text };
+type Result_7 = variant { Ok : GameRequestView; Err : text };
+type Result_8 = variant { Ok : TeamView; Err : text };
+type Result_9 = variant { Ok : opt nat64; Err : text };
+type SessionInfo = record {
+  team : opt TeamView;
+  user : User;
+  session_expires_at : nat64;
+  new_user : bool;
+};
+type Settings = record {
+  max_turns : nat32;
+  game_modes : vec GameModePolicy;
+  // Time each side has to commit a turn.
+  move_timeout_secs : nat64;
+  max_session_ttl_secs : nat64;
+  request_ttl_secs : nat64;
+  // Session length when the user has not chosen one (3 days).
+  default_session_ttl_secs : nat64;
+  // Domains (host[:port]) the sign-in message may name. Empty = any, for local dev only.
+  allowed_domains : vec text;
+  // Extra admins besides the canister controllers.
+  admins : vec principal;
+  chains : vec ChainConfig;
+  min_session_ttl_secs : nat64;
+  // How long a sign-in message stays valid before it must be signed.
+  sign_in_ttl_secs : nat64;
+};
+// Partial update for `admin_update_settings`; `None` keeps the current value.
+type SettingsUpdate = record {
+  max_turns : opt nat32;
+  game_modes : opt vec GameModePolicy;
+  move_timeout_secs : opt nat64;
+  max_session_ttl_secs : opt nat64;
+  request_ttl_secs : opt nat64;
+  default_session_ttl_secs : opt nat64;
+  allowed_domains : opt vec text;
+  admins : opt vec principal;
+  chains : opt vec ChainConfig;
+  min_session_ttl_secs : opt nat64;
+  sign_in_ttl_secs : opt nat64;
+};
+type Side = variant { Team1; Team2 };
+type SignInMessage = record {
+  session_expires_at : nat64;
+  message : text;
+  expires_at : nat64;
+};
+// One finished game waiting to be written to one home chain.
+type SyncEntry = record {
+  chain : text;
+  state : SyncState;
+  game_id : nat64;
+  queued_at : nat64;
+};
+type SyncState = variant {
+  Failed : record { attempts : nat32; error : text };
+  Synced : record { batch : nat64; tx_hash : text };
+  InFlight : record { batch : nat64 };
+  Pending;
+};
+// A team as other players see it, with the owner's chain badge.
+type TeamView = record {
+  id : nat64;
+  elo : nat64;
+  goals_for : nat64;
+  country : nat16;
+  name : text;
+  wins : nat64;
+  losses : nat64;
+  created_at : nat64;
+  verified_human : bool;
+  games : nat64;
+  goals_against : nat64;
+  home_chain : text;
+  active_game : opt nat64;
+  draws : nat64;
+};
+type TurnRecord = record {
+  goal : opt Side;
+  // Randomness for this turn (derived from `raw_rand`); clash rolls come from it.
+  seed : blob;
+  turn : nat32;
+  team1_moves : vec Move;
+  frames : vec Frame;
+  team2_moves : vec Move;
+  rolls : blob;
+  resolved_at : nat64;
+};
+type User = record {
+  id : nat64;
+  team_id : opt nat64;
+  created_at : nat64;
+  // CAIP-2 id of the chain the user first signed in from, e.g. "eip155:8453".
+  // Shown as a badge next to the team name.
+  home_chain : text;
+  last_login_at : nat64;
+  // The user's own session length; `None` uses the default.
+  session_ttl_secs : opt nat64;
+  verifications : vec Verification;
+  // Linked wallet identities, e.g. "eip155:0xabc…" (EOAs are chain-agnostic).
+  identities : vec text;
+};
+// Proof-of-human hook (World ID later). Nothing writes these yet.
+type Verification = record {
+  nullifier : text;
+  kind : VerificationKind;
+  level : VerificationLevel;
+  verified_at : nat64;
+};
+type VerificationKind = variant { WorldId };
+type VerificationLevel = variant { Orb; Device };
+service : (opt InitArgs) -> {
+  accept_game_request : (nat64) -> (Result);
+  admin_update_settings : (SettingsUpdate) -> (Result_1);
+  auth_link : (text) -> (Result_2);
+  auth_login : (text) -> (Result_3);
+  auth_prepare : (PrepareSignIn) -> (Result_4);
+  auth_prepare_link : (PrepareSignIn) -> (Result_4);
+  cancel_game_request : (nat64) -> (Result_5);
+  commit_moves : (nat64, nat32, vec Move) -> (Result_6);
+  create_game_request : (nat64) -> (Result_7);
+  create_team : (text, nat16) -> (Result_8);
+  game_sync_status : (nat64) -> (vec SyncEntry) query;
+  get_events : (nat64, nat32) -> (vec Event) query;
+  get_game : (nat64) -> (opt GameView) query;
+  get_settings : () -> (Settings) query;
+  get_team : (nat64) -> (opt TeamView) query;
+  get_turns : (nat64, nat32, nat32) -> (vec TurnRecord) query;
+  global_stats : () -> (GlobalStats) query;
+  health : () -> (Health) query;
+  join_queue : () -> (Result_9);
+  leaderboard : (nat64, nat64) -> (vec TeamView) query;
+  leave_queue : () -> (Result_5);
+  lobby : () -> (Result_10) query;
+  recent_games : (nat32) -> (vec GameSummary) query;
+  search_teams : (text, nat64) -> (vec TeamView) query;
+  set_home_chain : (nat64) -> (Result_2);
+  set_session_length : (opt nat64) -> (Result_2);
+  sign_out : () -> ();
+  surrender : (nat64) -> (Result_11);
+  sync_overview : () -> (vec ChainSyncOverview) query;
+  team_games : (nat64, nat32) -> (vec GameSummary) query;
+  whoami : () -> (opt SessionInfo) query;
+}
