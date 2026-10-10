@@ -22,7 +22,9 @@ canisters:
     recipe:
       type: "@dfinity/asset-canister@v2.2.1"
       configuration:
-        dir: frontend/dist
+        # The v1 Next.js app as a static export. `npm run build` also builds the
+        # Rust engine to WASM and the canister bindings first.
+        dir: frontend/out
         build:
           - npm --prefix frontend ci
           - npm --prefix frontend run build

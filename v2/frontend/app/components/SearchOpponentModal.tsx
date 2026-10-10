@@ -1,152 +1,86 @@
-import React, { useEffect, useState } from 'react';
-import { joinOpponentFindingRoom, leaveOpponentFindingRoom, getOpponentFindingChannel, getCurrentChannelMembers, type OpponentFindingPresence } from '@/lib/ably';
-import { authUserWithSignature } from '@/lib/auth';
-import { useSignMessage } from 'wagmi';
+import React, { useEffect, useRef, useState } from 'react';
+import { api, errorText, ok } from '@/lib/backend';
+import { useSession } from '@/app/session';
+import { gameUrl } from '@/lib/routes';
 
 interface SearchOpponentModalProps {
     isOpen: boolean;
     onClose: () => void;
     onCancel: () => void;
-    userInfo: {
-        team_name: string;
-        team_id: number;
-        user_wallet_address: string;
-        username: string;
-        elo_rating: number;
-    } | null;
 }
 
+const POLL_MS = 2000;
+
+// Quick match: the canister keeps one queue for every chain and pairs the two
+// oldest teams in it into a game. We poll the lobby until our game starts.
 export const SearchOpponentModal: React.FC<SearchOpponentModalProps> = ({
     isOpen,
     onClose,
     onCancel,
-    userInfo,
 }) => {
-    const [isSearching, setIsSearching] = useState(false);
+    const { ensureSignedIn } = useSession();
     const [isOpponentFound, setIsOpponentFound] = useState(false);
-    const [channel, setChannel] = useState<any>(null);
-    const { signMessageAsync } = useSignMessage();
+    const [error, setError] = useState<string | null>(null);
+    const searching = useRef(false);
 
-    // Function to create game request
-    const createGameRequest = async (opponentMember: OpponentFindingPresence) => {
-        if (!userInfo) return;
-        console.log('Creating game request with opponent:', opponentMember);
-
-        try {
-            setIsOpponentFound(true);
-            const { signature, message } = await authUserWithSignature(userInfo.user_wallet_address, signMessageAsync);
-            console.log('Creating game request with opponent:', opponentMember);
-
-            const response = await fetch('/api/game/create-game-request', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    team1_id: userInfo.team_id,
-                    team2_id: opponentMember.team_id,
-                    wallet_address: userInfo.user_wallet_address,
-                    signature,
-                    message
-                })
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                console.error('Failed to create game request:', result.error);
-                setIsOpponentFound(false);
-                return;
-            }
-
-            // Save game request ID and opponent info
-            const gameRequestId = result.data.game_request_id;
-
-            console.log('Game request created successfully:', result);
-
-            // Stop searching since we found an opponent
-            setIsSearching(false);
-            setIsOpponentFound(false);
-            onClose();
-        } catch (error) {
-            console.error('Error creating game request:', error);
-            setIsOpponentFound(false);
-        }
-    };
-
-    // Join opponent finding room when modal opens
     useEffect(() => {
-        if (isOpen && userInfo && !isSearching) {
-            const joinRoom = async () => {
-                try {
-                    setIsSearching(true);
+        if (!isOpen) return;
+        let stopped = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
 
-                    const presenceData: OpponentFindingPresence = {
-                        ...userInfo,
-                        timestamp: Date.now()
-                    };
+        const found = (gameId: bigint) => {
+            setIsOpponentFound(true);
+            window.location.href = gameUrl(gameId);
+        };
 
-                    // Get initial list of current members
-                    const members = await getCurrentChannelMembers();
-                    console.log('Current channel members:', members);
-
-                    if (members.length > 0) {
-                        // TODO: Handle case where there are already members in the channel
-                        console.log('Already have members in the channel');
-                        // Sort members by timestamp and get the oldest one
-                        const oldestMember = members.sort((a, b) => a.timestamp - b.timestamp)[0];
-                        console.log('Oldest member in channel:', oldestMember);
-
-                        // Create game request with oldest member
-                        createGameRequest(oldestMember);
-                        return;
-                    }
-
-                    const opponentChannel = await joinOpponentFindingRoom(presenceData);
-                    setChannel(opponentChannel);
-
-                    // Listen for new users joining
-                    opponentChannel.presence.subscribe('enter', (member: any) => {
-                        console.log('New user joined opponent finding room:', member.data);
-
-                    });
-
-                    // Listen for users leaving
-                    opponentChannel.presence.subscribe('leave', (member: any) => {
-                        console.log('User left opponent finding room:', member.data);
-                    });
-
-                    // Listen for presence updates
-                    opponentChannel.presence.subscribe('update', (member: any) => {
-                        console.log('User updated presence:', member.data);
-                    });
-
-                } catch (error) {
-                    console.error('Failed to join opponent finding room:', error);
-                    setIsSearching(false);
+        const poll = async () => {
+            if (stopped) return;
+            try {
+                const lobby = ok(await api().lobby());
+                if (lobby.active_game !== undefined) return found(lobby.active_game);
+                if (!lobby.in_queue) {
+                    // Our queue entry expired: join again.
+                    const game = ok(await api().join_queue());
+                    if (game !== null) return found(game);
                 }
-            };
+            } catch (e) {
+                setError(errorText(e));
+            }
+            timer = setTimeout(poll, POLL_MS);
+        };
 
-            joinRoom();
-        }
-
-        // Cleanup when modal closes
-        return () => {
-            if (channel && !isOpen) {
-                leaveOpponentFindingRoom();
-                setChannel(null);
-                setIsSearching(false);
+        const start = async () => {
+            searching.current = true;
+            setError(null);
+            setIsOpponentFound(false);
+            try {
+                await ensureSignedIn();
+                const game = ok(await api().join_queue());
+                if (game !== null) return found(game);
+                timer = setTimeout(poll, POLL_MS);
+            } catch (e) {
+                setError(errorText(e));
+                searching.current = false;
             }
         };
-    }, [isOpen, userInfo, isSearching]);
+        start();
+
+        return () => {
+            stopped = true;
+            if (timer) clearTimeout(timer);
+        };
+    }, [isOpen, ensureSignedIn]);
 
     // Handle cancel search
     const handleCancelSearch = async () => {
-        if (channel) {
-            await leaveOpponentFindingRoom();
-            setChannel(null);
+        if (searching.current) {
+            searching.current = false;
+            try {
+                await api().leave_queue();
+            } catch {
+                // The queue entry expires on its own.
+            }
         }
-        setIsSearching(false);
         onCancel();
     };
 
@@ -199,8 +133,10 @@ export const SearchOpponentModal: React.FC<SearchOpponentModalProps> = ({
 
                     {/* Description */}
                     <p className="text-gray-600 mb-6">
-                        {isOpponentFound ? 'Inviting him to play...' : 'Looking for players with similar skill level...'}
+                        {isOpponentFound ? 'Starting the game...' : 'Looking for a player on any chain...'}
                     </p>
+
+                    {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
                     {/* Progress indicator with animated ball */}
                     <div className="mb-6">

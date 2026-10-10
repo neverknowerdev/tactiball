@@ -1,18 +1,24 @@
-// @noErrors: 2307 2580 2339 - cannot find 'process', cannot find './wagmi', cannot find 'import.meta'
 'use client';
 
-import type { ReactNode } from 'react';
-import { OnchainKitProvider } from '@coinbase/onchainkit';
-import { base } from 'wagmi/chains'; // add baseSepolia for testing
-import { chain } from '@/config/chains';
+import { useState, type ReactNode } from 'react';
+import { WagmiProvider } from 'wagmi';
+import { base } from 'wagmi/chains';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MiniKitProvider } from '@coinbase/onchainkit/minikit';
+import { wagmiConfig } from '@/lib/wagmi';
+import { SessionProvider } from './session';
 
-export function Providers(props: { children: ReactNode }) {
+// OnchainKit (wallet button, Basenames) reuses this wagmi config, which lists
+// every sign-in chain (Base and Robinhood Chain, mainnet and testnet).
+export function Providers({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
   return (
-    <OnchainKitProvider
-      apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
-      chain={chain} // add baseSepolia for testing
-    >
-      {props.children}
-    </OnchainKitProvider>
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <MiniKitProvider apiKey={process.env.NEXT_PUBLIC_CDP_CLIENT_API_KEY} chain={base}>
+          <SessionProvider>{children}</SessionProvider>
+        </MiniKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }

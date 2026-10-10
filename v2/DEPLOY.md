@@ -6,7 +6,7 @@ Do the steps in order: local first, then staging, then production.
 Everything runs as two canisters:
 
 - **backend**: the Rust canister in `crates/backend`. It holds all game state: users, sessions, teams, games, ELO and the sync outbox.
-- **frontend**: an asset canister serving `frontend/dist`. It is the web app players open.
+- **frontend**: an asset canister serving `frontend/out`, the v1 Next.js app exported as static files. Players open this web app. It runs the same Rust game engine in the browser, compiled to WASM, to plan moves.
 
 Players sign in with an EVM wallet on Base or Robinhood Chain. They sign a text message and the canister checks the signature. No gas or transaction is needed.
 
@@ -17,8 +17,9 @@ Players sign in with an EVM wallet on Base or Robinhood Chain. They sign a text 
 | Rust (stable) + wasm target | `curl https://sh.rustup.rs -sSf \| sh` then `rustup target add wasm32-unknown-unknown` |
 | Node.js 20+ | https://nodejs.org or `nvm install 22` |
 | icp-cli + ic-wasm | `npm i -g @icp-sdk/icp-cli @icp-sdk/ic-wasm` |
+| wasm-bindgen CLI (engine for the browser) | `cargo install wasm-bindgen-cli --version 0.2.129 --locked` (the version must match `crates/engine-wasm/Cargo.toml`) |
 
-Check that it worked: `icp --version`, `cargo --version`, `node --version`.
+Check that it worked: `icp --version`, `cargo --version`, `node --version`, `wasm-bindgen --version`.
 
 icp-cli is DFINITY's successor to `dfx`. `v2/icp.yaml` is its project file. Docs are at https://cli.internetcomputer.org.
 
@@ -36,7 +37,7 @@ The script does the following:
 3. Builds and deploys both canisters.
 4. Prints the app URL, which looks like `http://<frontend-id>.localhost:8000/`.
 
-Open that URL in a browser that has MetaMask, Rabby or Coinbase Wallet. Sign in, create a team, then open a second browser profile with another wallet and play a match against yourself.
+Open that URL in a browser with MetaMask, Rabby, or Coinbase Wallet in EOA mode. Connect your wallet and create a team. Your wallet signs one message to sign in. Then open a second browser profile with another wallet, press **Play Now** in both, and play a match against yourself.
 
 To exercise the whole backend without a browser, run the bot smoke test. It uses two bot wallets that sign in, get paired, play turns, and then one side gives up:
 
@@ -151,7 +152,10 @@ Before upgrading production, test the same build on staging. Stable memory keeps
 
 - **EOA wallets only.** Smart wallets (Coinbase Smart Wallet, Safe) sign with EIP-1271/6492, which the canister cannot check yet, so those users see an "invalid signature" error.
 - **Home-chain ledger is a stub.** Finished games are queued per chain in an outbox (`sync_overview`), but nothing is written onchain yet.
+- **The Farcaster / Base App mini-app frame is not wired.** The v1 `/.well-known/farcaster.json` route and the Zealy pages needed a server, so they are not in the static export. The app still loads inside the Base App, but that app's smart wallet can't sign in yet (see above).
+- **Live updates use polling.** The lobby is polled every 3 s and a running game every 1.5 s. These are query calls, so they are cheap.
+- **Robinhood Chain RPC URLs** in `frontend/lib/chains.ts` are only used when a wallet needs to add the chain. Check them, or set `NEXT_PUBLIC_ROBINHOOD_RPC_URL` and `NEXT_PUBLIC_ROBINHOOD_TESTNET_RPC_URL` at build time.
 - **No certified queries.** Query answers such as the leaderboard and game views are trusted from one replica. Update calls such as moves and sign-in go through consensus.
 - **The leaderboard scans all teams** on each call. That is fine for thousands of teams; at larger scale it needs a sorted index.
 - **World ID is hooks only.** Verification records and a per-mode policy exist, but every mode is set to off.
-- **Not run on a live replica yet.** The sandbox this was built in could not download the local network, so the first `./scripts/deploy-local.sh` on your machine is its first run on a real replica. The Rust tests drive every endpoint natively, and the UI was checked against a mock backend.
+- **Not run on a live replica yet.** The sandbox this was built in could not download the local network, so the first `./scripts/deploy-local.sh` on your machine is its first run on a real replica. The Rust tests drive every endpoint natively. The UI was clicked through end to end against a mock backend with a test wallet: connect, switch chain, sign in, create a team, quick match, plan and commit moves, view history, and give up.

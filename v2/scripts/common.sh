@@ -8,6 +8,10 @@ require_tools() {
   command -v cargo >/dev/null || die "Rust not found. Install from https://rustup.rs"
   rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown \
     || die "missing Rust target. Run: rustup target add wasm32-unknown-unknown"
+  local wb
+  wb=$(sed -n 's/^wasm-bindgen = "=\(.*\)"/\1/p' crates/engine-wasm/Cargo.toml)
+  command -v wasm-bindgen >/dev/null \
+    || die "wasm-bindgen CLI not found (builds the game engine for the browser). Install: cargo install wasm-bindgen-cli --version $wb --locked"
   command -v npm >/dev/null || die "Node.js/npm not found (Node 20+)"
 }
 

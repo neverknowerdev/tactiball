@@ -29,8 +29,9 @@ Local deployment ready.
   App:      http://${FRONTEND}.localhost:8000/
   Backend:  ${BACKEND}   (icp canister call backend health -e local --query)
 
-Sign-in accepts any domain locally. To use the Vite dev server instead:
-  echo "VITE_BACKEND_CANISTER_ID=${BACKEND}" > frontend/.env.local && npm --prefix frontend run dev
+Sign-in accepts any domain locally. To use the Next.js dev server instead:
+  printf 'NEXT_PUBLIC_BACKEND_CANISTER_ID=%s\nNEXT_PUBLIC_IC_HOST=http://localhost:8000\n' "${BACKEND}" > frontend/.env.local
+  npm --prefix frontend run dev   # http://localhost:3001
 Smoke test (two bot wallets play a short game):
   npm --prefix frontend run bindings && node frontend/scripts/smoke.mjs --host http://localhost:8000 --canister ${BACKEND}
 MSG

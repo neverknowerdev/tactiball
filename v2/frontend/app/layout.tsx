@@ -2,19 +2,21 @@ import "./theme.css";
 import "@coinbase/onchainkit/styles.css";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { MiniKitContextProvider } from "./miniKitProvider";
+import { Providers } from "./providers";
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
 };
 
+// Read at build time: the site is exported as static files for the asset canister.
 export async function generateMetadata(): Promise<Metadata> {
   const URL = process.env.NEXT_PUBLIC_URL;
   return {
-    title: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
+    title: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || "TactiBall",
     description:
-      process.env.NEXT_PUBLIC_APP_DESCRIPTION,
+      process.env.NEXT_PUBLIC_APP_DESCRIPTION || "Tactical football, played on the Internet Computer",
+    icons: "/icon.png",
     other: {
       "fc:frame": JSON.stringify({
         version: "next",
@@ -43,7 +45,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <MiniKitContextProvider>{children}</MiniKitContextProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

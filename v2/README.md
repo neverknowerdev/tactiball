@@ -3,12 +3,13 @@
 All game logic runs in one Rust canister on ICP, and the web app is served from an asset canister. Wallets on Base and Robinhood Chain are only used to sign in.
 
 ```
-crates/engine     game rules + ELO, ported from v1 (game.ts, Elo.sol); no IC deps
-crates/backend    the canister: auth, teams, lobby, games, stats, ledger outbox (stub)
-frontend          Vite + React app, deployed to the asset canister
-scripts           deploy-local.sh, deploy-ic.sh <staging|production>
-icp.yaml          icp-cli project: canisters and environments
-DEPLOY.md         step-by-step guide to staging and production
+crates/engine       game rules + ELO, ported from v1 (game.ts, Elo.sol); no IC deps
+crates/engine-wasm  the engine for the browser (wasm-bindgen): move planning in the UI
+crates/backend      the canister: auth, teams, lobby, games, stats, ledger outbox (stub)
+frontend            the v1 Next.js app as a static export, deployed to the asset canister
+scripts            deploy-local.sh, deploy-ic.sh <staging|production>, build-engine-wasm.sh
+icp.yaml           icp-cli project: canisters and environments
+DEPLOY.md          step-by-step guide to staging and production
 ```
 
 ## Develop
@@ -17,7 +18,7 @@ DEPLOY.md         step-by-step guide to staging and production
 cargo test                                   # engine + canister end-to-end tests (native)
 UPDATE_CANDID=1 cargo test -p tactiball_backend candid   # regenerate backend.did after API changes
 ./scripts/deploy-local.sh                    # local network + both canisters
-npm --prefix frontend run dev                # hot-reload UI against the local backend (see frontend/.env.example)
+npm --prefix frontend run dev                # hot-reload UI against the local backend (see frontend/env.example)
 ```
 
 ## Sign-in flow
