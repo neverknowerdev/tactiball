@@ -1,0 +1,27 @@
+{
+  "name": "tactiball-v2-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "bindings": "icp-bindgen --did-file ../crates/backend/backend.did --out-dir src/bindings --force",
+    "dev": "npm run bindings && vite",
+    "build": "npm run bindings && tsc -b && vite build",
+    "typecheck": "npm run bindings && tsc -b",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@icp-sdk/core": "^6.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "viem": "^2.57.4"
+  },
+  "devDependencies": {
+    "@icp-sdk/bindgen": "^0.4.1",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.4"
+  }
+}

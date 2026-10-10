@@ -1,0 +1,157 @@
+# Deploying TactiBall v2 to the Internet Computer
+
+This guide takes you from a clean machine to a production deployment on ICP mainnet.
+Do the steps in order: local first, then staging, then production.
+
+Everything runs as two canisters:
+
+- **backend**: the Rust canister in `crates/backend`. It holds all game state: users, sessions, teams, games, ELO and the sync outbox.
+- **frontend**: an asset canister serving `frontend/dist`. It is the web app players open.
+
+Players sign in with an EVM wallet on Base or Robinhood Chain. They sign a text message and the canister checks the signature. No gas or transaction is needed.
+
+## 1. Install the tools (once)
+
+| Tool | Install |
+| --- | --- |
+| Rust (stable) + wasm target | `curl https://sh.rustup.rs -sSf \| sh` then `rustup target add wasm32-unknown-unknown` |
+| Node.js 20+ | https://nodejs.org or `nvm install 22` |
+| icp-cli + ic-wasm | `npm i -g @icp-sdk/icp-cli @icp-sdk/ic-wasm` |
+
+Check that it worked: `icp --version`, `cargo --version`, `node --version`.
+
+icp-cli is DFINITY's successor to `dfx`. `v2/icp.yaml` is its project file. Docs are at https://cli.internetcomputer.org.
+
+## 2. Run it locally
+
+```bash
+cd v2
+./scripts/deploy-local.sh          # add --fresh to wipe local state
+```
+
+The script does the following:
+
+1. Starts a local ICP network.
+2. Runs the Rust tests.
+3. Builds and deploys both canisters.
+4. Prints the app URL, which looks like `http://<frontend-id>.localhost:8000/`.
+
+Open that URL in a browser that has MetaMask, Rabby or Coinbase Wallet. Sign in, create a team, then open a second browser profile with another wallet and play a match against yourself.
+
+To exercise the whole backend without a browser, run the bot smoke test. It uses two bot wallets that sign in, get paired, play turns, and then one side gives up:
+
+```bash
+npm --prefix frontend run bindings
+node frontend/scripts/smoke.mjs --host http://localhost:8000 --canister $(icp canister status backend -e local --id-only)
+```
+
+## 3. Create a deploy identity and fund it with cycles
+
+Canisters on mainnet pay for compute and storage in **cycles**. You buy cycles by converting ICP.
+
+```bash
+icp identity new tactiball-deployer        # prints a seed phrase: store it offline, it is the only backup
+icp identity default tactiball-deployer
+icp identity principal                     # your controller principal
+icp identity account-id                    # send ICP here (from an exchange or the NNS app)
+icp token balance                          # wait until the ICP arrives
+icp cycles mint --cycles 6t                # converts the needed ICP into cycles
+icp cycles balance -n ic
+```
+
+How many cycles you need:
+
+- A canister is created with about **2T cycles** (around $2.70), and the cycles that are left stay in the canister as its balance.
+- One environment has two canisters, so creating it costs about **4T**. Keep another 1–2T as top-up headroom.
+- A full staging plus production setup needs roughly **10–12T** to start. At the time of writing, 1T cycles costs about 1.35 USD, so that is about 15 USD.
+- At PoC traffic the running cost is cents per day. The backend's freezing threshold is 90 days in production, which keeps it from being deleted if the balance runs low.
+
+## 4. Deploy staging (ICP mainnet, wallet testnets)
+
+Staging is a real mainnet deployment, but sign-in only accepts **Base Sepolia (84532)** and **Robinhood Chain Testnet (46630)**. Use it to test with real wallets before production.
+
+```bash
+./scripts/deploy-ic.sh staging
+```
+
+The first run creates the canisters, and their ids are saved in `v2/.icp/`. Commit nothing from `.icp/`, but **back it up**, because it is how later deploys find the same canisters. Later runs upgrade the canisters in place and keep all state.
+
+The script ends by allowing sign-in only from the frontend's own `https://<id>.icp0.io` host, and it prints that URL.
+
+Check that the deploy worked:
+
+```bash
+icp canister call backend health -e staging --query
+node frontend/scripts/smoke.mjs --host https://icp-api.io \
+  --canister $(icp canister status backend -e staging --id-only) \
+  --domain $(icp canister status frontend -e staging --id-only).icp0.io
+```
+
+## 5. Deploy production
+
+Production signs in with **Base (8453)** and **Robinhood Chain (4663)** mainnet wallets.
+
+```bash
+./scripts/deploy-ic.sh production                              # asks you to type "yes"
+./scripts/deploy-ic.sh production --domain play.tactiball.xyz  # same, plus a custom domain
+```
+
+Then do these follow-ups.
+
+1. **Add a backup controller.** If you lose the deploy identity, you can no longer upgrade or top up the canisters. Add a second principal, such as a hardware wallet or a teammate's identity:
+   ```bash
+   icp canister settings update backend --add-controller <principal> -e production
+   icp canister settings update frontend --add-controller <principal> -e production
+   ```
+2. **Admins.** Controllers are admins automatically. To let another principal change settings without making it a controller, run:
+   ```bash
+   icp canister call backend admin_update_settings '(record { admins = opt vec { principal "<principal>" } })' -e production
+   ```
+
+### Custom domain
+
+`--domain` writes `frontend/public/.well-known/ic-domains` into the deployed app and allows sign-in from that host. To make the domain resolve, follow these steps.
+
+1. Add DNS records at your DNS provider:
+
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | CNAME | `play.tactiball.xyz` | `play.tactiball.xyz.icp1.io` |
+   | TXT | `_canister-id.play.tactiball.xyz` | `<frontend canister id>` |
+   | CNAME | `_acme-challenge.play.tactiball.xyz` | `_acme-challenge.play.tactiball.xyz.icp2.io` |
+
+   A root domain (no subdomain) needs a provider that supports CNAME flattening or ALIAS records.
+
+2. Register the domain with the boundary nodes, then check its status:
+   ```bash
+   curl -sL -X POST https://icp0.io/custom-domains/v1/play.tactiball.xyz/validate
+   curl -sL -X POST https://icp0.io/custom-domains/v1/play.tactiball.xyz
+   curl -sL https://icp0.io/custom-domains/v1/play.tactiball.xyz      # wait for "registered"
+   ```
+   The current procedure is documented at https://internetcomputer.org/docs/building-apps/frontends/custom-domains/using-custom-domains. Follow that page if it differs from these steps.
+
+## 6. Day-to-day operations
+
+| Task | Command |
+| --- | --- |
+| Ship a new version | `./scripts/deploy-ic.sh production` (upgrades in place, state is kept) |
+| Health and counters | `icp canister call backend health -e production --query` |
+| Cycles left | `icp canister status backend -e production` |
+| Top up | `icp canister top-up backend --amount 1T -e production` |
+| Current settings | `icp canister call backend get_settings -e production --query` |
+| Change a setting | `icp canister call backend admin_update_settings '(record { default_session_ttl_secs = opt (604800 : nat64) })' -e production` |
+| Turn a chain off | `admin_update_settings` with the full `chains` list, using `enabled = false` for that chain |
+| Pending chain sync | `icp canister call backend sync_overview -e production --query` |
+
+Settings live in canister state. `init_args` in `icp.yaml` is re-applied on every upgrade, but it only sets the fields it lists (`chains`). Changes made with `admin_update_settings`, such as allowed domains, admins and session length, survive upgrades.
+
+Before upgrading production, test the same build on staging. Stable memory keeps all data across upgrades. If you change a stored type, add only optional fields.
+
+## 7. What this PoC does not do yet
+
+- **EOA wallets only.** Smart wallets (Coinbase Smart Wallet, Safe) sign with EIP-1271/6492, which the canister cannot check yet, so those users see an "invalid signature" error.
+- **Home-chain ledger is a stub.** Finished games are queued per chain in an outbox (`sync_overview`), but nothing is written onchain yet.
+- **No certified queries.** Query answers such as the leaderboard and game views are trusted from one replica. Update calls such as moves and sign-in go through consensus.
+- **The leaderboard scans all teams** on each call. That is fine for thousands of teams; at larger scale it needs a sorted index.
+- **World ID is hooks only.** Verification records and a per-mode policy exist, but every mode is set to off.
+- **Not run on a live replica yet.** The sandbox this was built in could not download the local network, so the first `./scripts/deploy-local.sh` on your machine is its first run on a real replica. The Rust tests drive every endpoint natively, and the UI was checked against a mock backend.
