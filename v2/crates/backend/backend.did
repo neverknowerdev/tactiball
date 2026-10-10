@@ -166,6 +166,7 @@ type Move = record {
   from : Pos;
 };
 type MoveType = variant { Run; Pass; Shot; Tackle };
+type Outcome = variant { Win; Draw; Loss };
 type Pos = record { x : nat8; y : nat8 };
 type PrepareSignIn = record {
   // `window.location.host` of the frontend; must be an allowed domain.
@@ -178,6 +179,7 @@ type Result = variant { Ok : nat64; Err : text };
 type Result_1 = variant { Ok : Settings; Err : text };
 type Result_10 = variant { Ok : Lobby; Err : text };
 type Result_11 = variant { Ok : GameView; Err : text };
+type Result_12 = variant { Ok : opt TeamView; Err : text };
 type Result_2 = variant { Ok : User; Err : text };
 type Result_3 = variant { Ok : SessionInfo; Err : text };
 type Result_4 = variant { Ok : SignInMessage; Err : text };
@@ -249,6 +251,8 @@ type TeamView = record {
   elo : nat64;
   goals_for : nat64;
   country : nat16;
+  // Results of the last finished games, newest first (at most 5).
+  form : vec Outcome;
   name : text;
   wins : nat64;
   losses : nat64;
@@ -324,6 +328,9 @@ service : (opt InitArgs) -> {
   sign_out : () -> ();
   surrender : (nat64) -> (Result_11);
   sync_overview : () -> (vec ChainSyncOverview) query;
+  // The team of whoever signed in with this wallet, so the app can show it
+  // before the player signs a message. `Err` if the address is malformed.
+  team_by_wallet : (text) -> (Result_12) query;
   team_games : (nat64, nat32) -> (vec GameSummary) query;
   whoami : () -> (opt SessionInfo) query;
 }

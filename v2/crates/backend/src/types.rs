@@ -239,6 +239,15 @@ pub struct TeamView {
     pub goals_against: u64,
     pub active_game: Option<GameId>,
     pub created_at: Timestamp,
+    /// Results of the last finished games, newest first (at most 5).
+    pub form: Vec<Outcome>,
+}
+
+#[derive(CandidType, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Outcome {
+    Win,
+    Draw,
+    Loss,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]

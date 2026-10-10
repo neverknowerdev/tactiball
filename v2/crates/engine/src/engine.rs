@@ -193,7 +193,7 @@ pub fn path(from: Pos, to: Pos, move_type: MoveType) -> Vec<Pos> {
     path_to(from, to.x as i32, to.y as i32, move_type)
 }
 
-fn path_to(from: Pos, tx: i32, ty: i32, move_type: MoveType) -> Vec<Pos> {
+pub(crate) fn path_to(from: Pos, tx: i32, ty: i32, move_type: MoveType) -> Vec<Pos> {
     let (fx, fy) = (from.x as i32, from.y as i32);
     let dx = tx - fx;
     let dy = ty - fy;

@@ -267,6 +267,22 @@ fn surrender_and_requests_expire() {
 }
 
 #[test]
+fn team_by_wallet_and_form() {
+    let (a, b, ta, _) = setup_two_teams();
+    // Lookup is by address, any case; unknown and malformed addresses differ.
+    let found = state::with(|s| teams::by_wallet(s, &a.address.to_uppercase().replacen("0X", "0x", 1))).unwrap();
+    assert_eq!(found.map(|t| t.id), Some(ta));
+    assert_eq!(state::with(|s| teams::by_wallet(s, "0x0000000000000000000000000000000000000001")).unwrap(), None);
+    assert!(state::with(|s| teams::by_wallet(s, "nope")).is_err());
+
+    state::with_mut(|s| lobby::join_queue(s, a.session, T0)).unwrap();
+    let game_id = state::with_mut(|s| lobby::join_queue(s, b.session, T0)).unwrap().unwrap();
+    state::with_mut(|s| games::surrender(s, b.session, T0, game_id)).unwrap();
+    let (fa, fb) = state::with(|s| (teams::team_view(s, ta).unwrap().form, teams::by_wallet(s, &b.address).unwrap().unwrap().form));
+    assert_eq!((fa, fb), (vec![Outcome::Win], vec![Outcome::Loss]));
+}
+
+#[test]
 fn verification_policy_hook_blocks_when_enabled() {
     let (a, _b, _, _) = setup_two_teams();
     state::with_mut(|s| {

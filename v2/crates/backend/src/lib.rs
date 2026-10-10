@@ -219,6 +219,13 @@ fn get_team(team_id: TeamId) -> Option<TeamView> {
     state::with(|s| teams::team_view(s, team_id))
 }
 
+/// The team of whoever signed in with this wallet, so the app can show it
+/// before the player signs a message. `Err` if the address is malformed.
+#[query]
+fn team_by_wallet(address: String) -> Res<Option<TeamView>> {
+    state::with(|s| teams::by_wallet(s, &address))
+}
+
 #[query]
 fn leaderboard(offset: u64, limit: u64) -> Vec<TeamView> {
     state::with(|s| teams::leaderboard(s, offset, limit))

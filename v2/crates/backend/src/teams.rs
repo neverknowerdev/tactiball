@@ -5,6 +5,7 @@ use crate::state::Store;
 use crate::types::*;
 use candid::Principal;
 use tactiball_engine::rating::DEFAULT_RATING;
+use tactiball_engine::Side;
 
 pub const NAME_MIN: usize = 3;
 pub const NAME_MAX: usize = 24;
@@ -77,7 +78,44 @@ pub fn view_of(s: &Store, t: &Team) -> TeamView {
         goals_against: t.goals_against,
         active_game: t.active_game,
         created_at: t.created_at,
+        form: form(s, t.id),
     }
+}
+
+pub const FORM_GAMES: usize = 5;
+
+/// Last finished games of a team, newest first. Abandoned games don't count.
+pub fn form(s: &Store, team_id: TeamId) -> Vec<Outcome> {
+    s.team_games
+        .range((team_id, 0)..=(team_id, u64::MAX))
+        .map(|e| e.key().1)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .filter_map(|id| s.game(id))
+        .filter(|g| !matches!(g.status, GameStatus::Active | GameStatus::Abandoned))
+        .take(FORM_GAMES)
+        .map(|g| {
+            let side = if g.team1.team_id == team_id { Side::Team1 } else { Side::Team2 };
+            match g.winner {
+                None => Outcome::Draw,
+                Some(w) if w == side => Outcome::Win,
+                Some(_) => Outcome::Loss,
+            }
+        })
+        .collect()
+}
+
+/// The team of the user who signed in with this EVM address, if any.
+pub fn by_wallet(s: &Store, address: &str) -> Res<Option<TeamView>> {
+    let address = crate::eth::normalize_address(address)?.to_lowercase();
+    let team = s
+        .identities
+        .get(&crate::auth::evm_identity(&address))
+        .and_then(|user_id| s.user(user_id))
+        .and_then(|u| u.team_id)
+        .and_then(|id| team_view(s, id));
+    Ok(team)
 }
 
 pub fn team_view(s: &Store, id: TeamId) -> Option<TeamView> {
