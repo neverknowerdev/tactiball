@@ -1,0 +1,4 @@
+target/
+.icp/
+node_modules/
+dist/

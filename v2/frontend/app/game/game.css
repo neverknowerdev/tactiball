@@ -1,0 +1,615 @@
+/* Game Page Styles */
+
+/* CSS Custom Properties for reusable border styles */
+:root {
+    --field-border-top: 1px solid white;
+    --field-border-right: 1px solid white;
+    --field-border-bottom: 1px solid white;
+}
+
+/* Field cell styles */
+.field_cell {
+    background-color: rgba(34, 197, 94, 0.3);
+    /* green-600 with opacity */
+}
+
+.field_margin {
+    background-color: rgba(22, 163, 74, 0.5);
+    /* green-800 with opacity */
+}
+
+.highlighted {
+    background-color: rgba(250, 204, 21, 0.6) !important;
+    /* yellow-400 with opacity */
+}
+
+.highlighted.move {
+    background-color: rgba(10, 102, 43, 0.6) !important;
+    /* green-400 with opacity */
+}
+
+.highlighted.pass {
+    background-color: rgba(59, 130, 246, 0.6) !important;
+    /* blue-400 with opacity */
+}
+
+.highlighted.tackle {
+    background-color: rgba(219, 137, 31, 0.885) !important;
+    /* red-400 with opacity */
+}
+
+.field-cell {
+    border-style: solid;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.field-cell.field_margin {
+    border: 0;
+}
+
+.field-border-left {
+    border-left: 2px solid white;
+}
+
+.field-border-right {
+    border-right: 2px solid white;
+}
+
+.field-border-top {
+    border-top: 2px solid white;
+}
+
+.field-border-bottom {
+    border-bottom: 2px solid white;
+}
+
+.field-border-dotted-left {
+    border-left: 0;
+
+}
+
+.field-border-dotted-right {
+    border-right: 0;
+}
+
+
+
+.field {
+    width: 100%;
+    max-width: 800px;
+    overflow-x: auto;
+    height: 600px;
+    margin: 0 auto;
+    background-color: #16a34a;
+    /* green-600 */
+    position: relative;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+}
+
+.field .grid {
+    padding: 20px;
+    min-width: 500px;
+}
+
+/* Field markings */
+.field .grid::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    bottom: 20px;
+    left: 50%;
+    width: 2px;
+    background: white;
+    transform: translateX(-50%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.field .grid::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 120px;
+    height: 120px;
+    border: 2px solid white;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.gates {
+    border-left: 4px solid white !important;
+    border-right: 4px solid white !important;
+    overflow: hidden;
+}
+
+.gates::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px);
+    background-size: 8px 8px;
+    border-radius: 0;
+    box-sizing: border-box;
+}
+
+
+.gates.top {
+    border-top: 4px solid white !important;
+}
+
+.gates.top.left {
+    border-top-left-radius: 30px;
+}
+
+.gates.top.right {
+    border-top-right-radius: 30px;
+}
+
+
+.gates.bottom {
+    border-bottom: 4px solid white !important;
+}
+
+.gates.bottom.left {
+    border-bottom-left-radius: 30px;
+}
+
+.gates.bottom.right {
+    border-bottom-right-radius: 30px;
+}
+
+/* Player styles */
+.player {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    font-weight: bold;
+    font-size: 12px;
+    color: white;
+    z-index: 2;
+    transition: all 0.3s ease;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    /* Make players non-interactive for clicks */
+    pointer-events: none;
+}
+
+.player.team1 {
+    background-image: url('/Player1.png');
+
+    align-items: left;
+    justify-content: left;
+}
+
+.player.team2 {
+    background-image: url('/Player2.png');
+
+
+    align-items: right;
+    justify-content: right;
+}
+
+.player.action-done {
+    opacity: 0.5;
+}
+
+.ball.action-done {
+    opacity: 0.5;
+}
+
+.player.has-ball {
+    box-shadow: 0 0 20px rgba(255, 255, 0, 0.8);
+    transform: scale(1.1);
+}
+
+/* Ball styles */
+.ball {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+    transition: all 0.3s ease;
+    /* Make ball non-interactive for clicks */
+    pointer-events: none;
+}
+
+.ball::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 15px;
+    height: 15px;
+    background-image: url('/ball.svg');
+    background-color: white;
+    border-radius: 50%;
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+
+.team1.ball::after {
+    left: auto;
+    right: 0;
+    transform: none;
+}
+
+.team2.ball::after {
+    left: 0;
+    right: auto;
+    transform: none;
+}
+
+/* Game controls styling */
+.game-controls {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.game-controls h3 {
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: 8px;
+}
+
+/* Score display styling */
+.score-display {
+    background: linear-gradient(135deg, #ffffff, #f8f9fa);
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #dee2e6;
+}
+
+.team1-score {
+    color: #dc3545;
+}
+
+.team2-score {
+    color: #007bff;
+}
+
+/* Player positions debug panel */
+.debug-panel {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.debug-panel h3 {
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: 8px;
+}
+
+/*
+field lines
+*/
+
+/* left penalty area */
+.cell-1-2,
+.cell-2-2,
+.cell-3-2 {
+    border-top: 1px solid white;
+}
+
+.cell-1-8,
+.cell-2-8,
+.cell-3-8 {
+    border-bottom: 1px solid white;
+}
+
+.cell-3-2,
+.cell-3-3,
+.cell-3-4,
+.cell-3-5,
+.cell-3-6,
+.cell-3-7,
+.cell-3-8 {
+    border-right: 1px solid white;
+}
+
+
+/* right penalty area */
+.cell-13-2,
+.cell-14-2,
+.cell-15-2 {
+    border-top: 1px solid white;
+}
+
+.cell-13-8,
+.cell-14-8,
+.cell-15-8 {
+    border-bottom: 1px solid white;
+}
+
+.cell-13-2,
+.cell-13-3,
+.cell-13-4,
+.cell-13-5,
+.cell-13-6,
+.cell-13-7,
+.cell-13-8 {
+    border-left: 1px solid white;
+}
+
+/* field borders */
+.cell-0-0,
+.cell-1-0,
+.cell-2-0,
+.cell-3-0,
+.cell-4-0,
+.cell-5-0,
+.cell-6-0,
+.cell-7-0,
+.cell-8-0,
+.cell-9-0,
+.cell-10-0,
+.cell-11-0,
+.cell-12-0,
+.cell-13-0,
+.cell-14-0,
+.cell-15-0 {
+    border-top: 4px solid white;
+}
+
+.cell-0-10,
+.cell-1-10,
+.cell-2-10,
+.cell-3-10,
+.cell-4-10,
+.cell-5-10,
+.cell-6-10,
+.cell-7-10,
+.cell-8-10,
+.cell-9-10,
+.cell-10-10,
+.cell-11-10,
+.cell-12-10,
+.cell-13-10,
+.cell-14-10,
+.cell-15-10 {
+    border-bottom: 4px solid white;
+}
+
+.cell-1-0,
+.cell-1-1,
+.cell-1-2 {
+    border-left: 4px solid white;
+}
+
+.cell-1-8,
+.cell-1-9,
+.cell-1-10 {
+    border-left: 4px solid white;
+}
+
+.cell-15-0,
+.cell-15-1,
+.cell-15-2 {
+    border-right: 4px solid white;
+}
+
+.cell-15-8,
+.cell-15-9,
+.cell-15-10 {
+    border-right: 4px solid white;
+}
+
+/* gates */
+
+.cell-0-4,
+.cell-0-5,
+.cell-0-6,
+.cell-0-7 {
+    border-left: 4px solid white !important;
+    border-right: 4px solid white !important;
+    overflow: hidden;
+}
+
+.cell-0-3 {
+    border-left: 4px solid white !important;
+    border-right: 4px solid white !important;
+    overflow: hidden;
+    border-top: 4px solid white !important;
+    border-top-left-radius: 30px;
+}
+
+.cell-0-7 {
+    border-left: 4px solid white !important;
+    border-right: 4px solid white !important;
+    overflow: hidden;
+    border-bottom: 4px solid white !important;
+    border-bottom-left-radius: 30px;
+}
+
+
+
+.cell-16-4,
+.cell-16-5,
+.cell-16-6,
+.cell-16-7 {
+    border-left: 4px solid white !important;
+    border-right: 4px solid white !important;
+    overflow: hidden;
+}
+
+.cell-16-3 {
+    border-left: 4px solid white !important;
+    border-right: 4px solid white !important;
+    overflow: hidden;
+    border-top: 4px solid white !important;
+    border-top-right-radius: 30px;
+}
+
+.cell-16-7 {
+    border-left: 4px solid white !important;
+    border-right: 4px solid white !important;
+    overflow: hidden;
+    border-bottom: 4px solid white !important;
+    border-bottom-right-radius: 30px;
+}
+
+
+.cell-0-3::before,
+.cell-0-4::before,
+.cell-0-5::before,
+.cell-0-6::before,
+.cell-0-7::before,
+.cell-16-3::before,
+.cell-16-4::before,
+.cell-16-5::before,
+.cell-16-6::before,
+.cell-16-7::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px);
+    background-size: 8px 8px;
+    border-radius: 0;
+    box-sizing: border-box;
+}
+
+.gates {
+    border-left: 4px solid white !important;
+    border-right: 4px solid white !important;
+    overflow: hidden;
+}
+
+.gates::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px);
+    background-size: 8px 8px;
+    border-radius: 0;
+    box-sizing: border-box;
+}
+
+
+.gates.top {
+    border-top: 4px solid white !important;
+}
+
+.gates.top.left {
+    border-top-left-radius: 30px;
+}
+
+.gates.top.right {
+    border-top-right-radius: 30px;
+}
+
+
+.gates.bottom {
+    border-bottom: 4px solid white !important;
+}
+
+.gates.bottom.left {
+    border-bottom-left-radius: 30px;
+}
+
+.gates.bottom.right {
+    border-bottom-right-radius: 30px;
+}
+
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .field {
+        height: 400px;
+        max-width: 100%;
+    }
+
+    .player {
+        width: 30px;
+        height: 30px;
+        font-size: 10px;
+    }
+
+    .ball::after {
+        width: 12px;
+        height: 12px;
+        bottom: 2px;
+    }
+
+    .goal-area {
+        width: 120px;
+        height: 60px;
+    }
+}
+
+@media (max-width: 480px) {
+    .field {
+        height: 350px;
+        max-width: 100%;
+        overflow-y: hidden;
+        overflow-x: scroll;
+    }
+
+    .player {
+        width: 25px;
+        height: 25px;
+        font-size: 8px;
+    }
+
+    .ball::after {
+        width: 10px;
+        height: 10px;
+        bottom: 1px;
+    }
+}
+
+/* Animation for ball movement */
+@keyframes ballBounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+.ball.moving {
+    animation: ballBounce 0.5s ease-in-out infinite;
+}
+
+/* Hover effects */
+.team1:hover,
+.team2:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.field:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Cell hover effects for cells with players or balls */
+.field-cell[data-has-player="team1"]:hover,
+.field-cell[data-has-player="team2"]:hover,
+.field-cell[data-has-ball="true"]:hover {
+    background-color: rgba(255, 255, 0, 0.3) !important;
+    cursor: pointer;
+}

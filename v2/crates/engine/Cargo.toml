@@ -1,0 +1,15 @@
+[package]
+name = "tactiball_engine"
+description = "TactiBall game engine and ELO rating: pure Rust, no IC dependencies"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+candid = ["dep:candid"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+candid = { version = "0.10", optional = true }
+primitive-types = { version = "0.14", default-features = false }

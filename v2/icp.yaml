@@ -1,0 +1,70 @@
+# TactiBall v2 on the Internet Computer.
+# Docs: https://cli.internetcomputer.org  (install: npm i -g @icp-sdk/icp-cli @icp-sdk/ic-wasm)
+#
+#   icp network start -d && icp deploy          # local
+#   ./scripts/deploy-ic.sh staging              # ICP mainnet, testnet chains
+#   ./scripts/deploy-ic.sh production           # ICP mainnet, Base + Robinhood mainnets
+
+canisters:
+  - name: backend
+    recipe:
+      type: "@dfinity/rust@v3.4.0"
+      configuration:
+        package: tactiball_backend
+        candid: crates/backend/backend.did
+        shrink: true
+        locked: true
+    # `opt InitArgs`: null keeps the defaults. Environments below override it.
+    # Applied on install and on every upgrade.
+    init_args: "(null)"
+
+  - name: frontend
+    recipe:
+      type: "@dfinity/asset-canister@v2.2.1"
+      configuration:
+        # The v1 Next.js app as a static export. `npm run build` also builds the
+        # Rust engine to WASM and the canister bindings first.
+        dir: frontend/out
+        build:
+          - npm --prefix frontend ci
+          - npm --prefix frontend run build
+
+environments:
+  # Local network: every chain enabled, any sign-in domain accepted.
+  - name: local
+    network: local
+    canisters: [backend, frontend]
+
+  # A canister pair on ICP mainnet that signs in with chain testnets only.
+  - name: staging
+    network: ic
+    canisters: [backend, frontend]
+    init_args:
+      backend: >-
+        (opt record { settings = opt record {
+          chains = opt vec {
+            record { chain_id = 84532 : nat64; name = "Base Sepolia"; testnet = true; enabled = true };
+            record { chain_id = 46630 : nat64; name = "Robinhood Chain Testnet"; testnet = true; enabled = true };
+          };
+        } })
+    settings:
+      backend:
+        freezing_threshold: 30d
+
+  # Production: Base and Robinhood Chain mainnets.
+  - name: production
+    network: ic
+    canisters: [backend, frontend]
+    init_args:
+      backend: >-
+        (opt record { settings = opt record {
+          chains = opt vec {
+            record { chain_id = 8453 : nat64; name = "Base"; testnet = false; enabled = true };
+            record { chain_id = 4663 : nat64; name = "Robinhood Chain"; testnet = false; enabled = true };
+          };
+        } })
+    settings:
+      backend:
+        freezing_threshold: 90d
+      frontend:
+        freezing_threshold: 90d
