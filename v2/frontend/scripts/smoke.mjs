@@ -71,7 +71,13 @@ console.log('bob: logged in again by email from a new session; wrong password re
 ok(await a.actor.create_team(`Bot A ${tag}`, 0));
 ok(await b.actor.create_team(`Bot B ${tag}`, 0));
 
-ok(await a.actor.join_queue());
+// A bot from an aborted earlier run may still be queued; give up any game it
+// pairs alice with, so alice and bob meet each other.
+let stale;
+while ((stale = ok(await a.actor.join_queue())).length) {
+  ok(await a.actor.surrender(stale[0]));
+  console.log(`alice was paired with a leftover queued team; gave up game ${stale[0]}`);
+}
 const paired = ok(await b.actor.join_queue());
 if (!paired.length) throw new Error('quick match did not pair the bots');
 const gameId = paired[0];
