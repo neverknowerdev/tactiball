@@ -87,14 +87,16 @@ type GameRequestView = record {
   expires_at : nat64;
 };
 type GameStatus = variant {
-  // Neither side committed in time; no winner, no ELO change.
+  // No longer produced: games no longer end on time by themselves. Kept so
+  // stored games still decode.
   Abandoned;
   Active;
   // A player conceded; the opponent wins 3:0, no ELO change.
   Surrendered;
   // Played all turns.
   Finished;
-  // One side did not commit in time; the other wins 3:0 (no ELO change, as in v1).
+  // One side missed the turn deadline and the other claimed the win: 3:0
+  // (no ELO change, as in v1).
   FinishedByTimeout;
 };
 type GameSummary = record {
@@ -184,17 +186,17 @@ type PrepareSignIn = record {
 };
 type Result = variant { Ok : nat64; Err : text };
 type Result_1 = variant { Ok : Settings; Err : text };
-type Result_10 = variant { Ok : Lobby; Err : text };
-type Result_11 = variant { Ok : GameView; Err : text };
+type Result_10 = variant { Ok : opt nat64; Err : text };
+type Result_11 = variant { Ok : Lobby; Err : text };
 type Result_12 = variant { Ok : opt TeamView; Err : text };
 type Result_2 = variant { Ok; Err : text };
 type Result_3 = variant { Ok : SessionInfo; Err : text };
 type Result_4 = variant { Ok : User; Err : text };
 type Result_5 = variant { Ok : SignInMessage; Err : text };
-type Result_6 = variant { Ok : CommitResult; Err : text };
-type Result_7 = variant { Ok : GameRequestView; Err : text };
-type Result_8 = variant { Ok : TeamView; Err : text };
-type Result_9 = variant { Ok : opt nat64; Err : text };
+type Result_6 = variant { Ok : GameView; Err : text };
+type Result_7 = variant { Ok : CommitResult; Err : text };
+type Result_8 = variant { Ok : GameRequestView; Err : text };
+type Result_9 = variant { Ok : TeamView; Err : text };
 type SessionInfo = record {
   team : opt TeamView;
   user : User;
@@ -320,9 +322,12 @@ service : (opt InitArgs) -> {
   auth_prepare : (PrepareSignIn) -> (Result_5);
   auth_prepare_link : (PrepareSignIn) -> (Result_5);
   cancel_game_request : (nat64) -> (Result_2);
-  commit_moves : (nat64, nat32, vec Move) -> (Result_6);
-  create_game_request : (nat64) -> (Result_7);
-  create_team : (text, nat16) -> (Result_8);
+  // Ends the game 3:0 for the caller when they moved in time and the
+  // opponent missed the turn deadline. Optional; see `games::claim_timeout_win`.
+  claim_timeout_win : (nat64) -> (Result_6);
+  commit_moves : (nat64, nat32, vec Move) -> (Result_7);
+  create_game_request : (nat64) -> (Result_8);
+  create_team : (text, nat16) -> (Result_9);
   game_sync_status : (nat64) -> (vec SyncEntry) query;
   get_events : (nat64, nat32) -> (vec Event) query;
   get_game : (nat64) -> (opt GameView) query;
@@ -331,16 +336,16 @@ service : (opt InitArgs) -> {
   get_turns : (nat64, nat32, nat32) -> (vec TurnRecord) query;
   global_stats : () -> (GlobalStats) query;
   health : () -> (Health) query;
-  join_queue : () -> (Result_9);
+  join_queue : () -> (Result_10);
   leaderboard : (nat64, nat64) -> (vec TeamView) query;
   leave_queue : () -> (Result_2);
-  lobby : () -> (Result_10) query;
+  lobby : () -> (Result_11) query;
   recent_games : (nat32) -> (vec GameSummary) query;
   search_teams : (text, nat64) -> (vec TeamView) query;
   set_home_chain : (nat64) -> (Result_4);
   set_session_length : (opt nat64) -> (Result_4);
   sign_out : () -> ();
-  surrender : (nat64) -> (Result_11);
+  surrender : (nat64) -> (Result_6);
   sync_overview : () -> (vec ChainSyncOverview) query;
   // The team of whoever signed in with this wallet, so the app can show it
   // before the player signs a message. `Err` if the address is malformed.

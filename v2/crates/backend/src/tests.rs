@@ -338,36 +338,59 @@ fn invalid_moves_are_rejected_before_storing() {
 }
 
 #[test]
-fn queue_pairs_teams_and_timeout_awards_technical_win() {
+fn queue_pairs_teams_and_timeout_win_is_claimed() {
     let (a, b, ta, tb) = setup_two_teams();
     assert_eq!(state::with_mut(|s| lobby::join_queue(s, a.session, T0)).unwrap(), None);
     let game_id = state::with_mut(|s| lobby::join_queue(s, b.session, T0 + SECOND)).unwrap().expect("paired");
     let game = state::with(|s| s.game(game_id)).unwrap();
     assert_eq!((game.team1.team_id, game.team2.team_id), (ta, tb));
+    let late = T0 + SECOND + 61 * SECOND;
 
-    // Only team 1 commits; the deadline passes.
+    // Only team 1 commits. Before the deadline it cannot claim.
     state::with_mut(|s| games::commit_moves(s, a.session, T0 + 2 * SECOND, game_id, 1, keeper_stays(Side::Team1))).unwrap();
-    state::with_mut(|s| games::check_timeouts(s, T0 + 30 * SECOND));
+    let early = state::with_mut(|s| games::claim_timeout_win(s, a.session, T0 + 30 * SECOND, game_id)).unwrap_err();
+    assert!(early.contains("still has 31s"), "{early}");
+    // After it, the late side cannot claim, and the game is still on until someone does.
+    assert!(state::with_mut(|s| games::claim_timeout_win(s, b.session, late, game_id)).unwrap_err().contains("make your move first"));
     assert_eq!(state::with(|s| s.game(game_id)).unwrap().status, GameStatus::Active);
-    state::with_mut(|s| games::check_timeouts(s, T0 + SECOND + 61 * SECOND));
-    let game = state::with(|s| s.game(game_id)).unwrap();
-    assert_eq!(game.status, GameStatus::FinishedByTimeout);
-    assert_eq!((game.score1, game.score2, game.winner), (3, 0, Some(Side::Team1)));
+
+    let v = state::with_mut(|s| games::claim_timeout_win(s, a.session, late, game_id)).unwrap();
+    assert_eq!((v.status, v.score1, v.score2, v.winner), (GameStatus::FinishedByTimeout, 3, 0, Some(Side::Team1)));
     let (t1, t2) = state::with(|s| (s.team(ta).unwrap(), s.team(tb).unwrap()));
     assert_eq!((t1.elo, t2.elo), (10_000, 10_000));
     assert_eq!((t1.wins, t2.losses), (1, 1));
     assert!(t1.active_game.is_none() && t2.active_game.is_none());
+    assert!(state::with_mut(|s| games::claim_timeout_win(s, a.session, late, game_id)).is_err());
 }
 
 #[test]
-fn nobody_moving_abandons_the_game() {
+fn a_late_move_still_counts_until_the_win_is_claimed() {
     let (a, b, _, _) = setup_two_teams();
     state::with_mut(|s| lobby::join_queue(s, a.session, T0)).unwrap();
     let game_id = state::with_mut(|s| lobby::join_queue(s, b.session, T0)).unwrap().unwrap();
-    state::with_mut(|s| games::check_timeouts(s, T0 + 61 * SECOND));
-    let game = state::with(|s| s.game(game_id)).unwrap();
-    assert_eq!(game.status, GameStatus::Abandoned);
-    assert!(state::with(ledger::overview).is_empty());
+    state::with_mut(|s| games::commit_moves(s, a.session, T0, game_id, 1, keeper_stays(Side::Team1))).unwrap();
+    // Team 2 moves well after the deadline; team 1 chose not to claim, so the turn resolves.
+    let r = state::with_mut(|s| games::commit_moves(s, b.session, T0 + 300 * SECOND, game_id, 1, keeper_stays(Side::Team2))).unwrap();
+    assert!(r.resolved);
+    assert_eq!((r.game.status, r.game.turns_played), (GameStatus::Active, 1));
+    // The next turn's clock started at the late move, so nobody can claim yet.
+    assert!(state::with_mut(|s| games::claim_timeout_win(s, a.session, T0 + 301 * SECOND, game_id)).is_err());
+}
+
+#[test]
+fn nobody_moving_does_not_end_the_game() {
+    let (a, b, _, _) = setup_two_teams();
+    state::with_mut(|s| lobby::join_queue(s, a.session, T0)).unwrap();
+    let game_id = state::with_mut(|s| lobby::join_queue(s, b.session, T0)).unwrap().unwrap();
+    let later = T0 + 3600 * SECOND;
+    for p in [a.session, b.session] {
+        assert!(state::with_mut(|s| games::claim_timeout_win(s, p, later, game_id)).unwrap_err().contains("make your move first"));
+    }
+    assert_eq!(state::with(|s| s.game(game_id)).unwrap().status, GameStatus::Active);
+    // Either side can still move, or give up.
+    state::with_mut(|s| games::commit_moves(s, b.session, later, game_id, 1, keeper_stays(Side::Team2))).unwrap();
+    assert!(state::with_mut(|s| games::claim_timeout_win(s, b.session, later + 61 * SECOND, game_id)).is_ok());
+    assert_eq!(state::with(|s| s.game(game_id)).unwrap().winner, Some(Side::Team2));
 }
 
 #[test]

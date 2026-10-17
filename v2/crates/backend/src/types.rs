@@ -310,9 +310,11 @@ pub enum GameStatus {
     Active,
     /// Played all turns.
     Finished,
-    /// One side did not commit in time; the other wins 3:0 (no ELO change, as in v1).
+    /// One side missed the turn deadline and the other claimed the win: 3:0
+    /// (no ELO change, as in v1).
     FinishedByTimeout,
-    /// Neither side committed in time; no winner, no ELO change.
+    /// No longer produced: games no longer end on time by themselves. Kept so
+    /// stored games still decode.
     Abandoned,
     /// A player conceded; the opponent wins 3:0, no ELO change.
     Surrendered,

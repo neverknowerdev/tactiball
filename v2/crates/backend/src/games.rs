@@ -1,4 +1,4 @@
-//! Games: hidden simultaneous moves, turn resolution, timeouts and results.
+//! Games: hidden simultaneous moves, turn resolution, timeout claims and results.
 
 use crate::auth::require_user;
 use crate::ledger;
@@ -131,10 +131,8 @@ pub fn commit_moves(s: &mut Store, caller: Principal, now: Timestamp, game_id: G
     if game.status != GameStatus::Active {
         return Err("game is over".into());
     }
-    if now >= deadline(&game) {
-        finish_by_timeout(s, &mut game, now);
-        return Err("the turn timed out and the game has ended".into());
-    }
+    // A late commit still counts: the game only ends on time when the
+    // opponent claims it (`claim_timeout_win`).
     if turn != game.turns_played + 1 {
         return Err(format!("expected moves for turn {}, got {}", game.turns_played + 1, turn));
     }
@@ -199,13 +197,33 @@ fn resolve(s: &mut Store, game: &mut Game, now: Timestamp) {
     }
 }
 
-fn finish_by_timeout(s: &mut Store, game: &mut Game, now: Timestamp) {
-    match (game.pending1.is_some(), game.pending2.is_some()) {
-        (true, false) => finish(s, game, now, GameStatus::FinishedByTimeout, Some(Side::Team1)),
-        (false, true) => finish(s, game, now, GameStatus::FinishedByTimeout, Some(Side::Team2)),
-        _ => finish(s, game, now, GameStatus::Abandoned, None),
+/// Lets a player who moved in time claim a technical 3:0 win once the turn
+/// deadline passes and the opponent still hasn't moved. Claiming is optional:
+/// until someone claims, the late side may still move and the game goes on.
+/// Nothing ends a game on time by itself, even when neither side moves.
+pub fn claim_timeout_win(s: &mut Store, caller: Principal, now: Timestamp, game_id: GameId) -> Res<GameView> {
+    let user = require_user(s, &caller, now)?;
+    let mut game = s.game(game_id).ok_or("game not found")?;
+    let side = side_of(&game, user.id).ok_or("you are not playing in this game")?;
+    if game.status != GameStatus::Active {
+        return Err("game is over".into());
     }
+    let (mine, theirs) = match side {
+        Side::Team1 => (game.pending1.is_some(), game.pending2.is_some()),
+        Side::Team2 => (game.pending2.is_some(), game.pending1.is_some()),
+    };
+    if !mine {
+        return Err("make your move first: only a player who moved in time can claim the win".into());
+    }
+    if theirs {
+        return Err("your opponent has moved".into());
+    }
+    if now < deadline(&game) {
+        return Err(format!("your opponent still has {}s to move", (deadline(&game) - now).div_ceil(SECOND)));
+    }
+    finish(s, &mut game, now, GameStatus::FinishedByTimeout, Some(side));
     s.put_game(game.clone());
+    Ok(view(&game, Some(user.id)))
 }
 
 /// `technical_winner` is the side awarded a 3:0 for a timeout or surrender.
@@ -272,18 +290,6 @@ fn finish(s: &mut Store, game: &mut Game, now: Timestamp, status: GameStatus, te
     s.emit(now, EventKind::GameFinished { game_id: game.id, status, score1: game.score1, score2: game.score2, winner: game.winner });
     if status != GameStatus::Abandoned {
         ledger::enqueue_game(s, game, now);
-    }
-}
-
-/// Timer job: ends games whose turn deadline passed.
-pub fn check_timeouts(s: &mut Store, now: Timestamp) {
-    let ids: Vec<GameId> = s.active_games.keys().collect();
-    for id in ids {
-        if let Some(mut game) = s.game(id) {
-            if game.status == GameStatus::Active && now >= deadline(&game) {
-                finish_by_timeout(s, &mut game, now);
-            }
-        }
     }
 }
 

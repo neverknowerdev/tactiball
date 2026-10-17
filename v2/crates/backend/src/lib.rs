@@ -1,7 +1,7 @@
 //! TactiBall v2 backend canister.
 //!
 //! One canister owns users, wallet and email sign-in, teams, the lobby, games, the
-//! engine, randomness, timeouts, ELO, the event log and (stubbed) the
+//! engine, randomness, timeout claims, ELO, the event log and (stubbed) the
 //! home-chain ledger outbox. This file only wires the public API to the
 //! modules; each module keeps its logic free of IC calls so it can be tested
 //! natively.
@@ -61,10 +61,7 @@ fn start_timers() {
     ic_cdk_timers::set_timer(Duration::ZERO, refresh_entropy());
     ic_cdk_timers::set_timer_interval(Duration::from_secs(TICK_SECS), || async {
         let now = time();
-        state::with_mut(|s| {
-            games::check_timeouts(s, now);
-            lobby::expire(s, now);
-        });
+        state::with_mut(|s| lobby::expire(s, now));
         let tick = TICKS.with(|t| {
             t.set(t.get() + 1);
             t.get()
@@ -295,6 +292,13 @@ fn leave_queue() -> Res<()> {
 #[update]
 fn commit_moves(game_id: GameId, turn: u32, moves: Vec<Move>) -> Res<CommitResult> {
     state::with_mut(|s| games::commit_moves(s, msg_caller(), time(), game_id, turn, moves))
+}
+
+/// Ends the game 3:0 for the caller when they moved in time and the
+/// opponent missed the turn deadline. Optional; see `games::claim_timeout_win`.
+#[update]
+fn claim_timeout_win(game_id: GameId) -> Res<GameView> {
+    state::with_mut(|s| games::claim_timeout_win(s, msg_caller(), time(), game_id))
 }
 
 #[update]

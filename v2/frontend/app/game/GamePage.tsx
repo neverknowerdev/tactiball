@@ -260,6 +260,21 @@ export default function GamePage() {
         }
     };
 
+    const [claiming, setClaiming] = useState(false);
+    const handleClaimTimeout = async () => {
+        if (!game) return;
+        setClaiming(true);
+        try {
+            await ensureSignedIn();
+            ok(await api().claim_timeout_win(game.id));
+            await fetchGameData();
+        } catch (err) {
+            toast.error(errorText(err));
+        } finally {
+            setClaiming(false);
+        }
+    };
+
     const handleSurrender = async () => {
         if (!game || !confirm('Give up this game? It counts as a 0:3 loss.')) return;
         try {
@@ -305,7 +320,7 @@ export default function GamePage() {
             case GameStatus.Finished:
                 return 'Maximum moves reached';
             case GameStatus.FinishedByTimeout:
-                return 'Move timeout';
+                return 'Opponent missed the move deadline; win claimed';
             case GameStatus.Surrendered:
                 return 'A team gave up';
             case GameStatus.Abandoned:
@@ -422,7 +437,7 @@ export default function GamePage() {
                         <div className="text-center">
                             <div className="text-sm text-gray-600 inline-block bg-white px-4 py-2 rounded-lg shadow-sm">
                                 Game ID: {gameIdText} | Status: {statusText(game.status)}
-                                {active && <> | Move {game.turns_played + 1} / {game.max_turns} | <span className={secondsLeft <= 10 ? 'text-red-600 font-semibold' : ''}>{secondsLeft}s left</span></>}
+                                {active && <> | Move {game.turns_played + 1} / {game.max_turns} | <span className={secondsLeft <= 10 ? 'text-red-600 font-semibold' : ''}>{secondsLeft > 0 ? `${secondsLeft}s left` : "time's up"}</span></>}
                                 {isDebugMode && (
                                     <span className="ml-2 px-2 py-1 bg-yellow-500 text-black text-xs font-bold rounded">
                                         DEBUG MODE
@@ -464,7 +479,7 @@ export default function GamePage() {
                     <div className="field">
                         <div className="grid grid-cols-[repeat(17,1fr)] grid-rows-[repeat(11,1fr)] absolute inset-0 w-full h-full">
                             {board.team1.map((p, index) => (
-                                <div key={`t1-${index}`} className={`player team1 player${index} ${mySide === Side.Team1 && movedIds.has(index) ? 'action-done' : ''} ${holder?.side === Side.Team1 && holder.id === index ? 'has-ball' : ''}`}
+                                <div key={`t1-${index}`} className={`player team1 player${index} ${mySide === Side.Team1 && movedIds.has(index) ? 'action-done' : ''}`}
                                     style={{ gridRow: p.y + 1, gridColumn: p.x + 1 }}>
                                     {isDebugMode && (
                                         <div className="absolute -top-2 -left-2 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -474,7 +489,7 @@ export default function GamePage() {
                                 </div>
                             ))}
                             {board.team2.map((p, index) => (
-                                <div key={`t2-${index}`} className={`player team2 player${index} ${mySide === Side.Team2 && movedIds.has(index) ? 'action-done' : ''} ${holder?.side === Side.Team2 && holder.id === index ? 'has-ball' : ''}`}
+                                <div key={`t2-${index}`} className={`player team2 player${index} ${mySide === Side.Team2 && movedIds.has(index) ? 'action-done' : ''}`}
                                     style={{ gridRow: p.y + 1, gridColumn: p.x + 1 }}>
                                     {isDebugMode && (
                                         <div className="absolute -top-2 -left-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -512,6 +527,13 @@ export default function GamePage() {
                             {selected && currentMode
                                 ? <>Player {selected.id}: <b>{currentMode}</b>{modes.length > 1 && <> (tap again for {modes.filter((m) => m !== currentMode).join(' / ')})</>}</>
                                 : <>{planned.length} move{planned.length === 1 ? '' : 's'} planned. Tap a player to plan a move.</>}
+                        </div>
+                    )}
+
+                    {/* Out of time: the opponent may now claim the win, but until they do this move still counts */}
+                    {active && mySide && secondsLeft === 0 && submission === GameSubmissionState.IDLE && (mySide === Side.Team1 ? !game.committed1 && game.committed2 : !game.committed2 && game.committed1) && (
+                        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 text-center">
+                            ⏰ Time&apos;s up. Your opponent can now claim a 3:0 win. Make your move quickly: it still counts until they do.
                         </div>
                     )}
 
@@ -741,13 +763,22 @@ export default function GamePage() {
                                         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                             <div className="text-yellow-800 font-medium mb-1">⏱️ Timeout Warning</div>
                                             <p className="text-yellow-600 text-sm">
-                                                Opponent has {secondsLeft}s left. If they miss it, you win 3:0.
+                                                Opponent has {secondsLeft}s left. If they miss it, you can claim a 3:0 win.
                                             </p>
                                         </div>
                                     ) : (
                                         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                                            <div className="text-red-800 font-medium mb-2">⏰ Game Timeout</div>
-                                            <p className="text-red-600 text-sm">Your opponent ran out of time. Finishing the game...</p>
+                                            <div className="text-red-800 font-medium mb-2">⏰ Opponent out of time</div>
+                                            <p className="text-red-600 text-sm mb-3">
+                                                Your opponent missed the move deadline. You can claim a 3:0 win now, or keep waiting for their move.
+                                            </p>
+                                            <button
+                                                onClick={handleClaimTimeout}
+                                                disabled={claiming}
+                                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50"
+                                            >
+                                                {claiming ? 'Claiming...' : 'Claim victory'}
+                                            </button>
                                         </div>
                                     )}
                                 </>

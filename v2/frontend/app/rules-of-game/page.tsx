@@ -87,8 +87,8 @@ export default function RulesOfGame() {
                     <h3 className="text-xl font-medium mt-4 mb-2" id="game-progression">Game Progression</h3>
                     <ul className="list-disc pl-5 text-base text-gray-700">
                         <li><strong>Turn Continuation</strong>: Repeat the move planning and commitment process for each turn until the game ends.</li>
-                        <li><strong>Time Limit</strong>: Ensure you commit your moves within 30 seconds per turn, or your opponent can claim a victory by timeout.</li>
-                        <li><strong>Game End</strong>: The game concludes after 45 moves or if a timeout occurs. The team with the most goals wins, or it’s a draw if scores are tied.</li>
+                        <li><strong>Time Limit</strong>: Commit your moves within 1 minute per turn. If you don&apos;t and your opponent has moved, they can claim a 3:0 victory by timeout. Until they claim it, your late move still counts.</li>
+                        <li><strong>Game End</strong>: The game concludes after 45 moves, when a player gives up, or when a player claims a victory by timeout. The team with the most goals wins, or it’s a draw if scores are tied.</li>
                     </ul>
                 </section>
 
@@ -258,12 +258,12 @@ export default function RulesOfGame() {
                     <h3 className="text-xl font-medium mt-4 mb-2">Game End Conditions</h3>
                     <ol className="list-decimal pl-5 text-base text-gray-700">
                         <li><strong>Maximum Moves</strong>: Game ends after 45 moves total</li>
-                        <li><strong>Timeout</strong>: Game ends if a team doesn&apos;t commit moves within 1 minute</li>
+                        <li><strong>Timeout</strong>: If a team doesn&apos;t commit moves within 1 minute, a team that did can claim the win. Claiming is optional, and the game never ends on time by itself</li>
                         <li><strong>Winner Determination</strong>:
                             <ul className="list-circle pl-5">
                                 <li>Most goals scored wins</li>
                                 <li>If tied after 45 moves, game is a draw</li>
-                                <li>Timeout winner is determined by last team to move</li>
+                                <li>A timeout win goes to the team that moved in time and claimed it</li>
                             </ul>
                         </li>
                     </ol>
