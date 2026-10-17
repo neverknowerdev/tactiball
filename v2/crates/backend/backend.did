@@ -24,6 +24,12 @@ type CommitResult = record {
   resolved : bool;
   game : GameView;
 };
+type EmailCredentials = record {
+  email : text;
+  // PBKDF2-HMAC-SHA256(password, "tactiball:" + lower-cased email,
+  // 210 000 rounds, 32 bytes), computed in the browser.
+  password_key : blob;
+};
 type Event = record { at : nat64; seq : nat64; kind : EventKind };
 type EventKind = variant {
   GameRequestClosed : record { request_id : nat64; reason : text };
@@ -42,6 +48,7 @@ type EventKind = variant {
     turn : nat32;
     game_id : nat64;
   };
+  EmailLinked : record { user_id : nat64 };
   GameRequested : record {
     request_id : nat64;
     from_team : nat64;
@@ -180,10 +187,10 @@ type Result_1 = variant { Ok : Settings; Err : text };
 type Result_10 = variant { Ok : Lobby; Err : text };
 type Result_11 = variant { Ok : GameView; Err : text };
 type Result_12 = variant { Ok : opt TeamView; Err : text };
-type Result_2 = variant { Ok : User; Err : text };
+type Result_2 = variant { Ok; Err : text };
 type Result_3 = variant { Ok : SessionInfo; Err : text };
-type Result_4 = variant { Ok : SignInMessage; Err : text };
-type Result_5 = variant { Ok; Err : text };
+type Result_4 = variant { Ok : User; Err : text };
+type Result_5 = variant { Ok : SignInMessage; Err : text };
 type Result_6 = variant { Ok : CommitResult; Err : text };
 type Result_7 = variant { Ok : GameRequestView; Err : text };
 type Result_8 = variant { Ok : TeamView; Err : text };
@@ -280,13 +287,15 @@ type User = record {
   team_id : opt nat64;
   created_at : nat64;
   // CAIP-2 id of the chain the user first signed in from, e.g. "eip155:8453".
-  // Shown as a badge next to the team name.
+  // Shown as a badge next to the team name. Empty for an email account
+  // until it links a wallet.
   home_chain : text;
   last_login_at : nat64;
   // The user's own session length; `None` uses the default.
   session_ttl_secs : opt nat64;
   verifications : vec Verification;
-  // Linked wallet identities, e.g. "eip155:0xabc…" (EOAs are chain-agnostic).
+  // Sign-in identities: wallets ("eip155:0xabc…", chain-agnostic EOAs) and
+  // at most one email ("email:name@example.com").
   identities : vec text;
 };
 // Proof-of-human hook (World ID later). Nothing writes these yet.
@@ -301,11 +310,16 @@ type VerificationLevel = variant { Orb; Device };
 service : (opt InitArgs) -> {
   accept_game_request : (nat64) -> (Result);
   admin_update_settings : (SettingsUpdate) -> (Result_1);
-  auth_link : (text) -> (Result_2);
+  auth_change_password : (blob, blob) -> (Result_2);
+  auth_email_login : (EmailCredentials) -> (Result_3);
+  auth_email_sign_up : (EmailCredentials) -> (Result_3);
+  auth_link : (text) -> (Result_4);
+  // Adds an email login to the signed-in account.
+  auth_link_email : (EmailCredentials) -> (Result_4);
   auth_login : (text) -> (Result_3);
-  auth_prepare : (PrepareSignIn) -> (Result_4);
-  auth_prepare_link : (PrepareSignIn) -> (Result_4);
-  cancel_game_request : (nat64) -> (Result_5);
+  auth_prepare : (PrepareSignIn) -> (Result_5);
+  auth_prepare_link : (PrepareSignIn) -> (Result_5);
+  cancel_game_request : (nat64) -> (Result_2);
   commit_moves : (nat64, nat32, vec Move) -> (Result_6);
   create_game_request : (nat64) -> (Result_7);
   create_team : (text, nat16) -> (Result_8);
@@ -319,12 +333,12 @@ service : (opt InitArgs) -> {
   health : () -> (Health) query;
   join_queue : () -> (Result_9);
   leaderboard : (nat64, nat64) -> (vec TeamView) query;
-  leave_queue : () -> (Result_5);
+  leave_queue : () -> (Result_2);
   lobby : () -> (Result_10) query;
   recent_games : (nat32) -> (vec GameSummary) query;
   search_teams : (text, nat64) -> (vec TeamView) query;
-  set_home_chain : (nat64) -> (Result_2);
-  set_session_length : (opt nat64) -> (Result_2);
+  set_home_chain : (nat64) -> (Result_4);
+  set_session_length : (opt nat64) -> (Result_4);
   sign_out : () -> ();
   surrender : (nat64) -> (Result_11);
   sync_overview : () -> (vec ChainSyncOverview) query;

@@ -8,7 +8,7 @@ Everything runs as two canisters:
 - **backend**: the Rust canister in `crates/backend`. It holds all game state: users, sessions, teams, games, ELO and the sync outbox.
 - **frontend**: an asset canister serving `frontend/out`, the v1 Next.js app exported as static files. Players open this web app. It runs the same Rust game engine in the browser, compiled to WASM, to plan moves.
 
-Players sign in with an EVM wallet on Base or Robinhood Chain. They sign a text message and the canister checks the signature. No gas or transaction is needed.
+Players sign in with an EVM wallet on Base or Robinhood Chain, or with email and password. With a wallet, they sign a text message and the canister checks the signature; no gas or transaction is needed. One account can have both.
 
 ## 1. Install the tools (once)
 
@@ -37,9 +37,9 @@ The script does the following:
 3. Builds and deploys both canisters.
 4. Prints the app URL, which looks like `http://<frontend-id>.localhost:8000/`.
 
-Open that URL in a browser with MetaMask, Rabby, or Coinbase Wallet in EOA mode. Connect your wallet and create a team. Your wallet signs one message to sign in. Then open a second browser profile with another wallet, press **Play Now** in both, and play a match against yourself.
+Open that URL in a browser. Either connect MetaMask, Rabby, or Coinbase Wallet in EOA mode (your wallet signs one message to sign in), or press **Sign up with email**. Then create a team. Then open a second browser profile with another wallet or email, press **Play Now** in both, and play a match against yourself.
 
-To exercise the whole backend without a browser, run the bot smoke test. It uses two bot wallets that sign in, get paired, play turns, and then one side gives up:
+To exercise the whole backend without a browser, run the bot smoke test. One bot signs in with a wallet and the other signs up with email; they get paired, play turns, and then one side gives up:
 
 ```bash
 npm --prefix frontend run bindings
@@ -150,6 +150,7 @@ Before upgrading production, test the same build on staging. Stable memory keeps
 
 ## 7. What this PoC does not do yet
 
+- **Emails are not verified, and there is no password reset.** The canister would need an HTTPS outcall to a mail provider to send a confirmation or reset link. Until then, anyone can register an address they don't own, and a forgotten password can't be recovered. A signed-in player can change their password with `auth_change_password`.
 - **EOA wallets only.** Smart wallets (Coinbase Smart Wallet, Safe) sign with EIP-1271/6492, which the canister cannot check yet, so those users see an "invalid signature" error.
 - **Home-chain ledger is a stub.** Finished games are queued per chain in an outbox (`sync_overview`), but nothing is written onchain yet.
 - **The Farcaster / Base App mini-app frame is not wired.** The v1 `/.well-known/farcaster.json` route and the Zealy pages needed a server, so they are not in the static export. The app still loads inside the Base App, but that app's smart wallet can't sign in yet (see above).

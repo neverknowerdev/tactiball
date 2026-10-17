@@ -33,9 +33,16 @@ const STYLE: Record<string, { short: string; className: string }> = {
 
 /** Badge label and Tailwind classes for a CAIP-2 chain id like "eip155:8453". */
 export function chainBadge(caip2: string): { label: string; className: string } {
+  // Email accounts have no home chain until they link a wallet.
+  if (!caip2) return { label: 'Email', className: 'bg-gray-200 text-gray-700' };
   const id = caip2.split(':')[1] ?? '';
   const style = STYLE[id];
   return { label: style?.short ?? caip2, className: style?.className ?? 'bg-gray-500 text-white' };
+}
+
+/** "Base", "Robinhood Chain", … for a CAIP-2 home chain; "email" when it has none. */
+export function homeChainName(caip2: string): string {
+  return caip2 ? chainName(Number(caip2.split(':')[1])) : 'email';
 }
 
 export function chainName(chainId: number): string {

@@ -37,7 +37,7 @@ export default function GameTipsModal({ isOpen, onClose, isConnected, mySide }: 
                     {!isConnected && (
                         <div className="flex items-start gap-2">
                             <span className="font-semibold text-red-600">0.</span>
-                            <span>Connect wallet first by clicking on "Connect Wallet"</span>
+                            <span>Connect your wallet, or sign in with email on the home page</span>
                         </div>
                     )}
                     <div className="flex items-start gap-2">

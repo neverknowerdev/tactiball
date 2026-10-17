@@ -56,7 +56,9 @@ export default function GamePage() {
     const gameIdText = params.get('id') ?? '';
     const gameId = /^\d+$/.test(gameIdText) ? BigInt(gameIdText) : null;
 
-    const { isConnected, session, ensureSignedIn } = useSession();
+    const { isConnected: walletConnected, session, ensureSignedIn } = useSession();
+    // Signed in with email, or a wallet is connected (it signs in on first move).
+    const isConnected = walletConnected || Boolean(session);
     const [game, setGame] = useState<GameView | null>(null);
     const [history, setHistory] = useState<HistoryState[]>([]);
     const [animBoard, setAnimBoard] = useState<Board | null>(null);
@@ -203,7 +205,7 @@ export default function GamePage() {
         const pos = { x, y };
         if (!canPlan || !mySide) {
             if (active && !mySide && board.team1.concat(board.team2).some((p) => samePos(p, pos))) {
-                toast.info(isConnected ? 'You are watching this game.' : 'Connect your wallet to play.');
+                toast.info(isConnected ? 'You are watching this game.' : 'Connect your wallet or sign in with email to play.');
             }
             return;
         }
@@ -516,9 +518,12 @@ export default function GamePage() {
                     {/* Ready Button or Connect Wallet */}
                     <div className="mt-4 flex justify-center">
                         {!isConnected ? (
-                            <ConnectWallet className="bg-black px-4 py-2 rounded-lg hover:bg-gray-800 custom-connect-wallet">
-                                Connect Wallet
-                            </ConnectWallet>
+                            <div className="flex items-center gap-3">
+                                <ConnectWallet className="bg-black px-4 py-2 rounded-lg hover:bg-gray-800 custom-connect-wallet">
+                                    Connect Wallet
+                                </ConnectWallet>
+                                <a href="/" className="text-sm text-blue-600 hover:underline">or sign in with email</a>
+                            </div>
                         ) : active && mySide ? (
                             <button
                                 onClick={handleReady}

@@ -25,6 +25,7 @@ import { CreateTeamModal } from "./components/CreateTeamModal";
 import { SearchOpponentModal } from "./components/SearchOpponentModal";
 import { GameRequestModal } from "./components/GameRequestModal";
 import { ChainBadge } from "./components/ChainBadge";
+import { EmailAuthModal, type EmailAuthMode } from "./components/EmailAuthModal";
 import { getName } from "@coinbase/onchainkit/identity";
 import { base } from 'viem/chains';
 import { toast, ToastContainer } from "react-toastify";
@@ -34,7 +35,7 @@ import { Leaderboard } from './components/Leaderboard';
 import { GlobalStats } from './components/GlobalStats';
 import { api, errorText, formatElo, nsToMs, ok, type GameRequestView } from '@/lib/backend';
 import { countryFlag, countryName } from '@/lib/countries';
-import { chainName } from '@/lib/chains';
+import { chainName, homeChainName } from '@/lib/chains';
 import { gameUrl } from '@/lib/routes';
 import { useSession } from './session';
 
@@ -43,7 +44,10 @@ const LOBBY_POLL_MS = 3000;
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const [frameAdded, setFrameAdded] = useState(false);
-  const { address, isConnected, team: teamInfo, teamLoading: loading, session, settings, ensureSignedIn, refresh, error: sessionError } = useSession();
+  const { address, isConnected, team: teamInfo, teamLoading: loading, session, email, walletUnlinked, settings, ensureSignedIn, linkWallet, signOut, refresh, error: sessionError } = useSession();
+  const signedIn = isConnected || Boolean(session);
+  const [emailModal, setEmailModal] = useState<EmailAuthMode | null>(null);
+  const [linkingWallet, setLinkingWallet] = useState(false);
   const chainId = useChainId();
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
   const [isCreatingTeam, setIsCreatingTeam] = useState(false);
@@ -126,8 +130,8 @@ export default function App() {
   }, []);
 
   const handleCreateTeam = useCallback(async (teamName: string, countryIndex: string) => {
-    if (!address) {
-      alert("Please connect your wallet first");
+    if (!address && !session) {
+      setEmailModal("login");
       return;
     }
 
@@ -138,8 +142,8 @@ export default function App() {
         throw new Error("Invalid country selection");
       }
 
-      // One wallet signature starts the session; the canister links the
-      // team to this wallet and records the chain it signed in from.
+      // Signed in with email already, or one wallet signature starts the
+      // session; the canister records the chain a wallet signed in from.
       await ensureSignedIn();
       ok(await api().create_team(teamName, countryIndexNum));
       await refresh();
@@ -165,7 +169,19 @@ export default function App() {
     } finally {
       setIsCreatingTeam(false);
     }
-  }, [address, ensureSignedIn, refresh]);
+  }, [address, session, ensureSignedIn, refresh]);
+
+  const handleLinkWallet = useCallback(async () => {
+    setLinkingWallet(true);
+    try {
+      await linkWallet();
+      toast.success("Wallet linked: you can now sign in with it too.", { position: "top-center", autoClose: 3000 });
+    } catch (e) {
+      toast.error("Could not link the wallet: " + errorText(e), { position: "top-center", autoClose: 5000 });
+    } finally {
+      setLinkingWallet(false);
+    }
+  }, [linkWallet]);
 
   useEffect(() => {
     if (!isFrameReady) {
@@ -242,6 +258,12 @@ export default function App() {
       {/* Wallet connection - fixed to right corner */}
       <div className="absolute top-4 right-4 z-20">
         <div className="flex items-center space-x-2">
+          {session && !isConnected && (
+            <div className="flex items-center gap-2 bg-black text-white px-3 py-2 rounded-lg text-sm">
+              <span className="max-w-[140px] truncate" title={email ?? undefined}>{email ?? "Signed in"}</span>
+              <button onClick={() => signOut()} className="text-gray-300 hover:text-white underline">Sign out</button>
+            </div>
+          )}
           <Wallet className="z-10">
             <ConnectWallet
               className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
@@ -316,7 +338,7 @@ export default function App() {
         )}
 
         {/* Team info section */}
-        {isConnected ? (
+        {signedIn ? (
           <div className="w-full max-w-md mb-6 bg-white rounded-lg shadow-sm border border-gray-200">
             {loading ? (
               <div className="p-4 text-center">
@@ -356,11 +378,15 @@ export default function App() {
 
                     {/* Player info */}
                     <div className="flex justify-between items-center mb-2">
-                      <Identity className="bg-white px-0 space-x-1 team-coach-username">
-                        <Avatar className="w-6 h-6" />
-                        <Name className="text-black ml-0" />
-                      </Identity>
-                      <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded flex items-center gap-1" title={`${countryName(teamInfo.country)} · plays from ${chainName(Number(teamInfo.home_chain.split(':')[1]))}`}>
+                      {address ? (
+                        <Identity address={address} className="bg-white px-0 space-x-1 team-coach-username">
+                          <Avatar className="w-6 h-6" />
+                          <Name className="text-black ml-0" />
+                        </Identity>
+                      ) : (
+                        <span className="text-sm text-gray-700 truncate max-w-[180px]">{email}</span>
+                      )}
+                      <div className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded flex items-center gap-1" title={`${countryName(teamInfo.country)} · plays from ${homeChainName(teamInfo.home_chain)}`}>
                         {countryFlag(teamInfo.country)} <ChainBadge chain={teamInfo.home_chain} />
                       </div>
                     </div>
@@ -388,8 +414,8 @@ export default function App() {
                   <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Your Team</h3>
                 </div>
                 <div className="text-gray-500 mb-4">
-                  <p className="text-sm">No team found for this wallet address</p>
-                  <p className="text-xs mt-1">Create a team to get started. Your wallet signs one message to sign in; no transaction or gas.</p>
+                  <p className="text-sm">{session ? "No team on your account yet" : "No team found for this wallet address"}</p>
+                  <p className="text-xs mt-1">{session ? "Create a team to get started." : "Create a team to get started. Your wallet signs one message to sign in; no transaction or gas."}</p>
                 </div>
                 <button
                   onClick={() => setIsCreateTeamModalOpen(true)}
@@ -397,6 +423,26 @@ export default function App() {
                 >
                   Create Team
                 </button>
+              </div>
+            )}
+            {/* Account: sign-in methods on this account */}
+            {!loading && (
+              <div className="px-4 py-2 border-t border-gray-100 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-gray-500">
+                {session && email && <span className="mr-auto truncate max-w-[200px]">Email login: {email}</span>}
+                {session && !email && (
+                  <button onClick={() => setEmailModal("link")} className="text-blue-600 hover:underline">Add email login</button>
+                )}
+                {walletUnlinked && (
+                  <button onClick={handleLinkWallet} disabled={linkingWallet} className="text-blue-600 hover:underline disabled:opacity-50">
+                    {linkingWallet ? "Linking wallet..." : "Link connected wallet"}
+                  </button>
+                )}
+                {!session && (
+                  <button onClick={() => setEmailModal("login")} className="text-blue-600 hover:underline">Use email instead</button>
+                )}
+                {session && (
+                  <button onClick={() => signOut()} className="text-gray-500 hover:underline">Sign out</button>
+                )}
               </div>
             )}
           </div>
@@ -407,13 +453,23 @@ export default function App() {
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Your Team</h3>
               </div>
               <div className="text-gray-500 mb-4">
-                <p className="text-sm">Connect your wallet to view your team information</p>
+                <p className="text-sm">Connect your wallet or sign in with email to view your team</p>
               </div>
-              <div className="flex justify-center">
+              <div className="flex flex-wrap justify-center gap-3">
                 <ConnectWallet className="bg-black px-4 py-2 rounded-lg hover:bg-gray-800 custom-connect-wallet">
                   Connect Wallet
                 </ConnectWallet>
+                <button
+                  onClick={() => setEmailModal("login")}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Sign in with email
+                </button>
               </div>
+              <p className="text-xs text-gray-500 mt-3">
+                New here?{" "}
+                <button onClick={() => setEmailModal("signup")} className="text-blue-600 hover:underline">Sign up with email</button>
+              </p>
             </div>
           </div>
         )}
@@ -460,6 +516,16 @@ export default function App() {
         onSubmit={handleCreateTeam}
         isLoading={isCreatingTeam}
         defaultTeamName={username ? `${username}'s team` : undefined}
+      />
+
+      {/* Email sign-in / sign-up / add email */}
+      <EmailAuthModal
+        isOpen={emailModal !== null}
+        initialMode={emailModal ?? "login"}
+        onClose={() => setEmailModal(null)}
+        onDone={(mode) =>
+          toast.success(mode === "signup" ? "Account created. Now create your team!" : mode === "link" ? "Email login added." : "Signed in.", { position: "top-center", autoClose: 3000 })
+        }
       />
 
       {/* Search Opponent Modal */}

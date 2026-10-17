@@ -1,4 +1,5 @@
-//! Wallet sign-in (PoC: EVM EOAs on Base and Robinhood Chain).
+//! Wallet sign-in (PoC: EVM EOAs on Base and Robinhood Chain), plus the
+//! session helpers shared with email sign-in (`crate::email`).
 //!
 //! Flow:
 //! 1. The browser makes an Ed25519 session key; its self-authenticating
@@ -141,12 +142,7 @@ pub fn prepare(s: &mut Store, caller: Principal, now: Timestamp, req: PrepareSig
     }
 
     let session_ttl = match purpose {
-        AuthPurpose::Login => s
-            .identities
-            .get(&evm_identity(&address))
-            .and_then(|uid| s.user(uid))
-            .and_then(|u| u.session_ttl_secs)
-            .unwrap_or(settings.default_session_ttl_secs),
+        AuthPurpose::Login => session_ttl(s, s.identities.get(&evm_identity(&address)).and_then(|uid| s.user(uid)).as_ref()),
         AuthPurpose::LinkWallet => {
             let (session, _) = session_user(s, &caller, now).ok_or("sign in before linking another wallet")?;
             // Linking does not extend the current session.
@@ -193,37 +189,50 @@ pub fn login(s: &mut Store, caller: Principal, now: Timestamp, signature: &str) 
     let pending = take_verified(s, &caller, now, AuthPurpose::Login, signature)?;
     let identity = evm_identity(&pending.address);
 
-    let (mut user, new_user) = match s.identities.get(&identity).and_then(|id| s.user(id)) {
+    let (user, new_user) = match s.identities.get(&identity).and_then(|id| s.user(id)) {
         Some(u) => (u, false),
-        None => {
-            let id = s.update_meta(|m| {
-                let id = m.next_user_id;
-                m.next_user_id += 1;
-                id
-            });
-            let user = User {
-                id,
-                created_at: now,
-                home_chain: caip2(pending.chain_id),
-                identities: vec![identity.clone()],
-                team_id: None,
-                verifications: vec![],
-                session_ttl_secs: None,
-                last_login_at: now,
-            };
-            s.identities.insert(identity.clone(), id);
-            s.emit(now, EventKind::UserCreated { user_id: id, identity: identity.clone(), home_chain: user.home_chain.clone() });
-            (user, true)
-        }
+        None => (create_user(s, now, &identity, &identity, caip2(pending.chain_id)), true),
     };
+    Ok(start_session(s, caller, now, user, identity, pending.chain_id, pending.session_expires_at, new_user))
+}
+
+/// Creates a user with one identity. `public_identity` is what the public
+/// event log shows (emails are not published).
+pub fn create_user(s: &mut Store, now: Timestamp, identity: &str, public_identity: &str, home_chain: String) -> User {
+    let id = s.update_meta(|m| {
+        let id = m.next_user_id;
+        m.next_user_id += 1;
+        id
+    });
+    let user = User {
+        id,
+        created_at: now,
+        home_chain,
+        identities: vec![identity.to_string()],
+        team_id: None,
+        verifications: vec![],
+        session_ttl_secs: None,
+        last_login_at: now,
+    };
+    s.identities.insert(identity.to_string(), id);
+    s.put_user(user.clone());
+    s.emit(now, EventKind::UserCreated { user_id: id, identity: public_identity.to_string(), home_chain: user.home_chain.clone() });
+    user
+}
+
+/// The session length for `user`: their own setting, else the default.
+pub fn session_ttl(s: &Store, user: Option<&User>) -> u64 {
+    user.and_then(|u| u.session_ttl_secs).unwrap_or(s.settings().default_session_ttl_secs)
+}
+
+/// Binds the caller's session key to `user` until `expires_at`.
+#[allow(clippy::too_many_arguments)]
+pub fn start_session(s: &mut Store, caller: Principal, now: Timestamp, mut user: User, identity: String, chain_id: u64, expires_at: Timestamp, new_user: bool) -> SessionInfo {
     user.last_login_at = now;
     s.put_user(user.clone());
-    s.sessions.insert(
-        caller,
-        Stored(Session { user_id: user.id, identity, chain_id: pending.chain_id, created_at: now, expires_at: pending.session_expires_at }),
-    );
+    s.sessions.insert(caller, Stored(Session { user_id: user.id, identity, chain_id, created_at: now, expires_at }));
     let team = user.team_id.and_then(|t| crate::teams::team_view(s, t));
-    Ok(SessionInfo { user, team, session_expires_at: pending.session_expires_at, new_user })
+    SessionInfo { user, team, session_expires_at: expires_at, new_user }
 }
 
 pub fn link_wallet(s: &mut Store, caller: Principal, now: Timestamp, signature: &str) -> Res<User> {
@@ -237,6 +246,10 @@ pub fn link_wallet(s: &mut Store, caller: Principal, now: Timestamp, signature: 
     }
     s.identities.insert(identity.clone(), user.id);
     user.identities.push(identity.clone());
+    // An email-only account gets its first wallet's chain as its home chain.
+    if user.home_chain.is_empty() {
+        user.home_chain = caip2(pending.chain_id);
+    }
     s.put_user(user.clone());
     s.emit(now, EventKind::WalletLinked { user_id: user.id, identity });
     Ok(user)

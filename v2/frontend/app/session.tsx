@@ -1,30 +1,50 @@
 'use client';
 
-// Wallet sign-in against the canister.
+// Sign-in against the canister, with a wallet or with email and password.
 //
-// Connecting a wallet shows the player's team right away (`team_by_wallet`
-// is a public query). The first action that changes something asks the
-// wallet to sign a Sign-In with Ethereum message once; after that, calls are
-// signed by the browser's session key until the session expires (3 days by
-// default), so playing needs no more wallet popups.
+// Either way, the canister binds the browser's session key to the player's
+// account, and calls are then signed by that key until the session expires
+// (3 days by default), so playing needs no more wallet popups or passwords.
+//
+// Wallet: connecting shows the wallet's team right away (`team_by_wallet` is
+// a public query). The first action that changes something asks the wallet
+// to sign a Sign-In with Ethereum message once.
+//
+// Email: sign up or log in with email and password; no wallet needed.
+//
+// One account can have both: a wallet account can add an email login, and an
+// email account can link a wallet.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAccount, useSignMessage, useSwitchChain } from 'wagmi';
 import { api, errorText, ok, resetSessionKey, type SessionInfo, type Settings, type TeamView } from '@/lib/backend';
 import { loadEngine } from '@/lib/engine';
 import { chainName } from '@/lib/chains';
+import { normalizeEmail, passwordKey } from '@/lib/password';
+
+export type EmailMode = 'login' | 'signup';
 
 interface SessionState {
   settings: Settings | null;
+  /** The connected wallet, if any. */
   address?: `0x${string}`;
   isConnected: boolean;
-  /** The connected wallet's team, signed in or not. */
+  /** The player's team: the signed-in account's, else the connected wallet's. */
   team: TeamView | null;
   teamLoading: boolean;
-  /** Set once the wallet has signed in for this browser. */
+  /** Set once the player has signed in on this browser. */
   session: SessionInfo | null;
-  /** Signs in if needed (one wallet signature) and returns the session. */
+  /** The signed-in account's email login, if it has one. */
+  email: string | null;
+  /** True when a wallet is connected that the signed-in account hasn't linked. */
+  walletUnlinked: boolean;
+  /** Signs in with the connected wallet if needed (one signature) and returns the session. */
   ensureSignedIn: () => Promise<SessionInfo>;
+  signInWithEmail: (mode: EmailMode, email: string, password: string) => Promise<SessionInfo>;
+  /** Adds an email login to the signed-in account. */
+  linkEmail: (email: string, password: string) => Promise<void>;
+  /** Links the connected wallet to the signed-in account (one signature). */
+  linkWallet: () => Promise<void>;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
   error: string | null;
@@ -38,7 +58,20 @@ export function useSession(): SessionState {
   return s;
 }
 
-const identityOf = (address: string) => `eip155:${address.toLowerCase()}`;
+const walletIdentity = (address: string) => `eip155:${address.toLowerCase()}`;
+const wallets = (s: SessionInfo) => s.user.identities.filter((i) => i.startsWith('eip155:'));
+const emailOf = (s: SessionInfo | null) => s?.user.identities.find((i) => i.startsWith('email:'))?.slice('email:'.length) ?? null;
+
+/**
+ * A session stays in use while the connected wallet belongs to it. When the
+ * player switches to a wallet the account doesn't have, the wallet wins (as
+ * in v1), unless the account has no wallets at all (an email account).
+ */
+function sessionForWallet(s: SessionInfo | null, address?: string): SessionInfo | null {
+  if (!s || !address) return s;
+  const linked = wallets(s);
+  return linked.length === 0 || linked.includes(walletIdentity(address)) ? s : null;
+}
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const { address, isConnected, chainId } = useAccount();
@@ -57,19 +90,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!address) {
-      setSession(null);
-      setTeam(null);
-      return;
-    }
     setTeamLoading(true);
     try {
-      const [who, byWallet] = await Promise.all([api().whoami(), api().team_by_wallet(address)]);
-      // A session belongs to whichever wallet signed in; ignore it if the
-      // user switched to a wallet that is not linked to that account.
-      const mine = who && who.user.identities.includes(identityOf(address)) ? who : null;
+      const [who, byWallet] = await Promise.all([api().whoami(), address ? api().team_by_wallet(address) : null]);
+      const mine = sessionForWallet(who, address);
       setSession(mine);
-      setTeam(mine?.team ?? ok(byWallet) ?? null);
+      setTeam(mine ? (mine.team ?? null) : byWallet ? (ok(byWallet) ?? null) : null);
       setError(null);
     } catch (e) {
       setError(errorText(e));
@@ -82,34 +108,70 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
+  const accept = useCallback((info: SessionInfo) => {
+    setSession(info);
+    setTeam(info.team ?? null);
+    return info;
+  }, []);
+
+  /** Switches the wallet to a sign-in chain if needed and returns that chain. */
+  const signInChain = useCallback(async (): Promise<number> => {
+    if (!settings) throw new Error('Still connecting to the game server');
+    const enabled = settings.chains.filter((c) => c.enabled).map((c) => Number(c.chain_id));
+    const useChain = chainId && enabled.includes(chainId) ? chainId : enabled[0];
+    if (useChain === undefined) throw new Error('No sign-in chain is enabled');
+    if (useChain !== chainId) {
+      try {
+        await switchChainAsync({ chainId: useChain });
+      } catch {
+        throw new Error(`Switch your wallet to ${enabled.map(chainName).join(' or ')} to sign in`);
+      }
+    }
+    return useChain;
+  }, [settings, chainId, switchChainAsync]);
+
   const ensureSignedIn = useCallback(async (): Promise<SessionInfo> => {
     if (session) return session;
-    if (!address || !settings) throw new Error('Connect your wallet first');
+    if (!address) throw new Error('Connect your wallet or sign in with email first');
     if (signingIn.current) return signingIn.current;
 
     const run = async () => {
-      const enabled = settings.chains.filter((c) => c.enabled).map((c) => Number(c.chain_id));
-      let useChain = chainId && enabled.includes(chainId) ? chainId : enabled[0];
-      if (useChain === undefined) throw new Error('No sign-in chain is enabled');
-      if (useChain !== chainId) {
-        try {
-          await switchChainAsync({ chainId: useChain });
-        } catch {
-          throw new Error(`Switch your wallet to ${enabled.map(chainName).join(' or ')} to sign in`);
-        }
-      }
+      const useChain = await signInChain();
       const prepared = ok(await api().auth_prepare({ address, chain_id: BigInt(useChain), domain: window.location.host }));
       const signature = await signMessageAsync({ message: prepared.message });
-      const info = ok(await api().auth_login(signature));
-      setSession(info);
-      setTeam(info.team ?? null);
-      return info;
+      return accept(ok(await api().auth_login(signature)));
     };
     signingIn.current = run().finally(() => {
       signingIn.current = null;
     });
     return signingIn.current;
-  }, [session, address, settings, chainId, switchChainAsync, signMessageAsync]);
+  }, [session, address, signInChain, signMessageAsync, accept]);
+
+  const signInWithEmail = useCallback(
+    async (mode: EmailMode, email: string, password: string): Promise<SessionInfo> => {
+      const creds = { email: normalizeEmail(email), password_key: await passwordKey(email, password) };
+      const result = mode === 'signup' ? await api().auth_email_sign_up(creds) : await api().auth_email_login(creds);
+      return accept(ok(result));
+    },
+    [accept],
+  );
+
+  const linkEmail = useCallback(
+    async (email: string, password: string) => {
+      ok(await api().auth_link_email({ email: normalizeEmail(email), password_key: await passwordKey(email, password) }));
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const linkWallet = useCallback(async () => {
+    if (!address) throw new Error('Connect a wallet first');
+    const useChain = await signInChain();
+    const prepared = ok(await api().auth_prepare_link({ address, chain_id: BigInt(useChain), domain: window.location.host }));
+    const signature = await signMessageAsync({ message: prepared.message });
+    ok(await api().auth_link(signature));
+    await refresh();
+  }, [address, signInChain, signMessageAsync, refresh]);
 
   const signOut = useCallback(async () => {
     try {
@@ -119,16 +181,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     resetSessionKey();
     setSession(null);
-  }, []);
+    setTeam(null);
+    await refresh();
+  }, [refresh]);
 
-  // Wallet switched or disconnected: drop a session that isn't this wallet's.
+  // Wallet switched: drop a session that isn't this wallet's.
   useEffect(() => {
-    if (session && (!address || !session.user.identities.includes(identityOf(address)))) setSession(null);
+    if (session && !sessionForWallet(session, address)) setSession(null);
   }, [address, session]);
 
+  const email = emailOf(session);
+  const walletUnlinked = Boolean(session && address && !wallets(session).includes(walletIdentity(address)));
+
   const value = useMemo<SessionState>(
-    () => ({ settings, address, isConnected, team, teamLoading, session, ensureSignedIn, refresh, signOut, error }),
-    [settings, address, isConnected, team, teamLoading, session, ensureSignedIn, refresh, signOut, error],
+    () => ({ settings, address, isConnected, team, teamLoading, session, email, walletUnlinked, ensureSignedIn, signInWithEmail, linkEmail, linkWallet, refresh, signOut, error }),
+    [settings, address, isConnected, team, teamLoading, session, email, walletUnlinked, ensureSignedIn, signInWithEmail, linkEmail, linkWallet, refresh, signOut, error],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

@@ -1,12 +1,13 @@
 //! TactiBall v2 backend canister.
 //!
-//! One canister owns users, wallet sign-in, teams, the lobby, games, the
+//! One canister owns users, wallet and email sign-in, teams, the lobby, games, the
 //! engine, randomness, timeouts, ELO, the event log and (stubbed) the
 //! home-chain ledger outbox. This file only wires the public API to the
 //! modules; each module keeps its logic free of IC calls so it can be tested
 //! natively.
 
 pub mod auth;
+pub mod email;
 pub mod eth;
 pub mod games;
 pub mod ledger;
@@ -100,7 +101,7 @@ fn inspect() {
     if caller == Principal::anonymous() {
         return;
     }
-    let needs_session = !matches!(method.as_str(), "auth_prepare" | "auth_login" | "sign_out") && !method.starts_with("admin_");
+    let needs_session = !matches!(method.as_str(), "auth_prepare" | "auth_login" | "auth_email_sign_up" | "auth_email_login" | "sign_out") && !method.starts_with("admin_");
     if needs_session && state::with(|s| auth::session_user(s, &caller, time()).is_none()) {
         return;
     }
@@ -181,6 +182,27 @@ fn auth_prepare_link(req: PrepareSignIn) -> Res<SignInMessage> {
 #[update]
 fn auth_link(signature: String) -> Res<User> {
     state::with_mut(|s| auth::link_wallet(s, msg_caller(), time(), &signature))
+}
+
+#[update]
+fn auth_email_sign_up(creds: EmailCredentials) -> Res<SessionInfo> {
+    state::with_mut(|s| email::sign_up(s, msg_caller(), time(), creds))
+}
+
+#[update]
+fn auth_email_login(creds: EmailCredentials) -> Res<SessionInfo> {
+    state::with_mut(|s| email::login(s, msg_caller(), time(), creds))
+}
+
+/// Adds an email login to the signed-in account.
+#[update]
+fn auth_link_email(creds: EmailCredentials) -> Res<User> {
+    state::with_mut(|s| email::link(s, msg_caller(), time(), creds))
+}
+
+#[update]
+fn auth_change_password(old_key: serde_bytes::ByteBuf, new_key: serde_bytes::ByteBuf) -> Res<()> {
+    state::with_mut(|s| email::change_password(s, msg_caller(), time(), &old_key, &new_key))
 }
 
 #[update]

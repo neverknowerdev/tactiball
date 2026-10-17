@@ -62,12 +62,13 @@ const EVENTS: MemoryId = MemoryId::new(13);
 const SYNC: MemoryId = MemoryId::new(14);
 const NULLIFIERS: MemoryId = MemoryId::new(15);
 const TEAM_GAMES: MemoryId = MemoryId::new(16);
+const EMAILS: MemoryId = MemoryId::new(17);
 
 pub struct Store {
     pub settings: StableCell<Stored<Settings>, Mem>,
     pub meta: StableCell<Stored<Meta>, Mem>,
     pub users: StableBTreeMap<u64, Stored<User>, Mem>,
-    /// identity key ("eip155:0x…") -> user id
+    /// identity key ("eip155:0x…" or "email:…") -> user id
     pub identities: StableBTreeMap<String, u64, Mem>,
     /// session principal -> session
     pub sessions: StableBTreeMap<Principal, Stored<Session>, Mem>,
@@ -88,6 +89,8 @@ pub struct Store {
     pub nullifiers: StableBTreeMap<String, u64, Mem>,
     /// (team id, game id) index for a team's game list
     pub team_games: StableBTreeMap<(u64, u64), (), Mem>,
+    /// lower-cased email -> password hash and lockout state
+    pub emails: StableBTreeMap<String, Stored<EmailCredential>, Mem>,
 }
 
 thread_local! {
@@ -119,6 +122,7 @@ impl Store {
             sync: StableBTreeMap::init(mem(SYNC)),
             nullifiers: StableBTreeMap::init(mem(NULLIFIERS)),
             team_games: StableBTreeMap::init(mem(TEAM_GAMES)),
+            emails: StableBTreeMap::init(mem(EMAILS)),
         }
     }
 

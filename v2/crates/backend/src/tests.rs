@@ -2,7 +2,7 @@
 //! Each test runs on its own thread, so each gets a fresh stable memory.
 
 use crate::types::*;
-use crate::{auth, eth, games, ledger, lobby, state, teams};
+use crate::{auth, email, eth, games, ledger, lobby, state, teams};
 use candid::Principal;
 use k256::ecdsa::SigningKey;
 use tactiball_engine::{Move, MoveType, Pos, Side};
@@ -150,6 +150,123 @@ fn linked_wallets_share_one_user_across_chains() {
     // The same EOA on another EVM chain is the same user too.
     let again = Wallet { session: Principal::self_authenticating([43]), ..Wallet::new(7) };
     assert_eq!(again.sign_in(4663, T0 + SECOND).user.id, first.user.id);
+}
+
+fn creds(email: &str, password: &str) -> EmailCredentials {
+    // Stands in for the browser's PBKDF2 key; any 32 bytes work here.
+    let mut key = [0u8; 32];
+    for (i, b) in password.bytes().enumerate() {
+        key[i % 32] ^= b;
+    }
+    EmailCredentials { email: email.into(), password_key: key.to_vec() }
+}
+
+fn session(n: u8) -> Principal {
+    Principal::self_authenticating([n, 200])
+}
+
+#[test]
+fn email_sign_up_and_login() {
+    let first = state::with_mut(|s| email::sign_up(s, session(1), T0, creds("Vlad@Example.com", "correct horse"))).unwrap();
+    assert!(first.new_user);
+    assert_eq!(first.user.identities, vec!["email:vlad@example.com".to_string()]);
+    assert_eq!(first.user.home_chain, "");
+    assert_eq!(first.session_expires_at, T0 + 3 * DAY_SECS * SECOND);
+    let team = state::with_mut(|s| teams::create_team(s, session(1), T0, "Inbox United".into(), 3)).unwrap();
+
+    // The address is case-insensitive and can only be registered once.
+    let dup = state::with_mut(|s| email::sign_up(s, session(2), T0, creds("vlad@example.com ", "other"))).unwrap_err();
+    assert!(dup.contains("already exists"), "{dup}");
+    assert!(state::with_mut(|s| email::sign_up(s, session(2), T0, creds("not-an-email", "x"))).is_err());
+    assert!(state::with_mut(|s| email::sign_up(s, Principal::anonymous(), T0, creds("a@b.co", "x"))).is_err());
+    let short = EmailCredentials { email: "a@b.co".into(), password_key: vec![1; 8] };
+    assert!(state::with_mut(|s| email::sign_up(s, session(2), T0, short)).is_err());
+
+    // Logging in from another browser reaches the same user and team.
+    let info = state::with_mut(|s| email::login(s, session(3), T0 + SECOND, creds("VLAD@example.com", "correct horse"))).unwrap();
+    assert_eq!(info.user.id, first.user.id);
+    assert!(!info.new_user);
+    assert_eq!(info.team.map(|t| t.id), Some(team.id));
+    assert!(state::with(|s| auth::session_user(s, &session(3), T0 + SECOND)).is_some());
+
+    // Unknown address and wrong password fail the same way.
+    let unknown = state::with_mut(|s| email::login(s, session(4), T0, creds("nobody@example.com", "x"))).unwrap_err();
+    let wrong = state::with_mut(|s| email::login(s, session(4), T0, creds("vlad@example.com", "wrong"))).unwrap_err();
+    assert_eq!(unknown, wrong);
+    assert!(state::with(|s| auth::session_user(s, &session(4), T0)).is_none());
+
+    // The public event log never shows the address.
+    let events = state::with(|s| s.events.values().map(|e| format!("{:?}", e.0)).collect::<Vec<_>>().join("\n"));
+    assert!(!events.contains("example.com"), "{events}");
+}
+
+#[test]
+fn wrong_passwords_lock_the_account_for_a_while() {
+    state::with_mut(|s| email::sign_up(s, session(1), T0, creds("a@example.com", "right"))).unwrap();
+    for _ in 0..email::MAX_FAILURES {
+        assert!(state::with_mut(|s| email::login(s, session(2), T0, creds("a@example.com", "guess"))).is_err());
+    }
+    let locked = state::with_mut(|s| email::login(s, session(2), T0, creds("a@example.com", "right"))).unwrap_err();
+    assert!(locked.contains("try again in 15 min"), "{locked}");
+    let later = T0 + email::LOCK_SECS * SECOND;
+    assert!(state::with_mut(|s| email::login(s, session(2), later, creds("a@example.com", "right"))).is_ok());
+
+    // A success resets the count.
+    for _ in 0..email::MAX_FAILURES - 1 {
+        assert!(state::with_mut(|s| email::login(s, session(2), later, creds("a@example.com", "guess"))).is_err());
+    }
+    assert!(state::with_mut(|s| email::login(s, session(2), later, creds("a@example.com", "right"))).is_ok());
+    assert!(state::with_mut(|s| email::login(s, session(2), later, creds("a@example.com", "guess"))).is_err());
+    assert!(state::with_mut(|s| email::login(s, session(2), later, creds("a@example.com", "right"))).is_ok());
+}
+
+#[test]
+fn password_can_be_changed() {
+    state::with_mut(|s| email::sign_up(s, session(1), T0, creds("a@example.com", "old"))).unwrap();
+    let old = creds("a@example.com", "old").password_key;
+    let new = creds("a@example.com", "new").password_key;
+    assert!(state::with_mut(|s| email::change_password(s, session(1), T0, &new, &new)).is_err());
+    state::with_mut(|s| email::change_password(s, session(1), T0, &old, &new)).unwrap();
+    assert!(state::with_mut(|s| email::login(s, session(2), T0, creds("a@example.com", "old"))).is_err());
+    assert!(state::with_mut(|s| email::login(s, session(2), T0, creds("a@example.com", "new"))).is_ok());
+}
+
+#[test]
+fn wallet_account_adds_an_email_login() {
+    let a = Wallet::new(7);
+    let first = a.sign_in(8453, T0);
+    let user = state::with_mut(|s| email::link(s, a.session, T0, creds("A@example.com", "pw"))).unwrap();
+    assert_eq!(user.identities, vec![format!("eip155:{}", a.address), "email:a@example.com".to_string()]);
+    assert!(state::with_mut(|s| email::link(s, a.session, T0, creds("b@example.com", "pw"))).unwrap_err().contains("already has an email"));
+
+    let info = state::with_mut(|s| email::login(s, session(9), T0, creds("a@example.com", "pw"))).unwrap();
+    assert_eq!(info.user.id, first.user.id);
+    assert_eq!(info.user.home_chain, "eip155:8453");
+
+    // Someone else cannot take the address, by sign-up or by linking.
+    assert!(state::with_mut(|s| email::sign_up(s, session(10), T0, creds("a@example.com", "pw"))).is_err());
+    let b = Wallet::new(9);
+    b.sign_in(4663, T0);
+    assert!(state::with_mut(|s| email::link(s, b.session, T0, creds("a@example.com", "pw"))).unwrap_err().contains("another"));
+    // Linking needs a session.
+    assert!(state::with_mut(|s| email::link(s, session(11), T0, creds("c@example.com", "pw"))).is_err());
+}
+
+#[test]
+fn email_account_links_a_wallet_and_gets_its_home_chain() {
+    let user = state::with_mut(|s| email::sign_up(s, session(1), T0, creds("a@example.com", "pw"))).unwrap().user;
+    let w = Wallet { session: session(1), ..Wallet::new(7) };
+    let msg = state::with_mut(|s| {
+        auth::prepare(s, w.session, T0, PrepareSignIn { address: w.address.clone(), chain_id: 4663, domain: DOMAIN.into() }, AuthPurpose::LinkWallet)
+    })
+    .unwrap();
+    let linked = state::with_mut(|s| auth::link_wallet(s, w.session, T0, &w.sign(&msg.message))).unwrap();
+    assert_eq!(linked.home_chain, "eip155:4663");
+    assert_eq!(linked.identities.len(), 2);
+
+    // The wallet now signs in to the same account.
+    let from_wallet = Wallet { session: session(2), ..Wallet::new(7) };
+    assert_eq!(from_wallet.sign_in(8453, T0).user.id, user.id);
 }
 
 #[test]

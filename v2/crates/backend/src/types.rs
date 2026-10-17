@@ -140,9 +140,11 @@ pub struct User {
     pub id: UserId,
     pub created_at: Timestamp,
     /// CAIP-2 id of the chain the user first signed in from, e.g. "eip155:8453".
-    /// Shown as a badge next to the team name.
+    /// Shown as a badge next to the team name. Empty for an email account
+    /// until it links a wallet.
     pub home_chain: String,
-    /// Linked wallet identities, e.g. "eip155:0xabc…" (EOAs are chain-agnostic).
+    /// Sign-in identities: wallets ("eip155:0xabc…", chain-agnostic EOAs) and
+    /// at most one email ("email:name@example.com").
     pub identities: Vec<String>,
     pub team_id: Option<TeamId>,
     pub verifications: Vec<Verification>,
@@ -158,6 +160,31 @@ pub struct Session {
     pub chain_id: u64,
     pub created_at: Timestamp,
     pub expires_at: Timestamp,
+}
+
+/// Stored email login; see `crate::email`.
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct EmailCredential {
+    pub user_id: UserId,
+    #[serde(with = "serde_bytes")]
+    pub salt: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub hash: Vec<u8>,
+    pub iterations: u32,
+    /// Wrong passwords in a row; the account locks at `email::MAX_FAILURES`.
+    pub failed_attempts: u32,
+    pub locked_until: Timestamp,
+    pub created_at: Timestamp,
+    pub password_changed_at: Timestamp,
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct EmailCredentials {
+    pub email: String,
+    /// PBKDF2-HMAC-SHA256(password, "tactiball:" + lower-cased email,
+    /// 210 000 rounds, 32 bytes), computed in the browser.
+    #[serde(with = "serde_bytes")]
+    pub password_key: Vec<u8>,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -395,6 +422,7 @@ pub struct GameSummary {
 pub enum EventKind {
     UserCreated { user_id: UserId, identity: String, home_chain: String },
     WalletLinked { user_id: UserId, identity: String },
+    EmailLinked { user_id: UserId },
     TeamCreated { team_id: TeamId, user_id: UserId, name: String },
     GameRequested { request_id: RequestId, from_team: TeamId, to_team: TeamId },
     GameRequestClosed { request_id: RequestId, reason: String },

@@ -1,5 +1,7 @@
-// End-to-end smoke test against a deployed backend: two bot wallets sign in,
-// create teams, get paired by quick match, play a few turns and one gives up.
+// End-to-end smoke test against a deployed backend: one bot signs in with a
+// wallet, the other signs up with email (and logs in again from a fresh
+// session key); they create teams, get paired by quick match, play a few
+// turns and one gives up.
 //
 //   npm --prefix frontend run bindings   # once, generates the Candid IDL
 //   node frontend/scripts/smoke.mjs --host http://localhost:8000 --canister <backend id>
@@ -38,6 +40,14 @@ async function signIn(b, chainId) {
   console.log(`${b.name}: signed in as user ${session.user.id} (${session.user.home_chain})`);
 }
 
+// Same derivation as lib/password.ts.
+async function passwordKey(email, password) {
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(password.normalize('NFKC')), 'PBKDF2', false, ['deriveBits']);
+  const salt = enc.encode(`tactiball:${email.trim().toLowerCase()}`);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 210_000 }, base, 256));
+}
+
 const keeper = (x) => [{ player_id: 0, move_type: { Tackle: null }, from: { x, y: 5 }, to: { x, y: 5 } }];
 
 const settings = await (await bot('probe')).actor.get_settings();
@@ -46,9 +56,18 @@ console.log('chains:', chains.map(String).join(', '), '| allowed domains:', sett
 
 const a = await bot('alice');
 const b = await bot('bob');
-await signIn(a, chains[0]);
-await signIn(b, chains[chains.length - 1]);
 const tag = Math.random().toString(36).slice(2, 7);
+await signIn(a, chains[0]);
+const email = `bob-${tag}@example.com`;
+const creds = { email, password_key: await passwordKey(email, 'correct horse battery') };
+const signedUp = ok(await b.actor.auth_email_sign_up(creds));
+console.log(`bob: signed up with email as user ${signedUp.user.id}`);
+const again = await bot('bob-again');
+const loggedIn = ok(await again.actor.auth_email_login({ ...creds, email: email.toUpperCase() }));
+if (loggedIn.user.id !== signedUp.user.id) throw new Error('email login reached a different user');
+const wrong = await again.actor.auth_email_login({ email, password_key: await passwordKey(email, 'wrong') });
+if (!('Err' in wrong)) throw new Error('wrong password was accepted');
+console.log('bob: logged in again by email from a new session; wrong password rejected');
 ok(await a.actor.create_team(`Bot A ${tag}`, 0));
 ok(await b.actor.create_team(`Bot B ${tag}`, 0));
 
