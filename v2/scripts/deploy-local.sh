@@ -27,7 +27,7 @@ cat <<MSG
 
 Local deployment ready.
   App:      http://${FRONTEND}.localhost:8000/
-  Backend:  ${BACKEND}   (icp canister call backend health -e local --query)
+  Backend:  ${BACKEND}   (icp canister call backend health '()' -e local --query)
 
 Sign-in accepts any domain locally. To use the Next.js dev server instead:
   printf 'NEXT_PUBLIC_BACKEND_CANISTER_ID=%s\nNEXT_PUBLIC_IC_HOST=http://localhost:8000\n' "${BACKEND}" > frontend/.env.local

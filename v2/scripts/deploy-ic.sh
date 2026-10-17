@@ -64,6 +64,6 @@ Deployed $ENV.
   App:      https://${FRONTEND}.icp0.io/
   Backend:  ${BACKEND}
 $(for d in ${DOMAINS[@]+"${DOMAINS[@]}"}; do echo "  Domain:   https://$d/ (after DNS + registration, see DEPLOY.md)"; done)
-Check:      icp canister call backend health -e $ENV --query
+Check:      icp canister call backend health '()' -e $ENV --query
 Top up:     icp canister top-up backend --amount 1T -e $ENV
 MSG

@@ -82,7 +82,7 @@ The script ends by allowing sign-in only from the frontend's own `https://<id>.i
 Check that the deploy worked:
 
 ```bash
-icp canister call backend health -e staging --query
+icp canister call backend health '()' -e staging --query
 node frontend/scripts/smoke.mjs --host https://icp-api.io \
   --canister $(icp canister status backend -e staging --id-only) \
   --domain $(icp canister status frontend -e staging --id-only).icp0.io
@@ -136,7 +136,7 @@ Then do these follow-ups.
 | Task | Command |
 | --- | --- |
 | Ship a new version | `./scripts/deploy-ic.sh production` (upgrades in place, state is kept) |
-| Health and counters | `icp canister call backend health -e production --query` |
+| Health and counters | `icp canister call backend health '()' -e production --query` |
 | Cycles left | `icp canister status backend -e production` |
 | Top up | `icp canister top-up backend --amount 1T -e production` |
 | Current settings | `icp canister call backend get_settings -e production --query` |
