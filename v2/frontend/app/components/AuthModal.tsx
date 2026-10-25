@@ -132,7 +132,10 @@ export function AuthModal({ isOpen, initialMode = "login", onClose, onDone }: Au
         onClose();
     };
 
-    const walletError = (err: unknown) => setError(isRejection(err) ? CANCELLED : errorText(err));
+    const walletError = (err: unknown) => {
+        console.warn("Wallet sign-in failed:", err);
+        setError(isRejection(err) ? CANCELLED : errorText(err));
+    };
 
     const signWithWallet = async (key = "wallet:connected") => {
         const attempt = ++walletAttempt.current;

@@ -78,12 +78,45 @@ export function ok<T>(r: { __kind__: 'Ok'; Ok: T } | { __kind__: 'Err'; Err: str
   return r.Ok;
 }
 
+/** Wallet (EIP-1193) error codes worth a plain-language message. */
+const WALLET_CODES: Record<number, string> = {
+  4001: 'Wallet request cancelled.',
+  [-32002]: 'Your wallet already has a request open. Open the wallet extension to finish or reject it, then try again.',
+  4100: 'The wallet has not authorized this site yet. Open it and connect.',
+  4902: 'This network is not added to your wallet yet.',
+};
+
+/**
+ * A readable one-line message for anything thrown: `Error`s, viem/wagmi
+ * errors, and the plain `{ code, message }` objects wallets such as MetaMask
+ * throw. Never "[object Object]".
+ */
 export function errorText(e: unknown): string {
-  if (e instanceof Error) {
-    // Agent errors carry long replica details; keep the first line.
-    return e.message.split('\n')[0];
+  const seen = new Set<unknown>();
+  let code: number | undefined;
+  let text: string | undefined;
+  // Walk the error and what it wraps; the innermost wallet code wins, the
+  // outermost readable message is kept as a fallback.
+  for (let cur: unknown = e; cur && typeof cur === 'object' && !seen.has(cur); ) {
+    seen.add(cur);
+    const o = cur as { code?: unknown; shortMessage?: unknown; message?: unknown; details?: unknown; cause?: unknown; error?: unknown; data?: unknown };
+    if (typeof o.code === 'number' && WALLET_CODES[o.code]) code = o.code;
+    for (const t of [o.shortMessage, o.message, o.details]) {
+      if (!text && typeof t === 'string' && t.trim()) text = t;
+    }
+    cur = o.cause ?? o.error ?? o.data;
   }
-  return String(e);
+  if (code !== undefined) return WALLET_CODES[code];
+  if (typeof e === 'string') text = e;
+  if (!text) {
+    try {
+      text = JSON.stringify(e);
+    } catch {
+      text = String(e);
+    }
+  }
+  // Agent errors carry long replica details; keep the first line.
+  return (text ?? 'Something went wrong').split('\n')[0];
 }
 
 /** IC time (nanoseconds) to JS milliseconds. */
