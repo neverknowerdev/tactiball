@@ -40,6 +40,12 @@ interface SessionState {
   walletUnlinked: boolean;
   /** Signs in with the connected wallet if needed (one signature) and returns the session. */
   ensureSignedIn: () => Promise<SessionInfo>;
+  /**
+   * Forgets a wallet sign-in that is still waiting, so the next attempt asks
+   * again. Wallets such as MetaMask can leave a request pending forever when
+   * their popup is closed.
+   */
+  cancelSignIn: () => void;
   signInWithEmail: (mode: EmailMode, email: string, password: string) => Promise<SessionInfo>;
   /** Adds an email login to the signed-in account. */
   linkEmail: (email: string, password: string) => Promise<void>;
@@ -146,11 +152,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const signature = await signMessageAsync({ message: prepared.message });
       return accept(ok(await api().auth_login(signature)));
     };
-    signingIn.current = run().finally(() => {
-      signingIn.current = null;
+    const attempt: Promise<SessionInfo> = run().finally(() => {
+      // A cancelled attempt that settles late must not clear a newer one.
+      if (signingIn.current === attempt) signingIn.current = null;
     });
-    return signingIn.current;
+    signingIn.current = attempt;
+    return attempt;
   }, [session, address, signInChain, signMessageAsync, accept]);
+
+  const cancelSignIn = useCallback(() => {
+    signingIn.current = null;
+  }, []);
 
   const signInWithEmail = useCallback(
     async (mode: EmailMode, email: string, password: string): Promise<SessionInfo> => {
@@ -208,8 +220,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const walletUnlinked = Boolean(session && address && !wallets(session).includes(walletIdentity(address)));
 
   const value = useMemo<SessionState>(
-    () => ({ settings, address, isConnected, team, teamLoading, session, email, walletUnlinked, ensureSignedIn, signInWithEmail, linkEmail, linkWallet, refresh, signOut, error }),
-    [settings, address, isConnected, team, teamLoading, session, email, walletUnlinked, ensureSignedIn, signInWithEmail, linkEmail, linkWallet, refresh, signOut, error],
+    () => ({ settings, address, isConnected, team, teamLoading, session, email, walletUnlinked, ensureSignedIn, cancelSignIn, signInWithEmail, linkEmail, linkWallet, refresh, signOut, error }),
+    [settings, address, isConnected, team, teamLoading, session, email, walletUnlinked, ensureSignedIn, cancelSignIn, signInWithEmail, linkEmail, linkWallet, refresh, signOut, error],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

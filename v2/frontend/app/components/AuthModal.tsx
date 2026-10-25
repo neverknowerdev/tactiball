@@ -26,10 +26,16 @@ const SUBMIT: Record<AuthMode, [string, string]> = {
     link: ["Add email", "Adding email..."],
 };
 
-/** One button per wallet: EIP-6963 discovery can list the same wallet twice. */
+/**
+ * One button per wallet: EIP-6963 discovery can list the same wallet twice,
+ * and the generic "Injected" connector is the same extension as a named one
+ * (MetaMask, Rabby) whenever one is detected.
+ */
 function uniqueConnectors(connectors: readonly Connector[]): Connector[] {
+    const named = connectors.some((c) => c.type === "injected" && c.id !== "injected");
     const seen = new Set<string>();
     return connectors.filter((c) => {
+        if (named && c.id === "injected") return false;
         const name = c.name.toLowerCase();
         if (seen.has(name)) return false;
         seen.add(name);
@@ -37,8 +43,16 @@ function uniqueConnectors(connectors: readonly Connector[]): Connector[] {
     });
 }
 
+/** The wallet said no, or its popup was closed. */
+function isRejection(err: unknown): boolean {
+    const e = err as { code?: number; name?: string; message?: string; cause?: { code?: number } } | null;
+    return e?.code === 4001 || e?.cause?.code === 4001 || e?.name === "UserRejectedRequestError" || /reject|denied|cancel/i.test(e?.message ?? "");
+}
+
+const CANCELLED = "Wallet request cancelled.";
+
 export function AuthModal({ isOpen, initialMode = "login", onClose, onDone }: AuthModalProps) {
-    const { signInWithEmail, linkEmail, ensureSignedIn, session } = useSession();
+    const { signInWithEmail, linkEmail, ensureSignedIn, cancelSignIn, session } = useSession();
     const { address, isConnected } = useAccount();
     const { connectors, connectAsync } = useConnect();
     const [mode, setMode] = useState<AuthMode>(initialMode);
@@ -46,7 +60,11 @@ export function AuthModal({ isOpen, initialMode = "login", onClose, onDone }: Au
     const [password, setPassword] = useState("");
     const [confirm, setConfirm] = useState("");
     const [error, setError] = useState<string | null>(null);
+    // "email", or "wallet:<connector uid>" / "wallet:connected" while that wallet is asked.
     const [busy, setBusy] = useState<string | null>(null);
+    // Bumped on every wallet attempt and on cancel; a wallet promise that
+    // settles after its attempt was cancelled is ignored.
+    const walletAttempt = useRef(0);
     // Set after a wallet connects from this dialog: the session picks up the
     // new address on the next render, then we ask for the sign-in signature.
     const walletPending = useRef(false);
@@ -65,38 +83,55 @@ export function AuthModal({ isOpen, initialMode = "login", onClose, onDone }: Au
         onClose();
     };
 
-    const signWithWallet = async () => {
-        setBusy("wallet");
+    const walletError = (err: unknown) => setError(isRejection(err) ? CANCELLED : errorText(err));
+
+    const signWithWallet = async (key = "wallet:connected") => {
+        const attempt = ++walletAttempt.current;
+        setBusy(key);
         setError(null);
         try {
             await ensureSignedIn();
-            finish(mode);
+            if (attempt === walletAttempt.current) finish(mode);
         } catch (err) {
-            setError(errorText(err));
+            if (attempt === walletAttempt.current) walletError(err);
         } finally {
-            setBusy(null);
+            if (attempt === walletAttempt.current) setBusy(null);
         }
     };
 
+    const pendingKey = useRef("wallet:connected");
     useEffect(() => {
         if (walletPending.current && address && !session) {
             walletPending.current = false;
-            signWithWallet();
+            signWithWallet(pendingKey.current);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [address, session]);
 
     const handleConnector = async (connector: Connector) => {
-        setBusy("wallet");
+        const key = `wallet:${connector.uid}`;
+        const attempt = ++walletAttempt.current;
+        setBusy(key);
         setError(null);
+        walletPending.current = true;
+        pendingKey.current = key;
         try {
-            walletPending.current = true;
             await connectAsync({ connector });
         } catch (err) {
+            if (attempt !== walletAttempt.current) return;
             walletPending.current = false;
-            setError(errorText(err));
+            walletError(err);
             setBusy(null);
         }
+    };
+
+    /** Stops waiting for the wallet; the dialog is usable again right away. */
+    const cancelWallet = () => {
+        walletAttempt.current++;
+        walletPending.current = false;
+        cancelSignIn();
+        setBusy(null);
+        setError(CANCELLED);
     };
 
     const newPassword = mode !== "login";
@@ -127,11 +162,24 @@ export function AuthModal({ isOpen, initialMode = "login", onClose, onDone }: Au
         }
     };
 
+    const walletBusy = busy?.startsWith("wallet:") ?? false;
+    const emailBusy = busy === "email";
+
     const handleClose = () => {
-        if (busy) return;
+        if (emailBusy) return;
+        if (walletBusy) cancelWallet();
         walletPending.current = false;
         onClose();
     };
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") handleClose();
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    });
 
     if (!isOpen) return null;
 
@@ -139,7 +187,7 @@ export function AuthModal({ isOpen, initialMode = "login", onClose, onDone }: Au
     const tab = (m: AuthMode, label: string) => (
         <button
             type="button"
-            disabled={Boolean(busy)}
+            disabled={emailBusy}
             onClick={() => { setMode(m); setError(null); }}
             className={`flex-1 pb-3 text-base font-semibold border-b-2 transition-colors ${mode === m ? "border-black text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"}`}
         >
@@ -162,7 +210,7 @@ export function AuthModal({ isOpen, initialMode = "login", onClose, onDone }: Au
                             {tab("signup", "Sign up")}
                         </div>
                     )}
-                    <button onClick={handleClose} disabled={Boolean(busy)} aria-label="Close" className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50">
+                    <button onClick={handleClose} disabled={emailBusy} aria-label="Close" className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -174,22 +222,29 @@ export function AuthModal({ isOpen, initialMode = "login", onClose, onDone }: Au
                         <>
                             <div className="space-y-2">
                                 {isConnected && address ? (
-                                    <button type="button" onClick={signWithWallet} disabled={Boolean(busy)} className="w-full flex items-center justify-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
-                                        {busy === "wallet" && spinner(true)}
+                                    <button type="button" onClick={() => signWithWallet()} disabled={Boolean(busy)} className="w-full flex items-center justify-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
+                                        {busy === "wallet:connected" && spinner(true)}
                                         Continue with {address.slice(0, 6)}…{address.slice(-4)}
                                     </button>
                                 ) : (
                                     uniqueConnectors(connectors).map((c) => (
                                         <button key={c.uid} type="button" onClick={() => handleConnector(c)} disabled={Boolean(busy)} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50">
-                                            {busy === "wallet" ? spinner(true) : c.icon && <img src={c.icon} alt="" className="w-5 h-5" />}
+                                            {busy === `wallet:${c.uid}` ? spinner(true) : c.icon && <img src={c.icon} alt="" className="w-5 h-5" />}
                                             Continue with {c.name === "Injected" ? "browser wallet" : c.name}
                                         </button>
                                     ))
                                 )}
+                                {walletBusy ? (
+                                    <p className="text-xs text-center text-gray-600">
+                                        Check your wallet to continue.{" "}
+                                        <button type="button" onClick={cancelWallet} className="text-blue-600 hover:underline">Cancel</button>
+                                    </p>
+                                ) : (
                                 <p className="text-xs text-center text-gray-500">
                                     {mode === "signup" ? "A new wallet gets an account on its first sign-in. " : ""}
                                     Your wallet signs one message; no transaction or gas.
                                 </p>
+                                )}
                             </div>
                             <div className="flex items-center gap-3 text-xs text-gray-400 uppercase">
                                 <div className="flex-1 border-t border-gray-200" />
