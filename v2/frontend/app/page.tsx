@@ -46,6 +46,8 @@ export default function App() {
   const [frameAdded, setFrameAdded] = useState(false);
   const { address, isConnected, team: teamInfo, teamLoading: loading, session, email, walletUnlinked, settings, ensureSignedIn, linkWallet, signOut, refresh, error: sessionError } = useSession();
   const signedIn = isConnected || Boolean(session);
+  // A connected wallet with a team counts: Play Now asks it for the sign-in signature.
+  const canPlay = Boolean(session) || Boolean(isConnected && teamInfo);
   const [authModal, setAuthModal] = useState<AuthMode | null>(null);
   const [linkingWallet, setLinkingWallet] = useState(false);
   const chainId = useChainId();
@@ -488,12 +490,17 @@ export default function App() {
                 Return to Game
               </a>
             ) : (
-              <button
-                onClick={handlePlayNow}
-                className="px-8 text-base py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-              >
-                Play Now
-              </button>
+              <div className="flex flex-col items-center">
+                <button
+                  onClick={handlePlayNow}
+                  disabled={!canPlay}
+                  title={canPlay ? undefined : "Sign in to play"}
+                  className={`px-8 text-base py-3 rounded-lg transition-colors font-medium ${canPlay ? "bg-green-600 text-white hover:bg-green-700" : "bg-gray-400 text-gray-200 cursor-not-allowed"}`}
+                >
+                  Play Now
+                </button>
+                {!canPlay && <p className="text-xs text-gray-300 mt-2">Sign in to play</p>}
+              </div>
             )}
           </div>
           {/* <div className="flex items-center justify-between mt-2">
