@@ -7,7 +7,7 @@
     "build": "cd frontend && npx hardhat compile && npm run build",
     "start": "cd frontend && yarn start",
     "lint": "cd frontend && yarn lint",
-    "frontend:install": "cd frontend && yarn install",
+    "frontend:install": "cd frontend && npm ci",
     "hardhat:coverage": "hardhat coverage",
     "deploy:upgradeable": "hardhat run scripts/deploy-upgradeable.ts",
     "upgrade:contract": "hardhat run scripts/upgrade-contract.ts",
