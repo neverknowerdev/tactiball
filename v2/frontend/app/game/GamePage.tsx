@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
-import { ConnectWallet } from '@coinbase/onchainkit/wallet';
 import 'react-toastify/dist/ReactToastify.css';
 import './game.css';
 import {
@@ -15,6 +14,7 @@ import { availableCells, ballHolder, loadEngine, modesFor, newGameBoard, planMov
 import { useSession } from '@/app/session';
 import { ChainBadge } from '@/app/components/ChainBadge';
 import GameTipsModal from './GameTipsModal';
+import { AuthModal } from '@/app/components/AuthModal';
 
 // Game submission state enum
 enum GameSubmissionState {
@@ -59,6 +59,7 @@ export default function GamePage() {
     const { isConnected: walletConnected, session, ensureSignedIn } = useSession();
     // Signed in with email, or a wallet is connected (it signs in on first move).
     const isConnected = walletConnected || Boolean(session);
+    const [signInOpen, setSignInOpen] = useState(false);
     const [game, setGame] = useState<GameView | null>(null);
     const [history, setHistory] = useState<HistoryState[]>([]);
     const [animBoard, setAnimBoard] = useState<Board | null>(null);
@@ -205,7 +206,7 @@ export default function GamePage() {
         const pos = { x, y };
         if (!canPlan || !mySide) {
             if (active && !mySide && board.team1.concat(board.team2).some((p) => samePos(p, pos))) {
-                toast.info(isConnected ? 'You are watching this game.' : 'Connect your wallet or sign in with email to play.');
+                toast.info(isConnected ? 'You are watching this game.' : 'Sign in to play.');
             }
             return;
         }
@@ -537,15 +538,12 @@ export default function GamePage() {
                         </div>
                     )}
 
-                    {/* Ready Button or Connect Wallet */}
+                    {/* Ready Button or Sign in */}
                     <div className="mt-4 flex justify-center">
                         {!isConnected ? (
-                            <div className="flex items-center gap-3">
-                                <ConnectWallet className="bg-black px-4 py-2 rounded-lg hover:bg-gray-800 custom-connect-wallet">
-                                    Connect Wallet
-                                </ConnectWallet>
-                                <a href="/" className="text-sm text-blue-600 hover:underline">or sign in with email</a>
-                            </div>
+                            <button onClick={() => setSignInOpen(true)} className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition-colors font-semibold">
+                                Sign in
+                            </button>
                         ) : active && mySide ? (
                             <button
                                 onClick={handleReady}
@@ -787,6 +785,8 @@ export default function GamePage() {
                     </div>
                 </div>
             )}
+
+            <AuthModal isOpen={signInOpen} onClose={() => setSignInOpen(false)} />
         </div>
     );
 }

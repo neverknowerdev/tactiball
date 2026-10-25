@@ -132,7 +132,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const ensureSignedIn = useCallback(async (): Promise<SessionInfo> => {
     if (session) return session;
-    if (!address) throw new Error('Connect your wallet or sign in with email first');
+    if (!address) throw new Error('Sign in first');
     if (signingIn.current) return signingIn.current;
 
     const run = async () => {

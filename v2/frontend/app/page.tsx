@@ -25,7 +25,7 @@ import { CreateTeamModal } from "./components/CreateTeamModal";
 import { SearchOpponentModal } from "./components/SearchOpponentModal";
 import { GameRequestModal } from "./components/GameRequestModal";
 import { ChainBadge } from "./components/ChainBadge";
-import { EmailAuthModal, type EmailAuthMode } from "./components/EmailAuthModal";
+import { AuthModal, type AuthMode } from "./components/AuthModal";
 import { getName } from "@coinbase/onchainkit/identity";
 import { base } from 'viem/chains';
 import { toast, ToastContainer } from "react-toastify";
@@ -46,7 +46,7 @@ export default function App() {
   const [frameAdded, setFrameAdded] = useState(false);
   const { address, isConnected, team: teamInfo, teamLoading: loading, session, email, walletUnlinked, settings, ensureSignedIn, linkWallet, signOut, refresh, error: sessionError } = useSession();
   const signedIn = isConnected || Boolean(session);
-  const [emailModal, setEmailModal] = useState<EmailAuthMode | null>(null);
+  const [authModal, setAuthModal] = useState<AuthMode | null>(null);
   const [linkingWallet, setLinkingWallet] = useState(false);
   const chainId = useChainId();
   const [isCreateTeamModalOpen, setIsCreateTeamModalOpen] = useState(false);
@@ -131,7 +131,7 @@ export default function App() {
 
   const handleCreateTeam = useCallback(async (teamName: string, countryIndex: string) => {
     if (!address && !session) {
-      setEmailModal("login");
+      setAuthModal("login");
       return;
     }
 
@@ -264,6 +264,15 @@ export default function App() {
               <button onClick={() => signOut()} className="text-gray-300 hover:text-white underline">Sign out</button>
             </div>
           )}
+          {!session && !isConnected && (
+            <button
+              onClick={() => setAuthModal("login")}
+              className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors font-semibold"
+            >
+              Sign in
+            </button>
+          )}
+          {isConnected && (
           <Wallet className="z-10">
             <ConnectWallet
               className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
@@ -281,6 +290,7 @@ export default function App() {
               <WalletDropdownDisconnect />
             </WalletDropdown>
           </Wallet>
+          )}
         </div>
       </div>
 
@@ -430,7 +440,7 @@ export default function App() {
               <div className="px-4 py-2 border-t border-gray-100 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-gray-500">
                 {session && email && <span className="mr-auto truncate max-w-[200px]">Email login: {email}</span>}
                 {session && !email && (
-                  <button onClick={() => setEmailModal("link")} className="text-blue-600 hover:underline">Add email login</button>
+                  <button onClick={() => setAuthModal("link")} className="text-blue-600 hover:underline">Add email login</button>
                 )}
                 {walletUnlinked && (
                   <button onClick={handleLinkWallet} disabled={linkingWallet} className="text-blue-600 hover:underline disabled:opacity-50">
@@ -438,7 +448,7 @@ export default function App() {
                   </button>
                 )}
                 {!session && (
-                  <button onClick={() => setEmailModal("login")} className="text-blue-600 hover:underline">Use email instead</button>
+                  <button onClick={() => setAuthModal("login")} className="text-blue-600 hover:underline">Sign in another way</button>
                 )}
                 {session && (
                   <button onClick={() => signOut()} className="text-gray-500 hover:underline">Sign out</button>
@@ -453,23 +463,22 @@ export default function App() {
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Your Team</h3>
               </div>
               <div className="text-gray-500 mb-4">
-                <p className="text-sm">Connect your wallet or sign in with email to view your team</p>
+                <p className="text-sm">Sign in with a wallet or email to view your team</p>
               </div>
               <div className="flex flex-wrap justify-center gap-3">
-                <ConnectWallet className="bg-black px-4 py-2 rounded-lg hover:bg-gray-800 custom-connect-wallet">
-                  Connect Wallet
-                </ConnectWallet>
                 <button
-                  onClick={() => setEmailModal("login")}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={() => setAuthModal("login")}
+                  className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition-colors font-semibold"
                 >
-                  Sign in with email
+                  Sign in
+                </button>
+                <button
+                  onClick={() => setAuthModal("signup")}
+                  className="border border-gray-300 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
+                >
+                  Sign up
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-3">
-                New here?{" "}
-                <button onClick={() => setEmailModal("signup")} className="text-blue-600 hover:underline">Sign up with email</button>
-              </p>
             </div>
           </div>
         )}
@@ -518,11 +527,11 @@ export default function App() {
         defaultTeamName={username ? `${username}'s team` : undefined}
       />
 
-      {/* Email sign-in / sign-up / add email */}
-      <EmailAuthModal
-        isOpen={emailModal !== null}
-        initialMode={emailModal ?? "login"}
-        onClose={() => setEmailModal(null)}
+      {/* Sign in / sign up (wallet or email), or add an email login */}
+      <AuthModal
+        isOpen={authModal !== null}
+        initialMode={authModal ?? "login"}
+        onClose={() => setAuthModal(null)}
         onDone={(mode) =>
           toast.success(mode === "signup" ? "Account created. Now create your team!" : mode === "link" ? "Email login added." : "Signed in.", { position: "top-center", autoClose: 3000 })
         }
