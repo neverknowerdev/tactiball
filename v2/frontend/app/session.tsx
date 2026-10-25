@@ -90,6 +90,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const signingIn = useRef<Promise<SessionInfo> | null>(null);
   const signInGeneration = useRef(0);
+  // Calls that change who the session principal is signed in as run one at a
+  // time, in the order they were started.
+  const authQueue = useRef<Promise<unknown>>(Promise.resolve());
   // The wallet address `team` was looked up for, so the auto sign-in below
   // never acts on a lookup that belongs to a previous wallet.
   const teamFor = useRef<string | undefined>(undefined);
@@ -142,26 +145,41 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return useChain;
   }, [settings, chainId, switchChainAsync]);
 
+  const serializeAuth = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
+    const run = authQueue.current.then(task, task);
+    authQueue.current = run.catch(() => {});
+    return run;
+  }, []);
+
   const ensureSignedIn = useCallback(async (): Promise<SessionInfo> => {
     if (session) return session;
     if (!address) throw new Error('Sign in first');
     if (signingIn.current) return signingIn.current;
 
     // Cancelling, or signing in another way, bumps the generation; a stale
-    // attempt must not log in or replace the newer session.
+    // attempt must not change the challenge or the login under our principal.
     const generation = ++signInGeneration.current;
     const stale = () => generation !== signInGeneration.current;
+    const cancelled = () => new Error('Wallet request cancelled.');
     const run = async () => {
       const useChain = await signInChain();
-      const prepared = ok(await api().auth_prepare({ address, chain_id: BigInt(useChain), domain: window.location.host }));
+      const prepared = await serializeAuth(async () => {
+        if (stale()) throw cancelled();
+        return ok(await api().auth_prepare({ address, chain_id: BigInt(useChain), domain: window.location.host }));
+      });
       const signature = await signMessageAsync({ message: prepared.message });
-      if (stale()) throw new Error('Wallet request cancelled.');
-      const info = ok(await api().auth_login(signature));
-      if (stale()) {
-        // The canister already took this login; show whatever it now has.
-        await refresh();
-        throw new Error('Wallet request cancelled.');
-      }
+      const info = await serializeAuth(async () => {
+        if (stale()) throw cancelled();
+        const info = ok(await api().auth_login(signature));
+        if (stale()) {
+          // Cancelled while the login was in flight: undo it before any
+          // newer sign-in queued behind this one runs.
+          await api().sign_out().catch(() => {});
+          throw cancelled();
+        }
+        return info;
+      });
+      if (stale()) throw cancelled();
       return accept(info);
     };
     const attempt: Promise<SessionInfo> = run().finally(() => {
@@ -170,7 +188,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     });
     signingIn.current = attempt;
     return attempt;
-  }, [session, address, signInChain, signMessageAsync, accept, refresh]);
+  }, [session, address, signInChain, signMessageAsync, accept, serializeAuth]);
 
   const cancelSignIn = useCallback(() => {
     signInGeneration.current++;
@@ -181,10 +199,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async (mode: EmailMode, email: string, password: string): Promise<SessionInfo> => {
       cancelSignIn();
       const creds = { email: normalizeEmail(email), password_key: await passwordKey(email, password) };
-      const result = mode === 'signup' ? await api().auth_email_sign_up(creds) : await api().auth_email_login(creds);
+      const result = await serializeAuth(() => (mode === 'signup' ? api().auth_email_sign_up(creds) : api().auth_email_login(creds)));
       return accept(ok(result));
     },
-    [accept, cancelSignIn],
+    [accept, cancelSignIn, serializeAuth],
   );
 
   const linkEmail = useCallback(
@@ -207,7 +225,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     cancelSignIn();
     try {
-      await api().sign_out();
+      await serializeAuth(() => api().sign_out());
     } catch {
       // The session key is dropped below either way.
     }
@@ -215,7 +233,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setTeam(null);
     await refresh();
-  }, [refresh, cancelSignIn]);
+  }, [refresh, cancelSignIn, serializeAuth]);
 
   // A connected wallet that already has a team is signed in right away: one
   // signature request per page load. If the player rejects it, the next
