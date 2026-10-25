@@ -83,6 +83,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [teamLoading, setTeamLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const signingIn = useRef<Promise<SessionInfo> | null>(null);
+  // The wallet address `team` was looked up for, so the auto sign-in below
+  // never acts on a lookup that belongs to a previous wallet.
+  const teamFor = useRef<string | undefined>(undefined);
+  const autoSignInTried = useRef(false);
 
   useEffect(() => {
     loadEngine().catch((e) => setError(`Game engine failed to load: ${errorText(e)}`));
@@ -96,6 +100,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const mine = sessionForWallet(who, address);
       setSession(mine);
       setTeam(mine ? (mine.team ?? null) : byWallet ? (ok(byWallet) ?? null) : null);
+      teamFor.current = address;
       setError(null);
     } catch (e) {
       setError(errorText(e));
@@ -184,6 +189,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setTeam(null);
     await refresh();
   }, [refresh]);
+
+  // A connected wallet that already has a team is signed in right away: one
+  // signature request per page load. If the player rejects it, the next
+  // action that needs a session asks again.
+  useEffect(() => {
+    if (session || !team || !address || !settings || teamLoading || teamFor.current !== address || autoSignInTried.current) return;
+    autoSignInTried.current = true;
+    ensureSignedIn().catch(() => {});
+  }, [session, team, address, settings, teamLoading, ensureSignedIn]);
 
   // Wallet switched: drop a session that isn't this wallet's.
   useEffect(() => {
