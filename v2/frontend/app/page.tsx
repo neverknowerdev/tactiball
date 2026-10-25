@@ -472,12 +472,6 @@ export default function App() {
                 >
                   Sign in
                 </button>
-                <button
-                  onClick={() => setAuthModal("signup")}
-                  className="border border-gray-300 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-50 transition-colors font-semibold"
-                >
-                  Sign up
-                </button>
               </div>
             </div>
           </div>
