@@ -245,20 +245,17 @@ pub fn team_of(board: &Board, side: Side) -> &Vec<Pos> {
 }
 
 /// The player currently holding the ball, if the ball sits on a player.
-/// Matches v1 `restoreState`: team 2 is checked last, so it wins a tie.
+/// When players of both teams share the ball's cell (after a clash), the
+/// recorded `ball_owner` decides who holds it; without an owner team 2 wins
+/// the tie, as in v1 `restoreState`.
 pub fn ball_holder(board: &Board) -> Option<(Side, u8)> {
-    let mut holder = None;
-    for (i, p) in board.team1.iter().enumerate() {
-        if *p == board.ball {
-            holder = Some((Side::Team1, i as u8));
-        }
+    let t1 = board.team1.iter().position(|p| *p == board.ball).map(|i| (Side::Team1, i as u8));
+    let t2 = board.team2.iter().position(|p| *p == board.ball).map(|i| (Side::Team2, i as u8));
+    match (t1, t2) {
+        (Some(h1), Some(_)) if board.ball_owner == Some(Side::Team1) => Some(h1),
+        (_, Some(h2)) => Some(h2),
+        (h1, None) => h1,
     }
-    for (i, p) in board.team2.iter().enumerate() {
-        if *p == board.ball {
-            holder = Some((Side::Team2, i as u8));
-        }
-    }
-    holder
 }
 
 /// Validates one team's moves for a turn against the current board.
@@ -386,6 +383,8 @@ pub fn resolve_turn(
 
     'steps: for i in 0..max_len {
         let mut ball_moved = false;
+        // Cells players stepped onto this step: reaching a resting ball takes it.
+        let mut reached: Vec<Pos> = Vec::new();
 
         for side in [Side::Team1, Side::Team2] {
             for id in 0..PLAYERS_PER_TEAM as u8 {
@@ -395,6 +394,7 @@ pub fn resolve_turn(
                             Side::Team1 => b.team1[id as usize] = cell,
                             Side::Team2 => b.team2[id as usize] = cell,
                         }
+                        reached.push(cell);
                         if holder == Some((side, id)) {
                             b.ball = cell;
                             ball_moved = true;
@@ -426,7 +426,7 @@ pub fn resolve_turn(
             }
         }
 
-        if ball_moved {
+        if ball_moved || reached.contains(&b.ball) {
             let t1 = b.team1.iter().position(|p| *p == b.ball).map(|i| i as u8);
             let t2 = b.team2.iter().position(|p| *p == b.ball).map(|i| i as u8);
             let previous_owner = b.ball_owner;
@@ -581,9 +581,13 @@ mod tests {
         b.team2[5] = Pos::new(10, 5);
         let t1 = [mv(5, MoveType::Run, (8, 5), (9, 5))];
         let t2 = [mv(5, MoveType::Run, (10, 5), (9, 5))];
-        // Ball does not move, so no clash check this turn (v1 behaviour).
-        let out = resolve_turn(&b, &t1, &t2, &mut no_rolls());
-        assert!(out.rolls.is_empty());
+        // Both reach the resting ball at once: the roll decides.
+        let out = resolve_turn(&b, &t1, &t2, &mut || 10);
+        assert_eq!(out.rolls, vec![10]);
+        assert_eq!(out.board.ball_owner, Some(Side::Team1));
+        assert_eq!(ball_holder(&out.board), Some((Side::Team1, 5)));
+        let out = resolve_turn(&b, &t1, &t2, &mut || 77);
+        assert_eq!(ball_holder(&out.board), Some((Side::Team2, 5)));
 
         // Carrier vs runner: the roll decides.
         let b = new_game_board();
@@ -594,6 +598,39 @@ mod tests {
         assert_eq!(out.board.ball_owner, Some(Side::Team1));
         let out = resolve_turn(&b, &t1, &t2, &mut || 77);
         assert_eq!(out.board.ball_owner, Some(Side::Team2));
+    }
+
+    #[test]
+    fn clash_winner_keeps_the_ball_next_turn() {
+        // From kickoff both forwards run to (9,5); team 1 wins the roll.
+        let b = new_game_board();
+        let out = resolve_turn(&b, &[mv(5, MoveType::Run, (8, 5), (9, 5))], &[mv(5, MoveType::Run, (10, 5), (9, 5))], &mut || 10);
+        let b = out.board;
+        assert_eq!(b.ball_owner, Some(Side::Team1));
+        assert_eq!(ball_holder(&b), Some((Side::Team1, 5)));
+        // Team 1 may pass; team 2 may not.
+        assert!(validate_moves(&b, Side::Team1, &[mv(5, MoveType::Pass, (9, 5), (9, 3))]).is_ok());
+        assert!(validate_moves(&b, Side::Team2, &[mv(5, MoveType::Pass, (9, 5), (9, 7))]).is_err());
+        // Keepers tackling in place don't hand the ball to team 2.
+        let out = resolve_turn(&b, &[mv(0, MoveType::Tackle, (1, 5), (1, 5))], &[mv(0, MoveType::Tackle, (15, 5), (15, 5))], &mut no_rolls());
+        assert_eq!(out.board.ball_owner, Some(Side::Team1));
+        assert_eq!(ball_holder(&out.board), Some((Side::Team1, 5)));
+    }
+
+    #[test]
+    fn reaching_a_resting_ball_takes_possession() {
+        // Team 1 passes to the empty (9,5).
+        let b = new_game_board();
+        let out = resolve_turn(&b, &[mv(5, MoveType::Pass, (8, 5), (9, 5))], &[mv(0, MoveType::Tackle, (15, 5), (15, 5))], &mut no_rolls());
+        let b = out.board;
+        assert_eq!(b.ball, Pos::new(9, 5));
+        assert_eq!(ball_holder(&b), None);
+        // Team 2's forward runs onto it while team 1's keeper waits.
+        let out = resolve_turn(&b, &[mv(0, MoveType::Tackle, (1, 5), (1, 5))], &[mv(5, MoveType::Run, (10, 5), (9, 5))], &mut no_rolls());
+        let b = out.board;
+        assert_eq!(b.ball_owner, Some(Side::Team2));
+        assert_eq!(ball_holder(&b), Some((Side::Team2, 5)));
+        assert!(validate_moves(&b, Side::Team2, &[mv(5, MoveType::Pass, (9, 5), (9, 3))]).is_ok());
     }
 
     #[test]

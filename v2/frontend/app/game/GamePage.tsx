@@ -10,11 +10,30 @@ import {
     FrameKind, GameStatus, MoveType, Side,
     type Board, type GameView, type Move, type Pos, type TurnRecord,
 } from '@/lib/backend';
-import { availableCells, ballHolder, loadEngine, modesFor, newGameBoard, planMove, previewBoard, samePos, team } from '@/lib/engine';
+import { availableCells, ballHolder, loadEngine, modesFor, newGameBoard, planMove, previewBoard, samePos, team, validateMoves } from '@/lib/engine';
 import { useSession } from '@/app/session';
 import { ChainBadge } from '@/app/components/ChainBadge';
 import GameTipsModal from './GameTipsModal';
 import { AuthModal } from '@/app/components/AuthModal';
+
+/** The moves from `moves` that the canister would still accept together:
+ * adds moves back pass by pass, so a move that needs another one is kept
+ * once that one is in. */
+function keepValidMoves(board: Board, side: Side, moves: Move[]): Move[] {
+    if (moves.length === 0 || !validateMoves(board, side, moves)) return moves;
+    let kept: Move[] = [];
+    for (let changed = true; changed; ) {
+        changed = false;
+        for (const m of moves) {
+            if (kept.includes(m)) continue;
+            if (!validateMoves(board, side, [...kept, m])) {
+                kept = [...kept, m];
+                changed = true;
+            }
+        }
+    }
+    return moves.filter((m) => kept.includes(m));
+}
 
 // Game submission state enum
 enum GameSubmissionState {
@@ -234,8 +253,14 @@ export default function GamePage() {
             return;
         }
         if (planned.some((m) => m.player_id === id)) {
-            // Undo this player's move.
-            setPlanned(planned.filter((m) => m.player_id !== id));
+            // Undo this player's move, and drop any move that relied on it
+            // (e.g. a teammate running into the cell it vacated).
+            const rest = planned.filter((m) => m.player_id !== id);
+            const kept = keepValidMoves(game.board, mySide, rest);
+            if (kept.length < rest.length) {
+                toast.info('Also undid a move that depended on this one.');
+            }
+            setPlanned(kept);
             clearSelection();
             return;
         }
