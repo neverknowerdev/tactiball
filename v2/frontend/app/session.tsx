@@ -91,7 +91,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signingIn = useRef<Promise<SessionInfo> | null>(null);
   const signInGeneration = useRef(0);
   // Calls that change who the session principal is signed in as run one at a
-  // time, in the order they were started.
+  // time, in the order they were started (see serializeAuth).
   const authQueue = useRef<Promise<unknown>>(Promise.resolve());
   // The wallet address `team` was looked up for, so the auto sign-in below
   // never acts on a lookup that belongs to a previous wallet.
@@ -145,8 +145,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return useChain;
   }, [settings, chainId, switchChainAsync]);
 
+  // Open tabs share the session key (it lives in localStorage), so the queue
+  // is also a Web Lock: one sign-in call at a time across all tabs. Without
+  // Web Locks it falls back to this tab only.
   const serializeAuth = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
-    const run = authQueue.current.then(task, task);
+    const locked = () => (typeof navigator !== 'undefined' && navigator.locks ? navigator.locks.request('tactiball-auth', task) : task());
+    const run = authQueue.current.then(locked, locked);
     authQueue.current = run.catch(() => {});
     return run;
   }, []);
@@ -167,6 +171,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (stale()) throw cancelled();
         return ok(await api().auth_prepare({ address, chain_id: BigInt(useChain), domain: window.location.host }));
       });
+      // Cancelled while the challenge was on its way: don't open the wallet.
+      if (stale()) throw cancelled();
       const signature = await signMessageAsync({ message: prepared.message });
       const info = await serializeAuth(async () => {
         if (stale()) throw cancelled();
