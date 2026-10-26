@@ -270,6 +270,56 @@ fn email_account_links_a_wallet_and_gets_its_home_chain() {
 }
 
 #[test]
+fn a_wallet_link_only_completes_for_the_account_that_started_it() {
+    // Email account A starts a link; another tab then logs the shared
+    // session key into email account B before A's signature arrives.
+    let a = state::with_mut(|s| email::sign_up(s, session(1), T0, creds("a@example.com", "pw"))).unwrap().user;
+    let b = state::with_mut(|s| email::sign_up(s, session(9), T0, creds("b@example.com", "pw"))).unwrap().user;
+    let w = Wallet { session: session(1), ..Wallet::new(7) };
+    let msg = state::with_mut(|s| {
+        auth::prepare(s, w.session, T0, PrepareSignIn { address: w.address.clone(), chain_id: 8453, domain: DOMAIN.into() }, AuthPurpose::LinkWallet)
+    })
+    .unwrap();
+    state::with_mut(|s| email::login(s, session(1), T0, creds("b@example.com", "pw"))).unwrap();
+    let err = state::with_mut(|s| auth::link_wallet(s, w.session, T0, &w.sign(&msg.message))).unwrap_err();
+    assert!(err.contains("another account"), "{err}");
+    assert_eq!(state::with(|s| s.user(b.id)).unwrap().identities.len(), 1);
+
+    // The wallet is still free, so A can link it.
+    state::with_mut(|s| email::login(s, session(1), T0, creds("a@example.com", "pw"))).unwrap();
+    let msg = state::with_mut(|s| {
+        auth::prepare(s, w.session, T0, PrepareSignIn { address: w.address.clone(), chain_id: 8453, domain: DOMAIN.into() }, AuthPurpose::LinkWallet)
+    })
+    .unwrap();
+    let linked = state::with_mut(|s| auth::link_wallet(s, w.session, T0, &w.sign(&msg.message))).unwrap();
+    assert_eq!(linked.id, a.id);
+}
+
+#[test]
+fn tabs_sharing_a_session_key_keep_their_own_challenges() {
+    // Two tabs, one session key: both prepare before either signs.
+    let shared = session(5);
+    let a = Wallet { session: shared, ..Wallet::new(11) };
+    let b = Wallet { session: shared, ..Wallet::new(12) };
+    let prep = |w: &Wallet| {
+        state::with_mut(|s| auth::prepare(s, shared, T0, PrepareSignIn { address: w.address.clone(), chain_id: 8453, domain: DOMAIN.into() }, AuthPurpose::Login)).unwrap()
+    };
+    let msg_a = prep(&a);
+    let msg_b = prep(&b);
+    // A's signature still matches A's challenge, then B's matches B's.
+    let info_a = state::with_mut(|s| auth::login(s, shared, T0, &a.sign(&msg_a.message))).unwrap();
+    assert!(info_a.user.identities.contains(&format!("eip155:{}", a.address)));
+    let info_b = state::with_mut(|s| auth::login(s, shared, T0, &b.sign(&msg_b.message))).unwrap();
+    assert!(info_b.user.identities.contains(&format!("eip155:{}", b.address)));
+    // Each challenge is one-time.
+    assert!(state::with_mut(|s| auth::login(s, shared, T0, &a.sign(&msg_a.message))).is_err());
+    // A wallet can't sign another tab's challenge.
+    let msg_a = prep(&a);
+    let err = state::with_mut(|s| auth::login(s, shared, T0, &b.sign(&msg_a.message))).unwrap_err();
+    assert!(err.contains("different wallet"), "{err}");
+}
+
+#[test]
 fn team_names_are_unique_across_chains() {
     let (a, _b, _, _) = setup_two_teams();
     let c = Wallet::new(13);

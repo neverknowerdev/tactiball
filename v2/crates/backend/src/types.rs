@@ -202,6 +202,8 @@ pub struct PendingAuth {
     pub message: String,
     pub expires_at: Timestamp,
     pub session_expires_at: Timestamp,
+    /// For a wallet link: the account that asked for it.
+    pub user_id: Option<UserId>,
 }
 
 #[derive(CandidType, Deserialize, Clone, Debug)]

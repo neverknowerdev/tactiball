@@ -50,7 +50,8 @@ const META: MemoryId = MemoryId::new(1);
 const USERS: MemoryId = MemoryId::new(2);
 const IDENTITIES: MemoryId = MemoryId::new(3);
 const SESSIONS: MemoryId = MemoryId::new(4);
-const PENDING_AUTH: MemoryId = MemoryId::new(5);
+// MemoryId 5 held one pending sign-in per principal; no longer used.
+
 const TEAMS: MemoryId = MemoryId::new(6);
 const TEAM_NAMES: MemoryId = MemoryId::new(7);
 const REQUESTS: MemoryId = MemoryId::new(8);
@@ -63,6 +64,7 @@ const SYNC: MemoryId = MemoryId::new(14);
 const NULLIFIERS: MemoryId = MemoryId::new(15);
 const TEAM_GAMES: MemoryId = MemoryId::new(16);
 const EMAILS: MemoryId = MemoryId::new(17);
+const PENDING_AUTHS: MemoryId = MemoryId::new(18);
 
 pub struct Store {
     pub settings: StableCell<Stored<Settings>, Mem>,
@@ -72,7 +74,9 @@ pub struct Store {
     pub identities: StableBTreeMap<String, u64, Mem>,
     /// session principal -> session
     pub sessions: StableBTreeMap<Principal, Stored<Session>, Mem>,
-    pub pending_auth: StableBTreeMap<Principal, Stored<PendingAuth>, Mem>,
+    /// session principal -> its open sign-in challenges, oldest first. Tabs
+    /// share a principal, so each attempt keeps its own challenge.
+    pub pending_auth: StableBTreeMap<Principal, Stored<Vec<PendingAuth>>, Mem>,
     pub teams: StableBTreeMap<u64, Stored<Team>, Mem>,
     /// lower-cased name -> team id
     pub team_names: StableBTreeMap<String, u64, Mem>,
@@ -110,7 +114,7 @@ impl Store {
             users: StableBTreeMap::init(mem(USERS)),
             identities: StableBTreeMap::init(mem(IDENTITIES)),
             sessions: StableBTreeMap::init(mem(SESSIONS)),
-            pending_auth: StableBTreeMap::init(mem(PENDING_AUTH)),
+            pending_auth: StableBTreeMap::init(mem(PENDING_AUTHS)),
             teams: StableBTreeMap::init(mem(TEAMS)),
             team_names: StableBTreeMap::init(mem(TEAM_NAMES)),
             requests: StableBTreeMap::init(mem(REQUESTS)),

@@ -158,31 +158,43 @@ pub fn prepare(s: &mut Store, caller: Principal, now: Timestamp, req: PrepareSig
     };
     let message = build_message(&domain, &eth::to_checksum(&address), &statement, req.chain_id, &nonce, now, expires_at, &caller, session_expires_at);
 
-    s.pending_auth.insert(
-        caller,
-        Stored(PendingAuth { purpose, address, chain_id: req.chain_id, message: message.clone(), expires_at, session_expires_at }),
-    );
+    let user_id = match purpose {
+        AuthPurpose::Login => None,
+        AuthPurpose::LinkWallet => session_user(s, &caller, now).map(|(session, _)| session.user_id),
+    };
+    let mut open: Vec<PendingAuth> = s.pending_auth.get(&caller).map(|p| p.0).unwrap_or_default();
+    open.retain(|p| p.expires_at > now);
+    open.push(PendingAuth { purpose, address, chain_id: req.chain_id, message: message.clone(), expires_at, session_expires_at, user_id });
+    if open.len() > MAX_OPEN_CHALLENGES {
+        open.drain(..open.len() - MAX_OPEN_CHALLENGES);
+    }
+    s.pending_auth.insert(caller, Stored(open));
     Ok(SignInMessage { message, expires_at, session_expires_at })
 }
 
-/// Verifies the signed message for the caller's pending sign-in and returns
-/// the pending record (consumed).
+/// Open challenges kept per session key. Tabs share the key, so a new
+/// attempt must not replace one another tab is still signing.
+const MAX_OPEN_CHALLENGES: usize = 4;
+
+/// Finds the caller's open challenge that `signature` signs, and consumes it.
 fn take_verified(s: &mut Store, caller: &Principal, now: Timestamp, purpose: AuthPurpose, signature: &str) -> Res<PendingAuth> {
-    let pending = s.pending_auth.get(caller).map(|p| p.0).ok_or("no sign-in in progress for this session key")?;
-    if pending.purpose != purpose {
-        return Err("sign-in purpose does not match".into());
-    }
-    if pending.expires_at <= now {
+    let mut open: Vec<PendingAuth> = s.pending_auth.get(caller).map(|p| p.0).unwrap_or_default();
+    let had_any = open.iter().any(|p| p.purpose == purpose);
+    open.retain(|p| p.expires_at > now);
+    let found = open.iter().position(|p| p.purpose == purpose && eth::recover_personal_sign(&p.message, signature).is_ok_and(|signer| signer == p.address));
+    let result = match found {
+        // One-time: the nonce cannot be used again.
+        Some(i) => Ok(open.remove(i)),
+        None if open.iter().any(|p| p.purpose == purpose) => Err("signature was made by a different wallet".to_string()),
+        None if had_any => Err("sign-in message expired, please try again".to_string()),
+        None => Err("no sign-in in progress for this session key".to_string()),
+    };
+    if open.is_empty() {
         s.pending_auth.remove(caller);
-        return Err("sign-in message expired, please try again".into());
+    } else {
+        s.pending_auth.insert(*caller, Stored(open));
     }
-    let signer = eth::recover_personal_sign(&pending.message, signature)?;
-    if signer != pending.address {
-        return Err("signature was made by a different wallet".into());
-    }
-    // One-time: the nonce cannot be used again.
-    s.pending_auth.remove(caller);
-    Ok(pending)
+    result
 }
 
 pub fn login(s: &mut Store, caller: Principal, now: Timestamp, signature: &str) -> Res<SessionInfo> {
@@ -238,6 +250,11 @@ pub fn start_session(s: &mut Store, caller: Principal, now: Timestamp, mut user:
 pub fn link_wallet(s: &mut Store, caller: Principal, now: Timestamp, signature: &str) -> Res<User> {
     let mut user = require_user(s, &caller, now)?;
     let pending = take_verified(s, &caller, now, AuthPurpose::LinkWallet, signature)?;
+    // The session key may have signed in to another account since the link
+    // was prepared (another tab): never link the wallet to that one.
+    if pending.user_id != Some(user.id) {
+        return Err("this link was started from another account, please try again".into());
+    }
     let identity = evm_identity(&pending.address);
     match s.identities.get(&identity) {
         Some(owner) if owner == user.id => return Ok(user),
@@ -278,9 +295,10 @@ pub fn set_session_ttl(s: &mut Store, caller: Principal, now: Timestamp, secs: O
     Ok(user)
 }
 
+/// Ends the session. Open challenges stay: another tab sharing this session
+/// key may be signing one, and they expire on their own.
 pub fn sign_out(s: &mut Store, caller: Principal) {
     s.sessions.remove(&caller);
-    s.pending_auth.remove(&caller);
 }
 
 /// Drops expired sessions and sign-in attempts.
@@ -289,7 +307,7 @@ pub fn cleanup(s: &mut Store, now: Timestamp) {
     for p in expired {
         s.sessions.remove(&p);
     }
-    let stale: Vec<Principal> = s.pending_auth.iter().filter(|e| e.value().0.expires_at <= now).map(|e| *e.key()).collect();
+    let stale: Vec<Principal> = s.pending_auth.iter().filter(|e| e.value().0.iter().all(|p| p.expires_at <= now)).map(|e| *e.key()).collect();
     for p in stale {
         s.pending_auth.remove(&p);
     }

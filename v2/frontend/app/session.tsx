@@ -222,11 +222,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const linkWallet = useCallback(async () => {
     if (!address) throw new Error('Connect a wallet first');
     const useChain = await signInChain();
-    const prepared = ok(await api().auth_prepare_link({ address, chain_id: BigInt(useChain), domain: window.location.host }));
+    const prepared = ok(await serializeAuth(() => api().auth_prepare_link({ address, chain_id: BigInt(useChain), domain: window.location.host })));
     const signature = await signMessageAsync({ message: prepared.message });
-    ok(await api().auth_link(signature));
+    ok(await serializeAuth(() => api().auth_link(signature)));
     await refresh();
-  }, [address, signInChain, signMessageAsync, refresh]);
+  }, [address, signInChain, signMessageAsync, refresh, serializeAuth]);
 
   const signOut = useCallback(async () => {
     cancelSignIn();
