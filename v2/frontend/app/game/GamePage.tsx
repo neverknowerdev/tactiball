@@ -257,7 +257,7 @@ export default function GamePage() {
         const pos = { x, y };
         if (!canPlan || !mySide) {
             if (active && !mySide && board.team1.concat(board.team2).some((p) => samePos(p, pos))) {
-                toast.info(isConnected ? 'You are watching this game.' : 'Sign in to play.');
+                toast.info(session ? 'You are watching this game.' : 'Sign in to play.');
             }
             return;
         }
@@ -597,7 +597,7 @@ export default function GamePage() {
 
                     {/* Ready Button or Sign in */}
                     <div className="mt-4 flex justify-center">
-                        {!isConnected ? (
+                        {!session ? (
                             <button onClick={() => setSignInOpen(true)} className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition-colors font-semibold">
                                 Sign in
                             </button>
