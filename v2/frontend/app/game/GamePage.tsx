@@ -124,25 +124,30 @@ export default function GamePage() {
             const g = await api().get_game(gameId);
             if (!g) throw new Error('Game not found');
             if (g.version === version.current) return;
-            version.current = g.version;
             const previous = turnsSeen.current;
-            turnsSeen.current = g.turns_played;
-
+            // Load the new turns before moving the cursors, so a failed
+            // get_turns is retried on the next poll instead of skipped.
+            const turns: TurnRecord[] = [];
             if (previous < 0) {
                 // First load: the whole history, from kick-off.
-                const turns: TurnRecord[] = [];
                 while (turns.length < g.turns_played) {
                     const page = await api().get_turns(gameId, turns.length + 1, 50);
                     if (page.length === 0) break;
                     turns.push(...page);
                 }
+            } else if (g.turns_played > previous) {
+                turns.push(...(await api().get_turns(gameId, previous + 1, 50)));
+            }
+            version.current = g.version;
+            turnsSeen.current = g.turns_played;
+
+            if (previous < 0) {
                 const start: HistoryState = { board: newGameBoard(), kind: FrameKind.StartPositions, turn: 0 };
                 const all = [start, ...turns.flatMap(historyOf)];
                 setHistory(all);
                 setCurrentHistoryIndex(all.length - 1);
                 setLastRolls(turns.length ? [...turns[turns.length - 1].rolls] : []);
             } else if (g.turns_played > previous) {
-                const turns = await api().get_turns(gameId, previous + 1, 50);
                 setHistory((h) => {
                     const all = [...h, ...turns.flatMap(historyOf)];
                     setCurrentHistoryIndex(all.length - 1);
