@@ -66,6 +66,11 @@ fn start_timers() {
             t.set(t.get() + 1);
             t.get()
         });
+        for (game_id, turn) in state::with(games::games_awaiting_resolution) {
+            ic_cdk::futures::spawn(async move {
+                resolve_with_fresh_randomness(game_id, turn, None).await;
+            });
+        }
         if tick.is_multiple_of(ENTROPY_EVERY) {
             state::with_mut(|s| auth::cleanup(s, now));
             refresh_entropy().await;
@@ -75,8 +80,7 @@ fn start_timers() {
 
 /// Mixes fresh `raw_rand` bytes into the private entropy pool.
 async fn refresh_entropy() {
-    let res = ic_cdk::call::Call::bounded_wait(Principal::management_canister(), "raw_rand").await;
-    if let Some(bytes) = res.ok().and_then(|r| r.candid::<Vec<u8>>().ok()) {
+    if let Some(bytes) = raw_rand().await {
         use sha2::{Digest, Sha256};
         state::with_mut(|s| {
             s.update_meta(|m| {
@@ -289,9 +293,44 @@ fn leave_queue() -> Res<()> {
 
 // ---------------------------------------------------------------- games
 
+/// The second commit of a turn fetches fresh `raw_rand` bytes and resolves
+/// the turn with them, so the rolls don't exist until both moves are locked.
 #[update]
-fn commit_moves(game_id: GameId, turn: u32, moves: Vec<Move>) -> Res<CommitResult> {
-    state::with_mut(|s| games::commit_moves(s, msg_caller(), time(), game_id, turn, moves))
+async fn commit_moves(game_id: GameId, turn: u32, moves: Vec<Move>) -> Res<CommitResult> {
+    let caller = msg_caller();
+    let committed = state::with_mut(|s| games::commit_moves(s, caller, time(), game_id, turn, moves))?;
+    if !(committed.game.committed1 && committed.game.committed2) {
+        return Ok(committed);
+    }
+    match resolve_with_fresh_randomness(game_id, turn, Some(caller)).await {
+        Some(r) => Ok(r),
+        // `raw_rand` failed: the turn stays committed and the timer retries.
+        None => Ok(committed),
+    }
+}
+
+thread_local! {
+    /// Games with a `raw_rand` call in flight, so the timer doesn't start a
+    /// second one. Not stable: after an upgrade the timer just retries.
+    static RESOLVING: std::cell::RefCell<std::collections::BTreeSet<GameId>> = const { std::cell::RefCell::new(std::collections::BTreeSet::new()) };
+}
+
+async fn raw_rand() -> Option<Vec<u8>> {
+    let res = ic_cdk::call::Call::bounded_wait(Principal::management_canister(), "raw_rand").await;
+    res.ok().and_then(|r| r.candid::<Vec<u8>>().ok())
+}
+
+async fn resolve_with_fresh_randomness(game_id: GameId, turn: u32, caller: Option<Principal>) -> Option<CommitResult> {
+    if !RESOLVING.with(|r| r.borrow_mut().insert(game_id)) {
+        return None;
+    }
+    let bytes = raw_rand().await;
+    RESOLVING.with(|r| r.borrow_mut().remove(&game_id));
+    let bytes = bytes?;
+    state::with_mut(|s| {
+        let viewer = caller.and_then(|c| auth::require_user(s, &c, time()).ok()).map(|u| u.id);
+        games::resolve_pending(s, viewer, time(), game_id, turn, &bytes).ok()
+    })
 }
 
 /// Ends the game 3:0 for the caller when they moved in time and the

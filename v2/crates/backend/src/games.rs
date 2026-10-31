@@ -100,11 +100,12 @@ pub fn view(game: &Game, viewer: Option<UserId>) -> GameView {
     }
 }
 
-/// Per-turn seed from the canister's private entropy pool (refreshed from
-/// `raw_rand`). Stored with the turn so it can be replayed and checked.
-fn turn_seed(s: &Store, game_id: GameId, turn: u32) -> Vec<u8> {
+/// Per-turn seed from fresh `raw_rand` bytes fetched after both sides
+/// committed, so nobody (not even a node) can know the rolls while moves can
+/// still change. Stored with the turn so it can be replayed and checked.
+pub fn turn_seed(randomness: &[u8], game_id: GameId, turn: u32) -> Vec<u8> {
     let mut h = Sha256::new();
-    h.update(&s.meta().entropy);
+    h.update(randomness);
     h.update(game_id.to_be_bytes());
     h.update(turn.to_be_bytes());
     h.finalize().to_vec()
@@ -147,19 +148,46 @@ pub fn commit_moves(s: &mut Store, caller: Principal, now: Timestamp, game_id: G
     *slot = Some(moves);
     game.version += 1;
 
-    let resolved = game.pending1.is_some() && game.pending2.is_some();
-    if resolved {
-        resolve(s, &mut game, now);
-    }
     s.put_game(game.clone());
-    Ok(CommitResult { resolved, game: view(&game, Some(user.id)) })
+    // When this was the second commit, the caller (`lib.rs`) fetches fresh
+    // randomness and then calls `resolve_pending`.
+    Ok(CommitResult { resolved: false, game: view(&game, Some(user.id)) })
 }
 
-fn resolve(s: &mut Store, game: &mut Game, now: Timestamp) {
+/// True when both sides committed `turn` and it waits for its randomness.
+pub fn awaiting_resolution(game: &Game, turn: u32) -> bool {
+    game.status == GameStatus::Active && game.turns_played + 1 == turn && game.pending1.is_some() && game.pending2.is_some()
+}
+
+/// Games whose current turn has both commits but no result yet, e.g. because
+/// the `raw_rand` call after the second commit failed. The timer retries them.
+pub fn games_awaiting_resolution(s: &Store) -> Vec<(GameId, u32)> {
+    s.active_games
+        .keys()
+        .filter_map(|id| s.game(id))
+        .filter(|g| awaiting_resolution(g, g.turns_played + 1))
+        .map(|g| (g.id, g.turns_played + 1))
+        .collect()
+}
+
+/// Resolves `turn` with randomness fetched after both commits. Does nothing
+/// when the turn was already resolved or the game ended in the meantime
+/// (a surrender while `raw_rand` was in flight), so a retry can't apply twice.
+pub fn resolve_pending(s: &mut Store, viewer: Option<UserId>, now: Timestamp, game_id: GameId, turn: u32, randomness: &[u8]) -> Res<CommitResult> {
+    let mut game = s.game(game_id).ok_or("game not found")?;
+    let resolved = awaiting_resolution(&game, turn);
+    if resolved {
+        resolve(s, &mut game, now, randomness);
+        s.put_game(game.clone());
+    }
+    Ok(CommitResult { resolved, game: view(&game, viewer) })
+}
+
+fn resolve(s: &mut Store, game: &mut Game, now: Timestamp, randomness: &[u8]) {
     let turn = game.turns_played + 1;
     let m1 = game.pending1.take().unwrap_or_default();
     let m2 = game.pending2.take().unwrap_or_default();
-    let seed = turn_seed(s, game.id, turn);
+    let seed = turn_seed(randomness, game.id, turn);
     let outcome = resolve_turn(&game.board, &m1, &m2, &mut roller(seed.clone()));
 
     match outcome.goal {

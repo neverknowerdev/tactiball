@@ -39,7 +39,8 @@ pub struct Meta {
     pub next_event_seq: u64,
     pub next_sync_id: u64,
     pub nonce_counter: u64,
-    /// Private entropy pool, refreshed from `raw_rand`.
+    /// Private entropy pool, refreshed from `raw_rand`; used for sign-in nonces
+    /// and salts. Turns get their own fresh `raw_rand` bytes.
     #[serde(with = "serde_bytes")]
     pub entropy: Vec<u8>,
     pub total_goals: u64,

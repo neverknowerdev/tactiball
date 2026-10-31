@@ -325,6 +325,8 @@ service : (opt InitArgs) -> {
   // Ends the game 3:0 for the caller when they moved in time and the
   // opponent missed the turn deadline. Optional; see `games::claim_timeout_win`.
   claim_timeout_win : (nat64) -> (Result_6);
+  // The second commit of a turn fetches fresh `raw_rand` bytes and resolves
+  // the turn with them, so the rolls don't exist until both moves are locked.
   commit_moves : (nat64, nat32, vec Move) -> (Result_7);
   create_game_request : (nat64) -> (Result_8);
   create_team : (text, nat16) -> (Result_9);

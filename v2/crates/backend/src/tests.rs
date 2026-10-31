@@ -10,6 +10,17 @@ use tactiball_engine::{Move, MoveType, Pos, Side};
 const T0: u64 = 1_791_633_365 * SECOND;
 const DOMAIN: &str = "tactiball.app";
 
+/// What the `commit_moves` endpoint does: commit, and after the second commit
+/// resolve the turn with "fresh" randomness (fixed bytes here).
+fn commit(s: &mut state::Store, caller: Principal, now: u64, game_id: GameId, turn: u32, moves: Vec<Move>) -> Res<CommitResult> {
+    let r = games::commit_moves(s, caller, now, game_id, turn, moves)?;
+    if !(r.game.committed1 && r.game.committed2) {
+        return Ok(r);
+    }
+    let viewer = auth::require_user(s, &caller, now).ok().map(|u| u.id);
+    games::resolve_pending(s, viewer, now, game_id, turn, &[turn as u8; 32])
+}
+
 struct Wallet {
     key: SigningKey,
     address: String,
@@ -345,15 +356,15 @@ fn full_game_by_invite_ends_after_max_turns() {
     let mut now = T0;
     for turn in 1..=45 {
         now += 5 * SECOND;
-        let r1 = state::with_mut(|s| games::commit_moves(s, a.session, now, game_id, turn, keeper_stays(Side::Team1))).unwrap();
+        let r1 = state::with_mut(|s| commit(s, a.session, now, game_id, turn, keeper_stays(Side::Team1))).unwrap();
         assert!(!r1.resolved);
         assert!(r1.game.committed1 && !r1.game.committed2);
         // Opponent's moves stay hidden from other viewers.
         let seen_by_b = state::with(|s| games::view(&s.game(game_id).unwrap(), Some(state::with(|s2| auth::require_user(s2, &b.session, now)).unwrap().id)));
         assert!(seen_by_b.my_pending.is_none());
         // Double commit and wrong turn are refused.
-        assert!(state::with_mut(|s| games::commit_moves(s, a.session, now, game_id, turn, keeper_stays(Side::Team1))).is_err());
-        let r2 = state::with_mut(|s| games::commit_moves(s, b.session, now, game_id, turn, keeper_stays(Side::Team2))).unwrap();
+        assert!(state::with_mut(|s| commit(s, a.session, now, game_id, turn, keeper_stays(Side::Team1))).is_err());
+        let r2 = state::with_mut(|s| commit(s, b.session, now, game_id, turn, keeper_stays(Side::Team2))).unwrap();
         assert!(r2.resolved);
     }
     let game = state::with(|s| s.game(game_id)).unwrap();
@@ -380,11 +391,11 @@ fn invalid_moves_are_rejected_before_storing() {
     let game_id = state::with_mut(|s| lobby::accept_request(s, b.session, T0, req.id)).unwrap();
     // Team 2 cannot pass: team 1 has the ball.
     let bad = vec![Move { player_id: 5, move_type: MoveType::Pass, from: Pos::new(10, 5), to: Pos::new(10, 3) }];
-    assert!(state::with_mut(|s| games::commit_moves(s, b.session, T0, game_id, 1, bad)).is_err());
+    assert!(state::with_mut(|s| commit(s, b.session, T0, game_id, 1, bad)).is_err());
     // A stranger cannot play.
     let c = Wallet::new(13);
     c.sign_in(8453, T0);
-    assert!(state::with_mut(|s| games::commit_moves(s, c.session, T0, game_id, 1, keeper_stays(Side::Team1))).is_err());
+    assert!(state::with_mut(|s| commit(s, c.session, T0, game_id, 1, keeper_stays(Side::Team1))).is_err());
 }
 
 #[test]
@@ -397,7 +408,7 @@ fn queue_pairs_teams_and_timeout_win_is_claimed() {
     let late = T0 + SECOND + 61 * SECOND;
 
     // Only team 1 commits. Before the deadline it cannot claim.
-    state::with_mut(|s| games::commit_moves(s, a.session, T0 + 2 * SECOND, game_id, 1, keeper_stays(Side::Team1))).unwrap();
+    state::with_mut(|s| commit(s, a.session, T0 + 2 * SECOND, game_id, 1, keeper_stays(Side::Team1))).unwrap();
     let early = state::with_mut(|s| games::claim_timeout_win(s, a.session, T0 + 30 * SECOND, game_id)).unwrap_err();
     assert!(early.contains("still has 31s"), "{early}");
     // After it, the late side cannot claim, and the game is still on until someone does.
@@ -418,9 +429,9 @@ fn a_late_move_still_counts_until_the_win_is_claimed() {
     let (a, b, _, _) = setup_two_teams();
     state::with_mut(|s| lobby::join_queue(s, a.session, T0)).unwrap();
     let game_id = state::with_mut(|s| lobby::join_queue(s, b.session, T0)).unwrap().unwrap();
-    state::with_mut(|s| games::commit_moves(s, a.session, T0, game_id, 1, keeper_stays(Side::Team1))).unwrap();
+    state::with_mut(|s| commit(s, a.session, T0, game_id, 1, keeper_stays(Side::Team1))).unwrap();
     // Team 2 moves well after the deadline; team 1 chose not to claim, so the turn resolves.
-    let r = state::with_mut(|s| games::commit_moves(s, b.session, T0 + 300 * SECOND, game_id, 1, keeper_stays(Side::Team2))).unwrap();
+    let r = state::with_mut(|s| commit(s, b.session, T0 + 300 * SECOND, game_id, 1, keeper_stays(Side::Team2))).unwrap();
     assert!(r.resolved);
     assert_eq!((r.game.status, r.game.turns_played), (GameStatus::Active, 1));
     // The next turn's clock started at the late move, so nobody can claim yet.
@@ -438,7 +449,7 @@ fn nobody_moving_does_not_end_the_game() {
     }
     assert_eq!(state::with(|s| s.game(game_id)).unwrap().status, GameStatus::Active);
     // Either side can still move, or give up.
-    state::with_mut(|s| games::commit_moves(s, b.session, later, game_id, 1, keeper_stays(Side::Team2))).unwrap();
+    state::with_mut(|s| commit(s, b.session, later, game_id, 1, keeper_stays(Side::Team2))).unwrap();
     assert!(state::with_mut(|s| games::claim_timeout_win(s, b.session, later + 61 * SECOND, game_id)).is_ok());
     assert_eq!(state::with(|s| s.game(game_id)).unwrap().winner, Some(Side::Team2));
 }
@@ -502,4 +513,47 @@ fn candid_interface_is_up_to_date() {
     }
     let on_disk = std::fs::read_to_string(path).unwrap_or_default();
     assert_eq!(on_disk.trim(), did.trim(), "backend.did is stale: run `UPDATE_CANDID=1 cargo test -p tactiball_backend candid`");
+}
+
+#[test]
+fn a_turn_waits_for_fresh_randomness_after_both_commits() {
+    let (a, b, _ta, tb) = setup_two_teams();
+    let req = state::with_mut(|s| lobby::create_request(s, a.session, T0, tb)).unwrap();
+    let game_id = state::with_mut(|s| lobby::accept_request(s, b.session, T0, req.id)).unwrap();
+
+    state::with_mut(|s| games::commit_moves(s, a.session, T0, game_id, 1, keeper_stays(Side::Team1))).unwrap();
+    // Before both commit there's nothing to resolve.
+    assert!(!state::with_mut(|s| games::resolve_pending(s, None, T0, game_id, 1, &[1; 32])).unwrap().resolved);
+    let r = state::with_mut(|s| games::commit_moves(s, b.session, T0, game_id, 1, keeper_stays(Side::Team2))).unwrap();
+    // The second commit alone doesn't resolve: the rolls don't exist yet.
+    assert!(!r.resolved);
+    assert_eq!(r.game.turns_played, 0);
+    assert_eq!(state::with(games::games_awaiting_resolution), vec![(game_id, 1)]);
+
+    let r = state::with_mut(|s| games::resolve_pending(s, None, T0, game_id, 1, &[9; 32])).unwrap();
+    assert!(r.resolved);
+    assert_eq!(r.game.turns_played, 1);
+    let turn = state::with(|s| games::turns(s, game_id, 1, 1)).remove(0);
+    assert_eq!(turn.seed, games::turn_seed(&[9; 32], game_id, 1));
+    assert!(state::with(games::games_awaiting_resolution).is_empty());
+    // A late retry with other bytes can't resolve the turn again.
+    assert!(!state::with_mut(|s| games::resolve_pending(s, None, T0, game_id, 1, &[7; 32])).unwrap().resolved);
+    assert_eq!(state::with(|s| s.game(game_id)).unwrap().turns_played, 1);
+}
+
+#[test]
+fn a_surrender_while_randomness_is_in_flight_drops_the_turn() {
+    let (a, b, _ta, tb) = setup_two_teams();
+    let req = state::with_mut(|s| lobby::create_request(s, a.session, T0, tb)).unwrap();
+    let game_id = state::with_mut(|s| lobby::accept_request(s, b.session, T0, req.id)).unwrap();
+    state::with_mut(|s| games::commit_moves(s, a.session, T0, game_id, 1, keeper_stays(Side::Team1))).unwrap();
+    state::with_mut(|s| games::commit_moves(s, b.session, T0, game_id, 1, keeper_stays(Side::Team2))).unwrap();
+    state::with_mut(|s| games::surrender(s, b.session, T0, game_id)).unwrap();
+
+    let r = state::with_mut(|s| games::resolve_pending(s, None, T0, game_id, 1, &[9; 32])).unwrap();
+    assert!(!r.resolved);
+    let game = state::with(|s| s.game(game_id)).unwrap();
+    assert_eq!(game.status, GameStatus::Surrendered);
+    assert_eq!(game.turns_played, 0);
+    assert!(state::with(|s| games::turns(s, game_id, 1, 1)).is_empty());
 }
