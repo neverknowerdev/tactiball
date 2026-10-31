@@ -73,6 +73,11 @@ const emailOf = (s: SessionInfo | null) => s?.user.identities.find((i) => i.star
  * player switches to a wallet the account doesn't have, the wallet wins (as
  * in v1), unless the account has no wallets at all (an email account).
  */
+/** `session_expires_at` is in nanoseconds, like every canister timestamp. */
+function isExpired(s: SessionInfo): boolean {
+  return s.session_expires_at <= BigInt(Date.now()) * 1_000_000n;
+}
+
 function sessionForWallet(s: SessionInfo | null, address?: string): SessionInfo | null {
   if (!s || !address) return s;
   const linked = wallets(s);
@@ -156,7 +161,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const ensureSignedIn = useCallback(async (): Promise<SessionInfo> => {
-    if (session) return session;
+    if (session && !isExpired(session)) return session;
     if (!address) throw new Error('Sign in first');
     if (signingIn.current) return signingIn.current;
 
@@ -249,6 +254,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     autoSignInTried.current = true;
     ensureSignedIn().catch(() => {});
   }, [session, team, address, settings, teamLoading, ensureSignedIn]);
+
+  // The session ran out while the tab was open: re-read it (the canister now
+  // reports no session) so the UI asks to sign in again, and let a connected
+  // wallet with a team ask for its signature once more.
+  useEffect(() => {
+    if (!session) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      const ms = Number(session.session_expires_at / 1_000_000n) - Date.now();
+      // setTimeout overflows past ~24.8 days; longer sessions check again then.
+      timer = setTimeout(check, Math.min(Math.max(ms, 0) + 1000, 2 ** 31 - 1));
+    };
+    const check = () => {
+      if (!isExpired(session)) return arm();
+      autoSignInTried.current = false;
+      setSession(null);
+      refresh();
+    };
+    arm();
+    return () => clearTimeout(timer);
+  }, [session, refresh]);
 
   // Wallet switched: drop a session that isn't this wallet's.
   useEffect(() => {

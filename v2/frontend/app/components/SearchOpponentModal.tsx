@@ -29,24 +29,33 @@ export const SearchOpponentModal: React.FC<SearchOpponentModalProps> = ({
         let timer: ReturnType<typeof setTimeout> | undefined;
 
         const found = (gameId: bigint) => {
+            if (stopped) return;
             setIsOpponentFound(true);
             window.location.href = gameUrl(gameId);
+        };
+
+        // A search cancelled while a call was in flight must not stay queued.
+        const joinQueue = async () => {
+            const game = ok(await api().join_queue());
+            if (stopped && game === null) await api().leave_queue().catch(() => {});
+            return game;
         };
 
         const poll = async () => {
             if (stopped) return;
             try {
                 const lobby = ok(await api().lobby());
+                if (stopped) return;
                 if (lobby.active_game !== undefined) return found(lobby.active_game);
                 if (!lobby.in_queue) {
                     // Our queue entry expired: join again.
-                    const game = ok(await api().join_queue());
+                    const game = await joinQueue();
                     if (game !== null) return found(game);
                 }
             } catch (e) {
-                setError(errorText(e));
+                if (!stopped) setError(errorText(e));
             }
-            timer = setTimeout(poll, POLL_MS);
+            if (!stopped) timer = setTimeout(poll, POLL_MS);
         };
 
         const start = async () => {
@@ -55,11 +64,12 @@ export const SearchOpponentModal: React.FC<SearchOpponentModalProps> = ({
             setIsOpponentFound(false);
             try {
                 await ensureSignedIn();
-                const game = ok(await api().join_queue());
+                if (stopped) return;
+                const game = await joinQueue();
                 if (game !== null) return found(game);
-                timer = setTimeout(poll, POLL_MS);
+                if (!stopped) timer = setTimeout(poll, POLL_MS);
             } catch (e) {
-                setError(errorText(e));
+                if (!stopped) setError(errorText(e));
                 searching.current = false;
             }
         };
