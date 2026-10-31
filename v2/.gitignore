@@ -1,4 +1,7 @@
 target/
-.icp/
+# icp-cli: cache is per machine; data/mappings holds the mainnet canister ids
+# (public) and is committed so every checkout upgrades the same canisters.
+.icp/cache/
+.icp/data/mappings/local.ids.json
 node_modules/
 dist/

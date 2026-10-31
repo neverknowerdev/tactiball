@@ -5,9 +5,15 @@
 # staging     signs in with Base Sepolia + Robinhood testnet wallets
 # production  signs in with Base + Robinhood Chain mainnet wallets
 #
-# Needs an icp-cli identity with cycles (see v2/DEPLOY.md). The first deploy
-# creates the canisters (2T cycles each by default); later runs upgrade them
-# and keep all state.
+# Needs an icp-cli identity that controls the canisters, or has cycles to create
+# them (see v2/DEPLOY.md). The first deploy creates the canisters (2T cycles
+# each by default); later runs upgrade them and keep all state.
+#
+# Headless use (a cloud session or CI): set ICP_DEPLOYER_PEM to the deploy
+# identity's PEM and it is imported as `tactiball-ci` and used.
+# Mainnet canister ids are public and live in .icp/data/mappings/<env>.ids.json,
+# which is committed, so a fresh checkout upgrades the same canisters instead of
+# creating new ones.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/common.sh
@@ -26,6 +32,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 require_tools
+
+if [[ -n "${ICP_DEPLOYER_PEM:-}" ]]; then
+  if ! icp identity list 2>/dev/null | grep -qw tactiball-ci; then
+    icp identity import tactiball-ci --from-pem <(printf '%s\n' "$ICP_DEPLOYER_PEM") --storage plaintext >/dev/null
+  fi
+  icp identity default tactiball-ci >/dev/null
+fi
+
 echo "Identity:  $(icp identity default) ($(icp identity principal))"
 echo "Cycles:    $(icp cycles balance -n ic 2>/dev/null || echo 'unknown')"
 echo "Target:    $ENV on ICP mainnet"
@@ -66,4 +80,5 @@ Deployed $ENV.
 $(for d in ${DOMAINS[@]+"${DOMAINS[@]}"}; do echo "  Domain:   https://$d/ (after DNS + registration, see DEPLOY.md)"; done)
 Check:      icp canister call backend health '()' -e $ENV --query
 Top up:     icp canister top-up backend --amount 1T -e $ENV
+Ids:        .icp/data/mappings/$ENV.ids.json (commit it after the first deploy)
 MSG

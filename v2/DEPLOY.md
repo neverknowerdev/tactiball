@@ -75,7 +75,7 @@ Staging is a real mainnet deployment, but sign-in only accepts **Base Sepolia (8
 ./scripts/deploy-ic.sh staging
 ```
 
-The first run creates the canisters, and their ids are saved in `v2/.icp/`. Commit nothing from `.icp/`, but **back it up**, because it is how later deploys find the same canisters. Later runs upgrade the canisters in place and keep all state.
+The first run creates the canisters and saves their ids in `v2/.icp/data/mappings/staging.ids.json`. **Commit that file.** Canister ids are public, and it is how later deploys, from any machine, find the same canisters instead of creating new ones. Later runs upgrade the canisters in place and keep all state.
 
 The script ends by allowing sign-in only from the frontend's own `https://<id>.icp0.io` host, and it prints that URL.
 
@@ -131,7 +131,47 @@ Then do these follow-ups.
    ```
    The current procedure is documented at https://internetcomputer.org/docs/building-apps/frontends/custom-domains/using-custom-domains. Follow that page if it differs from these steps.
 
-## 6. Day-to-day operations
+## 6. Letting Claude deploy
+
+Claude runs in a cloud container that starts fresh each session, so it needs three things from you. Never paste a key into the chat.
+
+1. **Its own deploy identity**, made on your machine:
+   ```bash
+   icp identity new claude-deployer --storage plaintext   # store the seed phrase offline
+   icp identity principal --identity claude-deployer      # Claude's principal
+   icp identity export claude-deployer                    # the PEM, for step 2
+   ```
+2. **A cloud environment** for the project: [Project settings](#project-settings/environment) → Cloud environment → Add cloud environment.
+   - Add the PEM as the secret `ICP_DEPLOYER_PEM`. `deploy-ic.sh` imports it as the `tactiball-ci` identity.
+   - Allow the hosts `icp-api.io`, `icp0.io` and `ic0.app`, and keep package managers allowed.
+3. **Control of the canisters.** Either works:
+   - Recommended: you create the canisters with your own identity (step 4 above) and add Claude as a controller. Upgrades are paid from the canister's own cycles, so Claude's identity needs no cycles.
+     ```bash
+     icp canister settings update backend  --add-controller <claude principal> -e staging
+     icp canister settings update frontend --add-controller <claude principal> -e staging
+     ```
+   - Or send cycles to Claude's identity and let it create the canisters itself, then add your own principal as a controller.
+
+You can take access back at any time with `--remove-controller <claude principal>`. To keep production in your own hands, add Claude as a controller of staging only; Claude then prepares a release, and you run `./scripts/deploy-ic.sh production`.
+
+No chain keys or RPC keys are needed today. Wallet sign-in only checks signatures, and the home-chain sync is a stub. When the sync is built, the canister will sign its own transactions with ICP threshold ECDSA, so there is still no private key to hand over.
+
+## 7. Upgrading the canisters
+
+Shipping a new version is the same command as the first deploy: `./scripts/deploy-ic.sh <env>`. It finds the canisters through `.icp/data/mappings/`, builds, and upgrades them in place.
+
+- Only a controller can upgrade. Keep at least two: your own identity plus a backup such as a hardware wallet, and Claude's if it deploys.
+- All data is in stable memory, so it survives upgrades. The timers are started again in `post_upgrade`, and the only init argument it re-applies is the `chains` list from `icp.yaml`.
+- When a stored type changes, add only optional fields, and never reuse a stable `MemoryId`. That keeps old data decoding.
+- Test each release on staging first. Before a risky production upgrade, take a snapshot, which you can restore if the upgrade goes wrong:
+  ```bash
+  icp canister stop backend -e production
+  icp canister snapshot create backend -e production
+  icp canister start backend -e production
+  # if needed: icp canister snapshot restore backend <snapshot id> -e production
+  ```
+
+## 8. Day-to-day operations
 
 | Task | Command |
 | --- | --- |
@@ -148,7 +188,7 @@ Settings live in canister state. `init_args` in `icp.yaml` is re-applied on ever
 
 Before upgrading production, test the same build on staging. Stable memory keeps all data across upgrades. If you change a stored type, add only optional fields.
 
-## 7. What this PoC does not do yet
+## 9. What this PoC does not do yet
 
 - **Emails are not verified, and there is no password reset.** The canister would need an HTTPS outcall to a mail provider to send a confirmation or reset link. Until then, anyone can register an address they don't own, and a forgotten password can't be recovered. A signed-in player can change their password with `auth_change_password`.
 - **EOA wallets only.** Smart wallets (Coinbase Smart Wallet, Safe) sign with EIP-1271/6492, which the canister cannot check yet, so those users see an "invalid signature" error.
@@ -159,4 +199,4 @@ Before upgrading production, test the same build on staging. Stable memory keeps
 - **No certified queries.** Query answers such as the leaderboard and game views are trusted from one replica. Update calls such as moves and sign-in go through consensus.
 - **The leaderboard scans all teams** on each call. That is fine for thousands of teams; at larger scale it needs a sorted index.
 - **World ID is hooks only.** Verification records and a per-mode policy exist, but every mode is set to off.
-- **Not run on a live replica yet.** The sandbox this was built in could not download the local network, so the first `./scripts/deploy-local.sh` on your machine is its first run on a real replica. The Rust tests drive every endpoint natively. The UI was clicked through end to end against a mock backend with a test wallet: connect, switch chain, sign in, create a team, quick match, plan and commit moves, view history, and give up.
+- **Not deployed to ICP mainnet yet.** It has run on a local replica (`deploy-local.sh` and the bot smoke test), but staging and production have never been deployed, so the first `deploy-ic.sh staging` is its first mainnet run.
