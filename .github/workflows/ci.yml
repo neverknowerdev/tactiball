@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  rust:
+    name: Rust tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: v2
+      - name: Engine and canister tests
+        run: cargo test --locked
+      - name: Canister builds for wasm32
+        run: cargo build --locked --release --target wasm32-unknown-unknown -p tactiball_backend
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v2/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: v2
+      - name: Read the pinned wasm-bindgen version
+        id: wb
+        working-directory: v2
+        run: echo "version=$(sed -n 's/^wasm-bindgen = "=\(.*\)"/\1/p' crates/engine-wasm/Cargo.toml)" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: v2/frontend/package-lock.json
+      - run: npm ci
+      # `build` first builds the engine WASM and the canister bindings.
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npx next build
