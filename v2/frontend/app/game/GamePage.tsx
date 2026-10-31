@@ -98,6 +98,9 @@ export default function GamePage() {
     const turnsSeen = useRef<number>(-1);
     const animating = useRef(false);
     const wasActive = useRef<boolean | null>(null);
+    const pollGeneration = useRef(0);
+    const pollRunning = useRef<Promise<void> | null>(null);
+    const pollAgain = useRef(false);
 
     const animate = useCallback(async (turns: TurnRecord[]) => {
         animating.current = true;
@@ -117,27 +120,29 @@ export default function GamePage() {
     }, []);
 
     // Polls the canister; replaces v1's Ably game channel.
-    const fetchGameData = useCallback(async () => {
+    const fetchOnce = useCallback(async () => {
         if (gameId === null) return;
+        // Bumped when the game or session changes: a fetch started before
+        // that must not touch the new state.
+        const generation = pollGeneration.current;
         try {
             await loadEngine();
             const g = await api().get_game(gameId);
+            if (generation !== pollGeneration.current) return;
             if (!g) throw new Error('Game not found');
             if (g.version === version.current) return;
             const previous = turnsSeen.current;
-            // Load the new turns before moving the cursors, so a failed
-            // get_turns is retried on the next poll instead of skipped.
+            // Load every new turn (from kick-off on the first load) before
+            // moving the cursors, so a failed get_turns is retried on the next
+            // poll instead of skipped.
+            const from = Math.max(previous, 0);
             const turns: TurnRecord[] = [];
-            if (previous < 0) {
-                // First load: the whole history, from kick-off.
-                while (turns.length < g.turns_played) {
-                    const page = await api().get_turns(gameId, turns.length + 1, 50);
-                    if (page.length === 0) break;
-                    turns.push(...page);
-                }
-            } else if (g.turns_played > previous) {
-                turns.push(...(await api().get_turns(gameId, previous + 1, 50)));
+            while (from + turns.length < g.turns_played) {
+                const page = await api().get_turns(gameId, from + turns.length + 1, 50);
+                if (page.length === 0) break;
+                turns.push(...page);
             }
+            if (generation !== pollGeneration.current) return;
             version.current = g.version;
             turnsSeen.current = g.turns_played;
 
@@ -178,7 +183,29 @@ export default function GamePage() {
         }
     }, [gameId, animate]);
 
+    // One poll at a time: the interval and the move handlers all call this,
+    // and a call made while one runs queues a single re-run after it.
+    const fetchGameData = useCallback(async () => {
+        if (pollRunning.current) {
+            pollAgain.current = true;
+            return pollRunning.current;
+        }
+        const run = (async () => {
+            do {
+                pollAgain.current = false;
+                await fetchOnce();
+            } while (pollAgain.current);
+        })();
+        pollRunning.current = run;
+        try {
+            await run;
+        } finally {
+            pollRunning.current = null;
+        }
+    }, [fetchOnce]);
+
     useEffect(() => {
+        pollGeneration.current += 1;
         version.current = -1n;
         turnsSeen.current = -1;
         wasActive.current = null;
